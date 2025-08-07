@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import styles from "./page.module.css";
 
 export default function Home() {
@@ -6,25 +7,17 @@ export default function Home() {
     <main className={styles.main}>
       <div className={styles.description}>
         <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
+          Welcome to Chat Frontend&nbsp;
+          <code className={styles.code}>OpenWebUI Interface</code>
         </p>
         <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/openwebui"
+            className="bg-primary text-white px-4 py-2 rounded text-decoration-none"
+            style={{ backgroundColor: '#0d6efd', color: 'white', padding: '8px 16px', borderRadius: '4px', textDecoration: 'none' }}
           >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+            Try OpenWebUI Interface
+          </Link>
         </div>
       </div>
 
@@ -37,20 +30,20 @@ export default function Home() {
           height={37}
           priority
         />
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginTop: '1rem' }}>Chat Frontend</h1>
+        <p style={{ fontSize: '1.1rem', color: '#666', marginTop: '0.5rem' }}>Modern AI Chat Interface</p>
       </div>
 
       <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
+        <Link
+          href="/openwebui"
           className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
         >
           <h2>
-            Docs <span>-&gt;</span>
+            OpenWebUI <span>-&gt;</span>
           </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
+          <p>Experience a modern AI chat interface with MDB components and multiple model support.</p>
+        </Link>
 
         <a
           href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
