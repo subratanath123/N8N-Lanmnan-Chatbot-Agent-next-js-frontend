@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { N8NRequest, N8NResponse } from '../../../src/component/openwebui/types';
+import { auth } from '@clerk/nextjs/server';
 
 export async function POST(request: NextRequest) {
   try {
     const body: N8NRequest = await request.json();
     const { message, workflowId, webhookUrl, sessionId, additionalParams } = body;
+
+    // Extract user information from the request
+    let userId: string | null = null;
+    let userEmail: string | null = null;
+    
+    try {
+      const { userId: clerkUserId } = await auth();
+      userId = clerkUserId;
+      
+      // Get user details if authenticated
+      if (userId) {
+        const user = await auth();
+        userEmail = user.user?.emailAddresses?.[0]?.emailAddress || null;
+      }
+    } catch (error) {
+      console.log('User not authenticated or auth error:', error);
+    }
 
 
     // Validate required fields
@@ -29,7 +47,15 @@ export async function POST(request: NextRequest) {
       workflowId,
       webhookUrl,
       sessionId,
-      additionalParams
+      additionalParams,
+      // Include user information if authenticated
+      user: userId ? {
+        id: userId,
+        email: userEmail,
+        isAuthenticated: true
+      } : {
+        isAuthenticated: false
+      }
     };
 
     // Call the backend N8N API
@@ -42,7 +68,10 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(n8nRequest),
     });
 
-    console.log('N8N request:', body);
+    console.log('N8N request:', {
+      ...body,
+      user: userId ? { id: userId, email: userEmail, isAuthenticated: true } : { isAuthenticated: false }
+    });
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

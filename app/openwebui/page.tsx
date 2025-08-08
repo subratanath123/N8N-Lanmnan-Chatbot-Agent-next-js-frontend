@@ -21,7 +21,7 @@ import {
   getSessionId, 
   getFileIcon 
 } from '../../src/component/openwebui/types';
-import { useUser } from '@clerk/nextjs';
+import { useUser, useAuth } from '@clerk/nextjs';
 import '../../src/component/openwebui/styles.css';
 
 export default function OpenWebUIPage() {
@@ -54,6 +54,7 @@ export default function OpenWebUIPage() {
   
   // Clerk Authentication State
   const { user, isSignedIn, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
@@ -106,11 +107,26 @@ export default function OpenWebUIPage() {
         }
       };
 
+      // Prepare headers with authentication if user is signed in
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add bearer token if user is signed in
+      if (isSignedIn) {
+        try {
+          const token = await getToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+        } catch (error) {
+          console.warn('Failed to get auth token:', error);
+        }
+      }
+
       const response = await fetch('/api/n8n', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(n8nRequestBody),
       });
 

@@ -30,6 +30,11 @@ export interface N8NRequest {
   webhookUrl: string;
   sessionId?: string;
   additionalParams?: Record<string, any>;
+  user?: {
+    id?: string;
+    email?: string;
+    isAuthenticated: boolean;
+  };
 }
 
 export interface N8NResponse {
