@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^4.29.9",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.0",
     "@fortawesome/fontawesome-free": "^6.5.1",
@@ -28,6 +29,7 @@
     "react-stomp-hooks": "^2.2.1",
     "react-top-loading-bar": "^3.0.2",
     "sockjs": "^0.3.24",
+    "svix": "^1.71.0",
     "websocket": "^1.0.34",
     "ws": "^8.16.0"
   },

@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import ChatService from "@/ChatService";
+import ChatService from "../../src/component/ChatService";
 
 const config = (window as any).__CHAT_WIDGET_CONFIG__ || {};
 

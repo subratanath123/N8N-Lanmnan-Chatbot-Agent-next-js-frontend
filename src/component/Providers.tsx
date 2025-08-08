@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionProvider } from "next-auth/react";
+import { ClerkProvider } from "@clerk/nextjs";
 import React, { ReactNode } from "react";
 
 interface Props {
@@ -8,7 +8,11 @@ interface Props {
 }
 
 const Providers = (props: Props) => {
-    return <SessionProvider>{props.children}</SessionProvider>;
+    return (
+        <ClerkProvider>
+            {props.children}
+        </ClerkProvider>
+    );
 };
 
 export default Providers;
