@@ -58,19 +58,41 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Call the backend N8N API
+    // Call the backend N8N API with different endpoints based on authentication
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
-    const response = await fetch(`${backendUrl}/v1/api/n8n/chat/custom`, {
+    
+    // Choose endpoint based on user authentication status
+    const endpoint = userId ? '/v1/api/n8n/authenticated/chat/custom' : '/v1/api/n8n/anonymous/chat/custom';
+    
+    // Prepare headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Add bearer token for authenticated users
+    if (userId) {
+      try {
+        // Get the authorization header from the original request
+        const authHeader = request.headers.get('authorization');
+        if (authHeader) {
+          headers['Authorization'] = authHeader;
+        }
+      } catch (error) {
+        console.warn('Failed to get auth header:', error);
+      }
+    }
+    
+    const response = await fetch(`${backendUrl}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(n8nRequest),
     });
 
     console.log('N8N request:', {
       ...body,
-      user: userId ? { id: userId, email: userEmail, isAuthenticated: true } : { isAuthenticated: false }
+      user: userId ? { id: userId, email: userEmail, isAuthenticated: true } : { isAuthenticated: false },
+      endpoint: endpoint,
+      backendUrl: `${backendUrl}${endpoint}`
     });
     
     if (!response.ok) {
