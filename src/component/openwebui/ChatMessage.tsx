@@ -86,7 +86,7 @@ export default function ChatMessage({ message, index, copyToClipboard }: ChatMes
           fontSize: '12px',
           opacity: 0.7
         }}>
-          <span>{message.timestamp.toLocaleDateString('en-US', { 
+          <span>{message.createdAt.toLocaleDateString('en-US', {
             month: 'long', 
             day: 'numeric' 
           })}</span>

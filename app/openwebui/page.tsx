@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import ChatMessage from '../../src/component/openwebui/ChatMessage';
 import LoadingMessage from '../../src/component/openwebui/LoadingMessage';
 import ChatInput from '../../src/component/openwebui/ChatInput';
@@ -8,20 +8,18 @@ import SettingsModal from '../../src/component/openwebui/SettingsModal';
 import N8NSettings from '../../src/component/openwebui/N8NSettings';
 import ClerkAuth from '../../src/component/openwebui/ClerkAuth';
 import ChatHistory from '../../src/component/openwebui/ChatHistory';
-import { 
-  Message, 
-  Model, 
-  ApiResponse, 
-  N8NConfig,
-  N8NResponse,
+import {
+  availableModels,
   ChatSession,
-  User,
-  availableModels, 
-  generateSessionId, 
-  getSessionId, 
-  getFileIcon 
+  generateSessionId,
+  getFileIcon,
+  getSessionId,
+  Message,
+  Model,
+  N8NConfig,
+  N8NResponse
 } from '../../src/component/openwebui/types';
-import { useUser, useAuth } from '@clerk/nextjs';
+import {useAuth, useUser} from '@clerk/nextjs';
 import '../../src/component/openwebui/styles.css';
 
 export default function OpenWebUIPage() {
@@ -30,7 +28,7 @@ export default function OpenWebUIPage() {
       id: '1',
       content: 'Hello! I\'m your AI assistant. How can I help you today? I can help you with various tasks like writing, analysis, coding, and more. Feel free to ask me anything!',
       role: 'assistant',
-      timestamp: new Date()
+      createdAt: new Date()
     }
   ]);
   const [selectedModel, setSelectedModel] = useState<Model>(availableModels[0]);
@@ -58,6 +56,8 @@ export default function OpenWebUIPage() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [loadingChatHistory, setLoadingChatHistory] = useState(false);
+  const [chatHistoryError, setChatHistoryError] = useState<string>('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +76,13 @@ export default function OpenWebUIPage() {
       }
     }
   }, []);
+
+  // Auto-load chat history when user signs in
+  useEffect(() => {
+    if (isSignedIn && isLoaded && user) {
+      loadUserChatSessions(user.id);
+    }
+  }, [isSignedIn, isLoaded, user]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -170,7 +177,7 @@ export default function OpenWebUIPage() {
       id: Date.now().toString(),
       content: messageContent,
       role: 'user',
-      timestamp: new Date()
+      createdAt: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -192,15 +199,10 @@ export default function OpenWebUIPage() {
         id: (Date.now() + 1).toString(),
         content: aiResponse,
         role: 'assistant',
-        timestamp: new Date()
+        createdAt: new Date()
       };
       
       setMessages(prev => [...prev, aiMessage]);
-      
-      // Save session for logged-in users
-      if (isSignedIn && user) {
-        await saveCurrentSession();
-      }
     } catch (error) {
       console.error('Failed to get AI response:', error);
       setError(error instanceof Error ? error.message : 'Failed to get AI response');
@@ -210,7 +212,7 @@ export default function OpenWebUIPage() {
         id: (Date.now() + 1).toString(),
         content: 'Sorry, I encountered an error while processing your request. Please try again.',
         role: 'assistant',
-        timestamp: new Date()
+        createdAt: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -227,7 +229,7 @@ export default function OpenWebUIPage() {
       id: Date.now().toString(),
       content: 'Hello! I\'m your AI assistant. How can I help you today?',
       role: 'assistant',
-      timestamp: new Date()
+      createdAt: new Date()
     }]);
     setError(''); // Clear any errors
   };
@@ -240,7 +242,7 @@ export default function OpenWebUIPage() {
       id: Date.now().toString(),
       content: 'Hello! I\'m your AI assistant. How can I help you today?',
       role: 'assistant',
-      timestamp: new Date()
+      createdAt: new Date()
     }]);
     setError(''); // Clear any errors
   };
@@ -271,75 +273,213 @@ export default function OpenWebUIPage() {
   };
 
   const loadUserChatSessions = async (userId: string) => {
+    setLoadingChatHistory(true);
+    setChatHistoryError('');
+    
     try {
-      // This would fetch from your backend API
-      // For now, we'll simulate loading sessions
-      const mockSessions: ChatSession[] = [
-        {
-          id: 'session_1',
-          userId: userId,
-          title: 'Previous Chat Session',
-          messages: [
-            {
-              id: '1',
-              content: 'Hello! How can I help you?',
-              role: 'assistant',
-              timestamp: new Date(Date.now() - 86400000) // 1 day ago
-            },
-            {
-              id: '2',
-              content: 'I need help with my project',
-              role: 'user',
-              timestamp: new Date(Date.now() - 86400000)
-            }
-          ],
-          createdAt: new Date(Date.now() - 86400000),
-          updatedAt: new Date(Date.now() - 86400000),
-          isAnonymous: false
+      // Prepare headers with authentication
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (isSignedIn) {
+        try {
+          const token = await getToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+        } catch (error) {
+          console.warn('Failed to get auth token:', error);
         }
-      ];
+      }
+
+      const response = await fetch('/api/chat-history?limit=50&offset=0', {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch chat history: ${response.status}`);
+      }
+
+      const data = await response.json();
       
-      setChatSessions(mockSessions);
+      if (!data.success) {
+        throw new Error(data.errorMessage || 'Failed to load chat history');
+      }
+
+      // Handle nested data structure - check if data.data exists and has data property
+      const chatHistoryArray = data.data?.data || data.data || [];
+      
+      // Ensure we have an array to work with
+      if (!Array.isArray(chatHistoryArray)) {
+        console.warn('Chat history data is not an array:', chatHistoryArray);
+        setChatSessions([]);
+        return;
+      }
+      
+      // Transform backend data to ChatSession format
+      const sessions: ChatSession[] = chatHistoryArray.map((session: any) => {
+        // Safely handle date fields - createdAt might be a Unix timestamp
+        const createdAtValue = session.createdAt ? 
+          (typeof session.createdAt === 'number' ? new Date(session.createdAt * 1000) : new Date(session.createdAt)) : 
+          new Date();
+        const updatedAt = session.updatedAt ? new Date(session.updatedAt) : createdAtValue;
+        
+        // Ensure dates are valid
+        const safeCreatedAt = isNaN(createdAtValue.getTime()) ? new Date() : createdAtValue;
+        const safeUpdatedAt = isNaN(updatedAt.getTime()) ? new Date() : updatedAt;
+
+        // Create messages array from userMessage and aiMessage
+        const messages: Message[] = [];
+        if (session.userMessage) {
+          messages.push({
+            id: `${session.id}_user`,
+            content: session.userMessage,
+            role: 'user',
+            createdAt: safeCreatedAt
+          });
+        }
+        if (session.aiMessage) {
+          messages.push({
+            id: `${session.id}_ai`,
+            content: session.aiMessage,
+            role: 'assistant',
+            createdAt: safeCreatedAt
+          });
+        }
+
+        // Generate title from userMessage
+        const title = session.title || 
+                     (session.userMessage ? session.userMessage.substring(0, 50) + (session.userMessage.length > 50 ? '...' : '') : 'Untitled Chat');
+
+        return {
+          id: session.conversationid || session.sessionId || session.id,
+          userId: session.email || session.userId,
+          title: title,
+          messages: messages,
+          createdAt: safeCreatedAt,
+          updatedAt: safeUpdatedAt,
+          isAnonymous: session.anonymous || false
+        };
+      });
+      
+      setChatSessions(sessions);
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
+      setChatHistoryError(error instanceof Error ? error.message : 'Failed to load chat history');
+    } finally {
+      setLoadingChatHistory(false);
     }
   };
 
-  const handleSelectSession = (session: ChatSession) => {
+  const handleSelectSession = async (session: ChatSession) => {
     setCurrentSessionId(session.id);
     setSessionId(session.id);
-    setMessages(session.messages);
-    setShowChatHistory(false);
+    setLoadingChatHistory(true);
+    setChatHistoryError('');
+    
+    try {
+      // Load full conversation messages from the specific endpoint
+      await loadConversationMessages(session.id);
+      setShowChatHistory(false);
+    } catch (error) {
+      console.error('Failed to load conversation messages:', error);
+      setChatHistoryError(error instanceof Error ? error.message : 'Failed to load conversation');
+      // Fallback to using the preview messages from the session list
+      setMessages(session.messages);
+      setShowChatHistory(false);
+    } finally {
+      setLoadingChatHistory(false);
+    }
   };
 
-  const saveCurrentSession = async () => {
-    if (!isSignedIn || !user) return; // Only save for logged-in users
-    
-    const currentSession: ChatSession = {
-      id: currentSessionId || sessionId,
-      userId: user.id,
-      title: messages.length > 1 ? messages[1].content.substring(0, 50) + '...' : 'New Chat',
-      messages: messages,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      isAnonymous: false
-    };
+  const loadConversationMessages = async (conversationId: string) => {
+    if (!isSignedIn) return;
 
     try {
-      // This would save to your backend API
-      // For now, we'll update local state
-      setChatSessions(prev => {
-        const existingIndex = prev.findIndex(s => s.id === currentSession.id);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = currentSession;
-          return updated;
-        } else {
-          return [...prev, currentSession];
+      // Prepare headers with authentication
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      const token = await getToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`/api/chat-history/${conversationId}/messages`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversation messages: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.errorMessage || 'Failed to load conversation messages');
+      }
+
+      // Handle the response data structure
+      const responseData = data.data?.data || data.data || data.messages || [];
+      
+      // Ensure we have an array
+      if (!Array.isArray(responseData)) {
+        console.warn('Messages data is not an array:', responseData);
+        throw new Error('Invalid messages format received');
+      }
+
+      // Transform the conversation records into individual messages
+      const transformedMessages: Message[] = [];
+      
+      responseData.forEach((record: any, recordIndex: number) => {
+        const createdAt = record.createdAt ? 
+          (typeof record.createdAt === 'number' ? new Date(record.createdAt * 1000) : new Date(record.createdAt)) : 
+          new Date();
+
+        // Add user message if it exists
+        if (record.userMessage) {
+          transformedMessages.push({
+            id: `${record.id}_user_${recordIndex}`,
+            content: record.userMessage,
+            role: 'user',
+            createdAt: createdAt
+          });
+        }
+
+        // Add AI message if it exists (with slightly later timestamp)
+        if (record.aiMessage) {
+          const aiTimestamp = new Date(createdAt.getTime() + 1000); // Add 1 second
+          transformedMessages.push({
+            id: `${record.id}_ai_${recordIndex}`,
+            content: record.aiMessage,
+            role: 'assistant',
+            createdAt: aiTimestamp
+          });
+        }
+
+        // Handle standard message format (fallback)
+        if (record.content || record.message) {
+          transformedMessages.push({
+            id: record.id || `msg_${recordIndex}`,
+            content: record.content || record.message || '',
+            role: record.role || (record.sender === 'user' ? 'user' : 'assistant'),
+            createdAt: createdAt
+          });
         }
       });
+
+      // Sort messages by creation time to ensure proper order
+      transformedMessages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+      setMessages(transformedMessages);
+      
     } catch (error) {
-      console.error('Failed to save session:', error);
+      console.error('Failed to load conversation messages:', error);
+      throw error;
     }
   };
 
@@ -681,29 +821,184 @@ export default function OpenWebUIPage() {
                   <span style={{ fontSize: '14px', color: '#333' }}>Memory</span>
                 </div>
                 
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 14px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  border: '1px solid #dee2e6',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08)',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.12)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.08)';
-                }}>
-                  <span>🔍</span>
-                  <span style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>Search</span>
-                </div>
+                {/*<div style={{*/}
+                {/*  display: 'flex',*/}
+                {/*  alignItems: 'center',*/}
+                {/*  gap: '8px',*/}
+                {/*  padding: '10px 14px',*/}
+                {/*  backgroundColor: '#f8f9fa',*/}
+                {/*  borderRadius: '10px',*/}
+                {/*  cursor: 'pointer',*/}
+                {/*  border: '1px solid #dee2e6',*/}
+                {/*  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08)',*/}
+                {/*  transition: 'all 0.2s ease'*/}
+                {/*}}*/}
+                {/*onMouseEnter={(e) => {*/}
+                {/*  e.currentTarget.style.transform = 'translateY(-1px)';*/}
+                {/*  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.12)';*/}
+                {/*}}*/}
+                {/*onMouseLeave={(e) => {*/}
+                {/*  e.currentTarget.style.transform = 'translateY(0)';*/}
+                {/*  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.08)';*/}
+                {/*}}>*/}
+                {/*  <span>🔍</span>*/}
+                {/*  <span style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>Search</span>*/}
+                {/*</div>*/}
+
+                {/* Chat History Section */}
+                {isSignedIn && (
+                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e9ecef' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '12px',
+                      paddingLeft: '4px'
+                    }}>
+                      <span style={{ 
+                        fontSize: '12px', 
+                        fontWeight: '600', 
+                        color: '#6c757d',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        Recent Chats
+                      </span>
+                      <button
+                        onClick={() => loadUserChatSessions(user?.id || '')}
+                        disabled={loadingChatHistory}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: loadingChatHistory ? 'not-allowed' : 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
+                          color: '#6c757d',
+                          fontSize: '12px',
+                          opacity: loadingChatHistory ? 0.5 : 1
+                        }}
+                      >
+                        {loadingChatHistory ? '⟳' : '↻'}
+                      </button>
+                    </div>
+
+                    {/* Loading State */}
+                    {loadingChatHistory && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '20px',
+                        color: '#6c757d',
+                        fontSize: '12px'
+                      }}>
+                        <span>Loading chat history...</span>
+                      </div>
+                    )}
+
+                    {/* Error State */}
+                    {chatHistoryError && !loadingChatHistory && (
+                      <div style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#f8d7da',
+                        border: '1px solid #f5c6cb',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        color: '#721c24',
+                        marginBottom: '8px'
+                      }}>
+                        {chatHistoryError}
+                      </div>
+                    )}
+
+                    {/* Chat History List */}
+                    {!loadingChatHistory && !chatHistoryError && (
+                      <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        {chatSessions.length === 0 ? (
+                          <div style={{
+                            padding: '20px 8px',
+                            textAlign: 'center',
+                            color: '#6c757d',
+                            fontSize: '12px'
+                          }}>
+                            No chat history found
+                          </div>
+                        ) : (
+                          chatSessions.map((session) => (
+                            <div
+                              key={session.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 12px',
+                                backgroundColor: session.id === currentSessionId ? '#e3f2fd' : 'white',
+                                border: session.id === currentSessionId ? '1px solid #2196f3' : '1px solid #e9ecef',
+                                borderRadius: '8px',
+                                marginBottom: '6px',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (session.id !== currentSessionId) {
+                                  e.currentTarget.style.backgroundColor = '#f8f9fa';
+                                  e.currentTarget.style.transform = 'translateY(-1px)';
+                                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (session.id !== currentSessionId) {
+                                  e.currentTarget.style.backgroundColor = 'white';
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                                }
+                              }}
+                            >
+                              <div
+                                onClick={() => handleSelectSession(session)}
+                                style={{
+                                  flex: 1,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <div style={{
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  color: '#333',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {session.title}
+                                </div>
+                                <div style={{
+                                  fontSize: '11px',
+                                  color: '#6c757d',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <span>💬</span>
+                                  <span>{session.messages.length} messages</span>
+                                  <span>•</span>
+                                  <span>
+                                    {session.updatedAt ? 
+                                      new Date(session.updatedAt).toLocaleDateString() : 
+                                      'Recent'
+                                    }
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             
@@ -741,35 +1036,35 @@ export default function OpenWebUIPage() {
                   <span>Settings</span>
                 </button>
                 
-                <button 
-                  onClick={() => setShowN8NSettings(true)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    backgroundColor: n8nConfig.enabled ? '#e3f2fd' : 'white',
-                    border: n8nConfig.enabled ? '1px solid #2196f3' : '1px solid #e9ecef',
-                    borderRadius: '10px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '14px',
-                    color: n8nConfig.enabled ? '#1976d2' : '#6c757d',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
-                  }}
-                >
-                  <span>🔗</span>
-                  <span>N8N Workflow {n8nConfig.enabled && '✓'}</span>
-                </button>
+                {/*<button */}
+                {/*  onClick={() => setShowN8NSettings(true)}*/}
+                {/*  style={{*/}
+                {/*    width: '100%',*/}
+                {/*    padding: '10px 14px',*/}
+                {/*    backgroundColor: n8nConfig.enabled ? '#e3f2fd' : 'white',*/}
+                {/*    border: n8nConfig.enabled ? '1px solid #2196f3' : '1px solid #e9ecef',*/}
+                {/*    borderRadius: '10px',*/}
+                {/*    cursor: 'pointer',*/}
+                {/*    display: 'flex',*/}
+                {/*    alignItems: 'center',*/}
+                {/*    gap: '8px',*/}
+                {/*    fontSize: '14px',*/}
+                {/*    color: n8nConfig.enabled ? '#1976d2' : '#6c757d',*/}
+                {/*    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',*/}
+                {/*    transition: 'all 0.2s ease'*/}
+                {/*  }}*/}
+                {/*  onMouseEnter={(e) => {*/}
+                {/*    e.currentTarget.style.transform = 'translateY(-1px)';*/}
+                {/*    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';*/}
+                {/*  }}*/}
+                {/*  onMouseLeave={(e) => {*/}
+                {/*    e.currentTarget.style.transform = 'translateY(0)';*/}
+                {/*    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';*/}
+                {/*  }}*/}
+                {/*>*/}
+                {/*  <span>🔗</span>*/}
+                {/*  <span>N8N Workflow {n8nConfig.enabled && '✓'}</span>*/}
+                {/*</button>*/}
               </div>
             ) : (
               <div style={{ 
@@ -841,7 +1136,9 @@ export default function OpenWebUIPage() {
                 N8N Workflow: {n8nConfig.workflowId || 'default-workflow'}
               </span>
               <span>•</span>
-              <span>{selectedModel.name} ({selectedModel.provider})</span>
+              <span>
+                {isSignedIn ? 'GPT-5 (OpenAI)' : 'GPT-4o-mini (OpenAI)'}
+              </span>
             </div>
 
             {/* Messages */}
@@ -854,14 +1151,27 @@ export default function OpenWebUIPage() {
               gap: '20px',
               animation: 'fadeIn 0.8s ease-out 1.4s both'
             }}>
-              {messages.map((message, index) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  index={index}
-                  copyToClipboard={copyToClipboard}
-                />
-              ))}
+              {loadingChatHistory && messages.length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '40px',
+                  color: '#6c757d',
+                  fontSize: '14px'
+                }}>
+                  <span>Loading conversation...</span>
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    index={index}
+                    copyToClipboard={copyToClipboard}
+                  />
+                ))
+              )}
               
               {isLoading && <LoadingMessage />}
               

@@ -81,18 +81,13 @@ export async function POST(request: NextRequest) {
         console.warn('Failed to get auth header:', error);
       }
     }
-    
+
+    headers['sessionId'] = sessionId || crypto.randomUUID(); //todo::fix this, otherwise  conversation will not be be relevant
+
     const response = await fetch(`${backendUrl}${endpoint}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(n8nRequest),
-    });
-
-    console.log('N8N request:', {
-      ...body,
-      user: userId ? { id: userId, email: userEmail, isAuthenticated: true } : { isAuthenticated: false },
-      endpoint: endpoint,
-      backendUrl: `${backendUrl}${endpoint}`
     });
     
     if (!response.ok) {
