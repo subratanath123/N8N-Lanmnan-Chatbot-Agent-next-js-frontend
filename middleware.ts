@@ -7,6 +7,7 @@ export default authMiddleware({
     "/openwebui",
     "/api/chat",
     "/api/n8n",
+    "/api/test",  // Add test API for debugging
     "/projects/list",
     "/projects/new",
     "/train"
