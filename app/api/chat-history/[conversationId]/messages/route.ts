@@ -44,7 +44,7 @@ export async function GET(
     }
 
     // Call backend API to get conversation messages
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = process.env.BACKEND_URL || 'http://https://chat-api-2187.onrender.com';
     const response = await fetch(`${backendUrl}/v1/api/chat-history/${conversationId}/messages`, {
       method: 'GET',
       headers,

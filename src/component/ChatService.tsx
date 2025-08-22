@@ -14,7 +14,7 @@ const fabStyle : React.CSSProperties = {
     zIndex: 1000,
 };
 
-const SOCKET_URL = "http://localhost:8000/websocket";
+const SOCKET_URL = "http://https://chat-api-2187.onrender.com/websocket";
 
 export default function ChatService({projectId}: { projectId: string | undefined }) {
     const {data: session} = useSession();

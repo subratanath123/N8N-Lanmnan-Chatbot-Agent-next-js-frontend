@@ -124,7 +124,7 @@ async function callN8NService(message: string, workflowId: string, webhookUrl: s
       additionalParams
     };
 
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = process.env.BACKEND_URL || 'http://https://chat-api-2187.onrender.com';
     const response = await fetch(`${backendUrl}/v1/api/n8n/chat/custom`, {
       method: 'POST',
       headers: {

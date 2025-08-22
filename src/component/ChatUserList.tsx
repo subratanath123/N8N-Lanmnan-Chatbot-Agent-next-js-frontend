@@ -52,7 +52,7 @@ const ChatUserList: React.FC<ChatUserListProps> = ({
 
     useEffect(() => {
         axios
-            .get('http://localhost:8000/v1/api/supportUserList', {
+            .get('http://https://chat-api-2187.onrender.com/v1/api/supportUserList', {
             headers: {
                 'Authorization': 'Bearer ' + session?.access_token
             }

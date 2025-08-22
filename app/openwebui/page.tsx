@@ -144,7 +144,7 @@ export default function OpenWebUIPage() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('workflowId', n8nConfig.workflowId || 'default-workflow');
-      formData.append('webhookUrl', n8nConfig.webhookUrl || 'http://localhost:5678/webhook/beab6fcf-f27a-4d26-8923-5f95e8190fea');
+      formData.append('webhookUrl', n8nConfig.webhookUrl || 'https://n8n-service-o6si.onrender.com/webhook-test/beab6fcf-f27a-4d26-8923-5f95e8190fea');
       formData.append('sessionId', sessionId);
       
       // Add message if provided
@@ -214,7 +214,7 @@ export default function OpenWebUIPage() {
       const n8nRequestBody = {
         message: userMessage,
         workflowId: n8nConfig.workflowId || 'default-workflow',
-        webhookUrl: n8nConfig.webhookUrl || 'http://localhost:5678/webhook/beab6fcf-f27a-4d26-8923-5f95e8190fea',
+        webhookUrl: n8nConfig.webhookUrl || 'https://n8n-service-o6si.onrender.com/webhook-test/beab6fcf-f27a-4d26-8923-5f95e8190fea',
         sessionId: sessionId,
         fileReferences: fileReferences, // Send file references instead of base64
         additionalParams: {

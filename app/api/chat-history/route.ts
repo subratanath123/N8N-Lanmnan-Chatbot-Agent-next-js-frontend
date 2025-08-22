@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Call backend API to get chat history
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = process.env.BACKEND_URL || 'http://https://chat-api-2187.onrender.com';
     const response = await fetch(`${backendUrl}/v1/api/chat-history?limit=${limit}&offset=${offset}`, {
       method: 'GET',
       headers,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Call backend API to save chat history
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = process.env.BACKEND_URL || 'http://https://chat-api-2187.onrender.com';
     const response = await fetch(`${backendUrl}/v1/api/chat-history`, {
       method: 'POST',
       headers,
@@ -205,7 +205,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Call backend API to delete chat history
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = process.env.BACKEND_URL || 'http://https://chat-api-2187.onrender.com';
     const response = await fetch(`${backendUrl}/v1/api/chat-history/${sessionId}`, {
       method: 'DELETE',
       headers,
