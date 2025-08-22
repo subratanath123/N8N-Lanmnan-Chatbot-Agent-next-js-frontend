@@ -5,6 +5,13 @@ export interface Message {
   createdAt: Date;
 }
 
+export interface Attachment {
+  name: string;
+  size: number;
+  type: string;
+  base64: string;
+}
+
 export interface Model {
   id: string;
   name: string;
@@ -35,6 +42,8 @@ export interface N8NRequest {
     email?: string;
     isAuthenticated: boolean;
   };
+  attachments?: Attachment[];
+  fileReferences?: string[]; // New field for file references after upload
 }
 
 export interface N8NResponse {

@@ -5,7 +5,7 @@ import { auth } from '@clerk/nextjs/server';
 export async function POST(request: NextRequest) {
   try {
     const body: N8NRequest = await request.json();
-    const { message, workflowId, webhookUrl, sessionId, additionalParams } = body;
+    const { message, workflowId, webhookUrl, sessionId, additionalParams, attachments, fileReferences } = body;
 
     // Extract user information from the request
     let userId: string | null = null;
@@ -48,6 +48,17 @@ export async function POST(request: NextRequest) {
       webhookUrl,
       sessionId,
       additionalParams,
+      // Use fileReferences if available, otherwise fall back to attachments
+      fileReferences: fileReferences || [],
+      attachments: attachments || [], // Keep for backward compatibility
+      // Include attachment metadata with mimetype info if attachments exist
+      attachmentMetadata: (attachments && attachments.length > 0) ? attachments.map(att => ({
+        name: att.name,
+        size: att.size,
+        type: att.type,
+        mimetype: att.type, // Explicit mimetype field
+        base64: att.base64
+      })) : [],
       // Include user information if authenticated
       user: userId ? {
         id: userId,
@@ -68,6 +79,53 @@ export async function POST(request: NextRequest) {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    
+    // Add attachment-related headers if attachments or fileReferences are present
+    if ((attachments && attachments.length > 0) || (fileReferences && fileReferences.length > 0)) {
+      const totalCount = (attachments?.length || 0) + (fileReferences?.length || 0);
+      console.log(`Processing request with ${totalCount} file(s) - ${attachments?.length || 0} attachments + ${fileReferences?.length || 0} file references`);
+      
+      headers['X-Has-Files'] = 'true';
+      headers['X-File-Count'] = totalCount.toString();
+      
+      // Add headers for base64 attachments if present
+      if (attachments && attachments.length > 0) {
+        headers['X-Has-Attachments'] = 'true';
+        headers['X-Attachment-Count'] = attachments.length.toString();
+        
+        // Add MIME type information for all attachments
+        attachments.forEach((attachment, index) => {
+          const prefix = index === 0 ? 'X-Attachment' : `X-Attachment-${index + 1}`;
+          headers[`${prefix}-Type`] = attachment.type;
+          headers[`${prefix}-Name`] = attachment.name;
+          headers[`${prefix}-Size`] = attachment.size.toString();
+          headers[`${prefix}-MimeType`] = attachment.type; // Explicit MIME type header
+        });
+      }
+      
+      // Add headers for file references if present
+      if (fileReferences && fileReferences.length > 0) {
+        headers['X-Has-File-References'] = 'true';
+        headers['X-File-Reference-Count'] = fileReferences.length.toString();
+        
+        // Add file reference information
+        fileReferences.forEach((fileRef, index) => {
+          const prefix = index === 0 ? 'X-File-Reference' : `X-File-Reference-${index + 1}`;
+          headers[`${prefix}`] = fileRef;
+        });
+      }
+      
+      // Add comprehensive file info header
+      const fileInfo = [
+        ...(attachments || []).map(att => `ATTACHMENT:${att.name}:${att.type}:${att.size}`),
+        ...(fileReferences || []).map(ref => `REFERENCE:${ref}`)
+      ].join(';');
+      headers['X-File-Info'] = fileInfo;
+      
+      console.log(`File headers added: ${Object.keys(headers).filter(key => key.startsWith('X-')).join(', ')}`);
+    } else {
+      console.log('No files in request');
+    }
     
     // Add bearer token for authenticated users
     if (userId) {

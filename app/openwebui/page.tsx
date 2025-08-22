@@ -17,7 +17,8 @@ import {
   Message,
   Model,
   N8NConfig,
-  N8NResponse
+  N8NResponse,
+  Attachment
 } from '../../src/component/openwebui/types';
 import {useAuth, useUser} from '@clerk/nextjs';
 import '../../src/component/openwebui/styles.css';
@@ -40,6 +41,7 @@ export default function OpenWebUIPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [isProcessingAttachments, setIsProcessingAttachments] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [n8nConfig, setN8nConfig] = useState<N8NConfig>({
@@ -60,6 +62,50 @@ export default function OpenWebUIPage() {
   const [chatHistoryError, setChatHistoryError] = useState<string>('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Utility function to convert file to base64
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:image/jpeg;base64, prefix if present
+        const base64 = result.split(',')[1] || result;
+        resolve(base64);
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Utility function to convert multiple files to base64
+  const convertFilesToBase64 = async (files: File[]): Promise<Attachment[]> => {
+    const attachments: Attachment[] = [];
+    const maxFileSize = 10 * 1024 * 1024; // 10MB limit
+    
+    for (const file of files) {
+      try {
+        // Check file size
+        if (file.size > maxFileSize) {
+          console.warn(`File ${file.name} is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Skipping.`);
+          continue;
+        }
+        
+        const base64 = await convertFileToBase64(file);
+        attachments.push({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          base64: base64
+        });
+      } catch (error) {
+        console.error(`Failed to convert file ${file.name} to base64:`, error);
+        // Continue with other files even if one fails
+      }
+    }
+    
+    return attachments;
+  };
 
   // Initialize session ID and N8N config on component mount
   useEffect(() => {
@@ -92,25 +138,90 @@ export default function OpenWebUIPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Function to make API call to get AI response
-  const getAIResponse = async (userMessage: string, modelId: string, temp: number, systemPrompt: string): Promise<string> => {
+    // Function to upload file to backend first
+  const uploadFileToBackend = async (file: File, message?: string): Promise<string> => {
     try {
-      // Always use N8N API for openwebui
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('workflowId', n8nConfig.workflowId || 'default-workflow');
+      formData.append('webhookUrl', n8nConfig.webhookUrl || 'http://localhost:5678/webhook/beab6fcf-f27a-4d26-8923-5f95e8190fea');
+      formData.append('sessionId', sessionId);
+      
+      // Add message if provided
+      if (message) {
+        formData.append('message', message);
+      }
+
+      // Prepare headers with authentication if user is signed in
+      const headers: Record<string, string> = {};
+
+      // Add bearer token if user is signed in
+      if (isSignedIn) {
+        try {
+          const token = await getToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+        } catch (error) {
+          console.warn('Failed to get auth token:', error);
+        }
+      }
+
+      const response = await fetch('/api/n8n/file-upload', {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`File upload failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.errorMessage || 'File upload failed');
+      }
+
+      return data.fileId || data.fileReference || 'file_uploaded'; // Return file reference
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  };
+
+  // Function to make API call to get AI response
+  const getAIResponse = async (userMessage: string, modelId: string, temp: number, systemPrompt: string, files: File[]): Promise<string> => {
+    try {
+      let fileReferences: string[] = [];
+
+      // If there are files, upload them first
+      if (files.length > 0) {
+        console.log(`Uploading ${files.length} file(s) to backend...`);
+        
+        for (const file of files) {
+          try {
+            const fileRef = await uploadFileToBackend(file, userMessage);
+            fileReferences.push(fileRef);
+            console.log(`File ${file.name} uploaded successfully with reference: ${fileRef}`);
+          } catch (error) {
+            console.error(`Failed to upload file ${file.name}:`, error);
+            throw new Error(`File upload failed: ${file.name} - ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+      }
+
+      // Now send the message with file references
       const n8nRequestBody = {
         message: userMessage,
         workflowId: n8nConfig.workflowId || 'default-workflow',
         webhookUrl: n8nConfig.webhookUrl || 'http://localhost:5678/webhook/beab6fcf-f27a-4d26-8923-5f95e8190fea',
         sessionId: sessionId,
+        fileReferences: fileReferences, // Send file references instead of base64
         additionalParams: {
           ...n8nConfig.additionalParams,
           temperature: temp,
           systemPrompt: systemPrompt,
-          model: modelId,
-          attachments: attachments.length > 0 ? attachments.map(file => ({
-            name: file.name,
-            size: file.size,
-            type: file.type
-          })) : []
+          model: modelId
         }
       };
 
@@ -164,13 +275,15 @@ export default function OpenWebUIPage() {
     // Clear any previous errors
     setError('');
 
-    // Create message content with attachments
+    // Create message content with attachment
     let messageContent = inputValue.trim();
     if (attachments.length > 0) {
-      const attachmentList = attachments.map(file => 
-        `${getFileIcon(file)} ${file.name} (${(file.size / 1024).toFixed(1)} KB)`
-      ).join('\n');
-      messageContent = messageContent + (messageContent ? '\n\n' : '') + `📎 Attachments:\n${attachmentList}`;
+      const file = attachments[0]; // Only one attachment
+      const sizeInMB = file.size / 1024 / 1024;
+      const isLarge = sizeInMB > 10;
+      // const status = isLarge ? '⚠️ File too large (>10MB)' : '✅ Ready for base64 conversion';
+      const attachmentInfo = `${getFileIcon(file)} ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      messageContent = messageContent + (messageContent ? '\n\n' : '') + `📎 Attachment:\n${attachmentInfo}`;
     }
 
     const userMessage: Message = {
@@ -185,6 +298,7 @@ export default function OpenWebUIPage() {
     setAttachments([]); // Clear attachments
     setShowAttachments(false); // Hide attachment preview
     setIsLoading(true);
+    setIsProcessingAttachments(true);
 
     try {
       // Get AI response from API
@@ -192,7 +306,8 @@ export default function OpenWebUIPage() {
         messageContent,
         selectedModel.id,
         temperature,
-        systemPrompt
+        systemPrompt,
+        attachments
       );
 
       const aiMessage: Message = {
@@ -217,6 +332,7 @@ export default function OpenWebUIPage() {
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      setIsProcessingAttachments(false);
     }
   };
 
@@ -770,56 +886,62 @@ export default function OpenWebUIPage() {
                   <span style={{ fontSize: '14px', color: '#333' }}>New Chat</span>
                 </div>
                 
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 14px',
-                  backgroundColor: 'white',
-                  borderRadius: '10px',
-                  marginBottom: '8px',
-                  cursor: 'pointer',
-                  border: '1px solid #e9ecef',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  transition: 'all 0.2s ease'
-                }}
-                onClick={handleNewSession}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
-                }}>
-                  <span>🔄</span>
-                  <span style={{ fontSize: '14px', color: '#333' }}>New Session</span>
-                </div>
+                {/* New Session - Only for authenticated users */}
+                {isSignedIn && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 14px',
+                    backgroundColor: 'white',
+                    borderRadius: '10px',
+                    marginBottom: '8px',
+                    cursor: 'pointer',
+                    border: '1px solid #e9ecef',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={handleNewSession}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                  }}>
+                    <span>🔄</span>
+                    <span style={{ fontSize: '14px', color: '#333' }}>New Session</span>
+                  </div>
+                )}
                 
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 14px',
-                  backgroundColor: 'white',
-                  borderRadius: '10px',
-                  marginBottom: '8px',
-                  cursor: 'pointer',
-                  border: '1px solid #e9ecef',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
-                }}>
-                  <span>🧠</span>
-                  <span style={{ fontSize: '14px', color: '#333' }}>Memory</span>
-                </div>
+                {/* Memory - Only for authenticated users */}
+                {isSignedIn && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 14px',
+                    backgroundColor: 'white',
+                    borderRadius: '10px',
+                    marginBottom: '8px',
+                    cursor: 'pointer',
+                    border: '1px solid #e9ecef',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                  }}>
+                    <span>🧠</span>
+                    <span style={{ fontSize: '14px', color: '#333' }}>Memory</span>
+                  </div>
+                )}
                 
                 {/*<div style={{*/}
                 {/*  display: 'flex',*/}
@@ -982,8 +1104,6 @@ export default function OpenWebUIPage() {
                                   gap: '4px'
                                 }}>
                                   <span>💬</span>
-                                  <span>{session.messages.length} messages</span>
-                                  <span>•</span>
                                   <span>
                                     {session.updatedAt ? 
                                       new Date(session.updatedAt).toLocaleDateString() : 
@@ -1190,6 +1310,7 @@ export default function OpenWebUIPage() {
               setShowAttachments={setShowAttachments}
               getFileIcon={getFileIcon}
               removeAttachment={removeAttachment}
+              isProcessingAttachments={isProcessingAttachments}
             />
           </div>
         </div>

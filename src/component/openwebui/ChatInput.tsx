@@ -11,6 +11,7 @@ interface ChatInputProps {
   setShowAttachments: (show: boolean) => void;
   getFileIcon: (file: File) => string;
   removeAttachment: (index: number) => void;
+  isProcessingAttachments?: boolean;
 }
 
 export default function ChatInput({
@@ -23,14 +24,22 @@ export default function ChatInput({
   showAttachments,
   setShowAttachments,
   getFileIcon,
-  removeAttachment
+  removeAttachment,
+  isProcessingAttachments = false
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    setAttachments([...attachments, ...files]);
-    setShowAttachments(true);
+    // Only allow one attachment at a time
+    if (files.length > 0) {
+      setAttachments([files[0]]); // Take only the first file
+      setShowAttachments(true);
+    }
+    // Clear the input so the same file can be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -45,7 +54,6 @@ export default function ChatInput({
       <input
         ref={fileInputRef}
         type="file"
-        multiple
         onChange={handleFileUpload}
         style={{ display: 'none' }}
       />
@@ -68,7 +76,27 @@ export default function ChatInput({
             fontWeight: '500',
             color: '#333'
           }}>
-            📎 Attachments ({attachments.length})
+            📎 Attachment
+            {isProcessingAttachments && (
+              <span style={{ 
+                fontSize: '12px', 
+                color: '#007bff', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '4px' 
+              }}>
+                <span style={{ 
+                  display: 'inline-block', 
+                  width: '12px', 
+                  height: '12px', 
+                  border: '2px solid #007bff', 
+                  borderTop: '2px solid transparent', 
+                  borderRadius: '50%', 
+                  animation: 'spin 1s linear infinite' 
+                }}></span>
+                Converting to base64...
+              </span>
+            )}
           </div>
           <div style={{
             display: 'flex',
