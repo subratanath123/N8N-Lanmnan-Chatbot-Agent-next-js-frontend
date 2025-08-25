@@ -26,7 +26,7 @@ const handler = NextAuth({
                 // console.log(token);
             }
 
-            const response = await axios.get(`http://https://chat-api-2187.onrender.com/v1/api/user/authenticated`, {
+            const response = await axios.get(`http://143.198.58.6:8080/v1/api/user/authenticated`, {
                 headers: {
                     'Authorization': `Bearer ${session?.access_token}`
                 }

@@ -64,8 +64,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({chatWithUser, projectId, onClose
         const fetchData = async () => {
 
             const messageFetchUrl = !projectId
-                ? `http://https://chat-api-2187.onrender.com/v1/api/get-recent-messages/${chatWithUser.email}`
-                : `http://https://chat-api-2187.onrender.com/v1/api/get-recent-messages/${chatWithUser.email}/${projectId}`
+                ? `http://143.198.58.6:8080/v1/api/get-recent-messages/${chatWithUser.email}`
+                : `http://143.198.58.6:8080/v1/api/get-recent-messages/${chatWithUser.email}/${projectId}`
 
             try {
                 const response = await axios.get(messageFetchUrl, {

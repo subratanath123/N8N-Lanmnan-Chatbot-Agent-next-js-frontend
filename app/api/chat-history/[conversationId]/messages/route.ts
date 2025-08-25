@@ -66,7 +66,7 @@ export async function GET(
     }
 
     // Call backend API to get conversation messages
-    const backendUrl = 'https://chat-api-2187.onrender.com';
+    const backendUrl = 'http://143.198.58.6:8080';
     const fullUrl = `${backendUrl}/v1/api/chat-history/${conversationId}/messages`;
     console.log(`[${requestId}] Calling backend API: ${fullUrl}`);
     console.log(`[${requestId}] Backend request headers:`, headers);

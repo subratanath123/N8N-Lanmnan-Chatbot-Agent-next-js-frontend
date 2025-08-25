@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the backend file upload API
-    const backendUrl =  'https://chat-api-2187.onrender.com';
+    const backendUrl =  'http://143.198.58.6:8080';
     
     // Choose endpoint based on user authentication status
     const endpoint = userId ? '/v1/api/n8n/authenticated/chat/file/direct' : '/v1/api/n8n/anonymous/chat/file/direct';

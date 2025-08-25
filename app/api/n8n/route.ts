@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Call the backend N8N API with different endpoints based on authentication
-    const backendUrl =  'https://chat-api-2187.onrender.com';
+    const backendUrl =  'http://143.198.58.6:8080';
     
     // Choose endpoint based on user authentication status
     const endpoint = userId ? '/v1/api/n8n/authenticated/chat/custom' : '/v1/api/n8n/anonymous/chat/custom';
@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Call the backend N8N health check API
-    const backendUrl =  'https://chat-api-2187.onrender.com';
+    const backendUrl =  'http://143.198.58.6:8080';
     const response = await fetch(`${backendUrl}/v1/api/n8n/health/${workflowId}?webhookUrl=${encodeURIComponent(webhookUrl)}`, {
       method: 'GET',
       headers: {

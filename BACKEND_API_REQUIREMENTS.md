@@ -3,7 +3,7 @@
 This document outlines the backend API endpoints that need to be implemented to support the chat history feature in the OpenWebUI frontend.
 
 ## Base URL
-The frontend expects the backend to be running at: `http://https://chat-api-2187.onrender.com` (configurable via `BACKEND_URL` environment variable)
+The frontend expects the backend to be running at: `http://143.198.58.6:8080` (configurable via `BACKEND_URL` environment variable)
 
 ## Required Endpoints
 
