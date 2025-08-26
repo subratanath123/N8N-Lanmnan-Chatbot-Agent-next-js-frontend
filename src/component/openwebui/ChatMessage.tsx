@@ -57,7 +57,7 @@ export default function ChatMessage({ message, index, copyToClipboard }: ChatMes
               color: '#ffd700',
               fontSize: '14px'
             }}>
-              Lanmnan
+              🤖
             </span>
             <span style={{ 
               fontSize: '12px', 

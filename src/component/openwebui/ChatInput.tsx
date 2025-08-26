@@ -58,8 +58,8 @@ export default function ChatInput({
         style={{ display: 'none' }}
       />
       
-      {/* Attachments Preview */}
-      {showAttachments && attachments.length > 0 && (
+      {/* Attachments Preview - Hidden */}
+      {/* {showAttachments && attachments.length > 0 && (
         <div style={{
           marginBottom: '12px',
           padding: '12px',
@@ -135,15 +135,15 @@ export default function ChatInput({
             ))}
           </div>
         </div>
-      )}
+      )} */}
       
       <form onSubmit={handleSendMessage} style={{
         display: 'flex',
         gap: '12px',
         alignItems: 'flex-end'
       }}>
-        {/* Attachment Button */}
-        <button
+        {/* Attachment Button - Hidden */}
+        {/* <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           style={{
@@ -173,13 +173,13 @@ export default function ChatInput({
           }}
         >
           📎
-        </button>
+        </button> */}
         
         <div style={{ flex: 1, position: 'relative' }}>
           <textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Message Lanmnan..."
+            placeholder="Message AI Assistant..."
             style={{
               width: '100%',
               padding: '14px 18px',

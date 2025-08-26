@@ -640,30 +640,17 @@ export default function OpenWebUIPage() {
             gap: '12px',
             animation: 'fadeInLeft 0.6s ease-out 0.2s both'
           }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              backgroundColor: '#ffd700',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              color: '#333',
-              boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
-              animation: 'pulse 2s ease-in-out infinite'
-            }}>
-              AI
-            </div>
-            <h1 style={{
-              fontSize: '20px',
-              fontWeight: '600',
-              color: '#333',
-              margin: 0
-            }}>
-              Lanmnan
-            </h1>
+            <img 
+              src="/logo.png" 
+              alt="Lanmnan Logo"
+              style={{
+                width: '120px',
+                height: 'auto',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+              }}
+            />
           </div>
 
           {/* Navigation */}
