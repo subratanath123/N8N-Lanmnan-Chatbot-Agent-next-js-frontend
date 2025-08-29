@@ -31,8 +31,14 @@ export default function Footer() {
                         <MDBRow className='mt-3'>
                             <MDBCol md="3" lg="4" xl="3" className='mx-auto mb-4'>
                                 <h6 className='text-uppercase fw-bold mb-4'>
-                                    <MDBIcon icon="gem" className="me-3"/>
-                                    Developers Inc.
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <img 
+                                            src="/favicon.png" 
+                                            alt="Lanmnan" 
+                                            style={{ width: '20px', height: '20px' }}
+                                        />
+                                        <span>Lanmnan</span>
+                                    </div>
                                 </h6>
                                 <p>
                                     We specialize in advanced software and protocol research with scalable real-time
@@ -69,7 +75,7 @@ export default function Footer() {
                 <div className='text-center p-4' style={{backgroundColor: 'rgba(0, 0, 0, 0.05)'}}>
                     © {new Date().getFullYear()} Copyright:
                     <a className='text-reset fw-bold' href='https://yourwebsite.com/'>
-                        iBrain Tech Solutions- Core
+                        Lanmnan AI
                     </a>
                 </div>
             </MDBFooter>

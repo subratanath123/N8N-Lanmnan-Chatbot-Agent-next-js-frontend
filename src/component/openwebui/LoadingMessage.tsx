@@ -22,20 +22,16 @@ export default function LoadingMessage() {
           alignItems: 'center',
           gap: '8px'
         }}>
-          <div style={{
-            width: '24px',
-            height: '24px',
-            backgroundColor: '#ffd700',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            boxShadow: '0 2px 6px rgba(255, 215, 0, 0.3)'
-          }}>
-            AI
-          </div>
+          <img 
+            src="/favicon.png" 
+            alt="Lanmnan" 
+            style={{ 
+              width: '24px', 
+              height: '24px',
+              borderRadius: '50%',
+              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)'
+            }}
+          />
           <div style={{
             display: 'flex',
             gap: '4px',

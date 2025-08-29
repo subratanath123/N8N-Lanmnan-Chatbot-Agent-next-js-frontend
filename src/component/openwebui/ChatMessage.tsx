@@ -38,36 +38,39 @@ export default function ChatMessage({ message, index, copyToClipboard }: ChatMes
             gap: '8px',
             marginBottom: '8px'
           }}>
-            <div style={{
-              width: '24px',
-              height: '24px',
-              backgroundColor: '#ffd700',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              boxShadow: '0 2px 6px rgba(255, 215, 0, 0.3)'
-            }}>
-              AI
-            </div>
-            <span style={{ 
-              fontWeight: '600', 
-              color: '#ffd700',
-              fontSize: '14px'
-            }}>
-              🤖
-            </span>
-            <span style={{ 
-              fontSize: '12px', 
-              color: '#6c757d',
-              backgroundColor: '#e9ecef',
-              padding: '2px 6px',
-              borderRadius: '4px'
-            }}>
-              Thinking process
-            </span>
+            {/*<div style={{*/}
+            {/*  width: '24px',*/}
+            {/*  height: '24px',*/}
+            {/*  backgroundColor: '#ffd700',*/}
+            {/*  borderRadius: '50%',*/}
+            {/*  display: 'flex',*/}
+            {/*  alignItems: 'center',*/}
+            {/*  justifyContent: 'center',*/}
+            {/*  fontSize: '12px',*/}
+            {/*  fontWeight: 'bold',*/}
+            {/*  boxShadow: '0 2px 6px rgba(255, 215, 0, 0.3)'*/}
+            {/*}}>*/}
+            {/*  AI*/}
+            {/*</div>*/}
+            <img 
+              src="/favicon.png" 
+              alt="Lanmnan" 
+              style={{ 
+                width: '20px', 
+                height: '20px',
+                borderRadius: '50%',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+            {/*<span style={{ */}
+            {/*  fontSize: '12px', */}
+            {/*  color: '#6c757d',*/}
+            {/*  backgroundColor: '#e9ecef',*/}
+            {/*  padding: '2px 6px',*/}
+            {/*  borderRadius: '4px'*/}
+            {/*}}>*/}
+            {/*  Thinking process*/}
+            {/*</span>*/}
           </div>
         )}
         

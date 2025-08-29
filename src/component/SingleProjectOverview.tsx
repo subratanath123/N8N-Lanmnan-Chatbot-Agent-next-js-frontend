@@ -20,8 +20,15 @@ export default function SingleProjectOverview({overview}: { overview: ProjectOve
         <MDBCard className='shadow-4 border rounded-4'>
             <MDBCardBody>
                 <MDBCardTitle className='text-primary'>
-                    <MDBIcon fas icon='project-diagram' className='me-2'/>
-                    Crawl Progress: {project.projectName}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <img 
+                            src="/favicon.png" 
+                            alt="Lanmnan" 
+                            style={{ width: '20px', height: '20px' }}
+                        />
+                        <MDBIcon fas icon='project-diagram' className='me-2'/>
+                        Crawl Progress: {project.projectName}
+                    </div>
                 </MDBCardTitle>
 
                 <p className='text-muted'>

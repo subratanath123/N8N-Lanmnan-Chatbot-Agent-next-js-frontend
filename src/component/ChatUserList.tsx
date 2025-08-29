@@ -90,6 +90,27 @@ const ChatUserList: React.FC<ChatUserListProps> = ({
                 <Box sx={{width: 250}} role="presentation" onClick={(e) => {
                     onClick(false)
                 }}>
+                    <div style={{
+                        padding: '16px',
+                        borderBottom: '1px solid #e0e0e0',
+                        backgroundColor: '#f8f9fa'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            color: '#333'
+                        }}>
+                            <img 
+                                src="/favicon.png" 
+                                alt="Lanmnan" 
+                                style={{ width: '20px', height: '20px' }}
+                            />
+                            <span>Chat Users</span>
+                        </div>
+                    </div>
                     <List>
                         {
                             !!state.userList

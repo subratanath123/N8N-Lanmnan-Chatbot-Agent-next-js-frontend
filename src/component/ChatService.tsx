@@ -43,7 +43,16 @@ export default function ChatService({projectId}: { projectId: string | undefined
                             setState({...state, showUserList: true, fetchUserList: true})
                         }
                     >
-                        <Fab variant="extended">Live chat</Fab>
+                        <Fab variant="extended">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <img 
+                                    src="/favicon.png" 
+                                    alt="Lanmnan" 
+                                    style={{ width: '20px', height: '20px' }}
+                                />
+                                <span>Live chat</span>
+                            </div>
+                        </Fab>
                     </div>
                 {/*)}*/}
 

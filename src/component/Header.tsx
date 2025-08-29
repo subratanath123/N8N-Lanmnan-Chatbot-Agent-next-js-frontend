@@ -21,7 +21,16 @@ export default function Header() {
     return (
         <MDBNavbar expand='lg' light bgColor='light'>
             <MDBContainer fluid>
-                <MDBNavbarBrand href='#'>Jade AI Bot</MDBNavbarBrand>
+                <MDBNavbarBrand href='#'>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <img 
+                            src="/favicon.png" 
+                            alt="Lanmnan" 
+                            style={{ width: '24px', height: '24px' }}
+                        />
+                        <span>Lanmnan AI</span>
+                    </div>
+                </MDBNavbarBrand>
                 <MDBNavbarToggler
                     aria-controls='navbarNav'
                     aria-expanded='false'

@@ -65,7 +65,18 @@ export default function ChatHistory({
           alignItems: 'center',
           marginBottom: '20px'
         }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Chat History</h3>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <img 
+              src="/favicon.png" 
+              alt="Lanmnan" 
+              style={{ width: '20px', height: '20px' }}
+            />
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Chat History</h3>
+          </div>
           <button
             onClick={onClose}
             style={{
@@ -127,14 +138,25 @@ export default function ChatHistory({
                   alignItems: 'flex-start',
                   marginBottom: '8px'
                 }}>
-                  <h4 style={{
-                    margin: 0,
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#333'
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
                   }}>
-                    {session.title}
-                  </h4>
+                    <img 
+                      src="/favicon.png" 
+                      alt="Lanmnan" 
+                      style={{ width: '16px', height: '16px' }}
+                    />
+                    <h4 style={{
+                      margin: 0,
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      color: '#333'
+                    }}>
+                      {session.title}
+                    </h4>
+                  </div>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',

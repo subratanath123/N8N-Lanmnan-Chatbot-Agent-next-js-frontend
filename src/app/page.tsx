@@ -7,7 +7,7 @@ export default function Home() {
     <main className={styles.main}>
       <div className={styles.description}>
         <p>
-          Welcome to Chat Frontend&nbsp;
+          Welcome to Lanmnan&nbsp;
           <code className={styles.code}>OpenWebUI Interface</code>
         </p>
         <div>
@@ -30,7 +30,14 @@ export default function Home() {
           height={37}
           priority
         />
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginTop: '1rem' }}>Chat Frontend</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '1rem' }}>
+          <img 
+            src="/favicon.png" 
+            alt="Lanmnan" 
+            style={{ width: '32px', height: '32px' }}
+          />
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>Lanmnan</h1>
+        </div>
         <p style={{ fontSize: '1.1rem', color: '#666', marginTop: '0.5rem' }}>Modern AI Chat Interface</p>
       </div>
 

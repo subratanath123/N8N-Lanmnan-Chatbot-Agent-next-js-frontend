@@ -25,7 +25,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 borderTopLeftRadius: "15px",
                 borderTopRightRadius: "15px",
             }}>
-            <p className="mb-0 fw-bold">{title}</p>
+            <div className="d-flex align-items-center">
+                <img 
+                    src="/favicon.png" 
+                    alt="Lanmnan" 
+                    style={{ width: '20px', height: '20px', marginRight: '8px' }}
+                />
+                <p className="mb-0 fw-bold">{title}</p>
+            </div>
 
             <MDBBtn className="fas fa-times bg-transparent shadow-0 btn-group-lg"
                     onClick={onClick}/>

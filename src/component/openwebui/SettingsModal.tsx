@@ -54,7 +54,18 @@ export default function SettingsModal({
           alignItems: 'center',
           marginBottom: '20px'
         }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Settings</h3>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <img 
+              src="/favicon.png" 
+              alt="Lanmnan" 
+              style={{ width: '20px', height: '20px' }}
+            />
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Settings</h3>
+          </div>
           <button
             onClick={() => setShowSettings(false)}
             style={{

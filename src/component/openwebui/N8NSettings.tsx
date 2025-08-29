@@ -79,9 +79,20 @@ export default function N8NSettings({
           alignItems: 'center',
           marginBottom: '24px'
         }}>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '600', color: '#333' }}>
-            N8N Workflow Settings
-          </h2>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <img 
+              src="/favicon.png" 
+              alt="Lanmnan" 
+              style={{ width: '24px', height: '24px' }}
+            />
+            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '600', color: '#333' }}>
+              N8N Workflow Settings
+            </h2>
+          </div>
           <button
             onClick={onClose}
             style={{
