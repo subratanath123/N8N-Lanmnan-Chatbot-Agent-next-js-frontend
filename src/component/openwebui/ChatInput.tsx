@@ -43,13 +43,16 @@ export default function ChatInput({
   };
 
   return (
-    <div style={{ 
-      padding: '20px', 
-      borderTop: '1px solid #e9ecef',
-      backgroundColor: 'white',
-      boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.04)',
-      animation: 'slideInUp 0.6s ease-out 1.8s both'
-    }}>
+    <div 
+      className="responsive-input"
+      style={{ 
+        padding: '20px', 
+        borderTop: '1px solid #e9ecef',
+        backgroundColor: 'white',
+        boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.04)',
+        animation: 'slideInUp 0.6s ease-out 1.8s both'
+      }}
+    >
       {/* Hidden file input */}
       <input
         ref={fileInputRef}

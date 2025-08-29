@@ -22,6 +22,7 @@ import {
 } from '@/component/openwebui/types';
 import {useAuth, useUser} from '@clerk/nextjs';
 import '@/component/openwebui/styles.css';
+import '@/component/openwebui/responsive.css';
 
 export default function OpenWebUIPage() {
   const [messages, setMessages] = useState<Message[]>([
@@ -779,17 +780,53 @@ export default function OpenWebUIPage() {
           overflow: 'hidden',
           animation: 'fadeIn 0.8s ease-out 0.8s both'
         }}>
+          {/* Mobile Sidebar Toggle */}
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="responsive-sidebar-toggle"
+            style={{
+              display: 'none'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          
+          {/* Mobile Backdrop */}
+          {!sidebarCollapsed && (
+            <div 
+              className="responsive-backdrop"
+              onClick={() => setSidebarCollapsed(true)}
+              style={{
+                display: 'none',
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                zIndex: 999
+              }}
+            />
+          )}
+          
           {/* Sidebar */}
-          <div style={{ 
-            width: sidebarCollapsed ? '60px' : '280px', 
-            backgroundColor: '#fafbfc', 
-            borderRight: '1px solid #e9ecef',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.04)',
-            animation: 'slideInLeft 0.6s ease-out 1s both',
-            transition: 'width 0.3s ease'
-          }}>
+          <div 
+            className={`responsive-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}
+            style={{ 
+              width: sidebarCollapsed ? '60px' : '280px', 
+              backgroundColor: '#fafbfc', 
+              borderRight: '1px solid #e9ecef',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '2px 0 8px rgba(0, 0, 0, 0.04)',
+              animation: 'slideInLeft 0.6s ease-out 1s both',
+              transition: 'width 0.3s ease'
+            }}
+          >
             {/* Header */}
             <div style={{ 
               padding: '20px', 
@@ -1231,14 +1268,17 @@ export default function OpenWebUIPage() {
           </div>
 
           {/* Main Chat Area */}
-          <div style={{ 
-            flex: 1, 
-            display: 'flex', 
-            flexDirection: 'column',
-            backgroundColor: 'white',
-            boxShadow: 'inset 1px 0 3px rgba(0, 0, 0, 0.02)',
-            animation: 'slideInRight 0.6s ease-out 1.2s both'
-          }}>
+          <div 
+            className="responsive-chat-area"
+            style={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              backgroundColor: 'white',
+              boxShadow: 'inset 1px 0 3px rgba(0, 0, 0, 0.02)',
+              animation: 'slideInRight 0.6s ease-out 1.2s both'
+            }}
+          >
             {/* Model Indicator */}
             <div style={{
               padding: '8px 16px',

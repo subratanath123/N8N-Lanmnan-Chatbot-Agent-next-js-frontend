@@ -17,20 +17,23 @@ export default function ChatMessage({ message, index, copyToClipboard }: ChatMes
         animation: `slideIn${message.role === 'user' ? 'Right' : 'Left'} 0.5s ease-out ${1.6 + index * 0.1}s both`
       }}
     >
-      <div style={{
-        maxWidth: '85%',
-        padding: '14px 18px',
-        borderRadius: '16px',
-        backgroundColor: message.role === 'user' ? '#007bff' : '#f8f9fa',
-        color: message.role === 'user' ? 'white' : '#333',
-        position: 'relative',
-        boxShadow: message.role === 'user' 
-          ? '0 4px 12px rgba(0, 123, 255, 0.2)' 
-          : '0 2px 8px rgba(0, 0, 0, 0.06)',
-        border: message.role === 'user' 
-          ? 'none' 
-          : '1px solid rgba(0, 0, 0, 0.05)'
-      }}>
+      <div 
+        className="responsive-message"
+        style={{
+          maxWidth: '85%',
+          padding: '14px 18px',
+          borderRadius: '16px',
+          backgroundColor: message.role === 'user' ? '#007bff' : '#f8f9fa',
+          color: message.role === 'user' ? 'white' : '#333',
+          position: 'relative',
+          boxShadow: message.role === 'user' 
+            ? '0 4px 12px rgba(0, 123, 255, 0.2)' 
+            : '0 2px 8px rgba(0, 0, 0, 0.06)',
+          border: message.role === 'user' 
+            ? 'none' 
+            : '1px solid rgba(0, 0, 0, 0.05)'
+        }}
+      >
         {message.role === 'assistant' && (
           <div style={{
             display: 'flex',
