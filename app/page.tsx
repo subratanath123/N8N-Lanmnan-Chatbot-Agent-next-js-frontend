@@ -695,6 +695,31 @@ export default function OpenWebUIPage() {
             onMouseLeave={(e) => e.currentTarget.style.color = '#6c757d'}>
               Pricing
             </a>
+            {isSignedIn && (
+              <a href="/dashboard" style={{
+                textDecoration: 'none',
+                color: '#007bff',
+                fontSize: '14px',
+                fontWeight: '600',
+                transition: 'all 0.2s ease',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                backgroundColor: '#f8f9fa',
+                border: '1px solid #e9ecef'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#0056b3';
+                e.currentTarget.style.backgroundColor = '#e3f2fd';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#007bff';
+                e.currentTarget.style.backgroundColor = '#f8f9fa';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}>
+                🏠 Dashboard
+              </a>
+            )}
             <a href="#" style={{
               textDecoration: 'none',
               color: '#6c757d',
@@ -949,6 +974,38 @@ export default function OpenWebUIPage() {
                     <span>🔄</span>
                     <span style={{ fontSize: '14px', color: '#333' }}>New Session</span>
                   </div>
+                )}
+
+                {/* Dashboard - Only for authenticated users */}
+                {isSignedIn && (
+                  <a href="/dashboard" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 14px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '10px',
+                    marginBottom: '8px',
+                    cursor: 'pointer',
+                    border: '1px solid #dee2e6',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08)',
+                    transition: 'all 0.2s ease',
+                    textDecoration: 'none',
+                    color: 'inherit'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.12)';
+                    e.currentTarget.style.backgroundColor = '#e3f2fd';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.08)';
+                    e.currentTarget.style.backgroundColor = '#f8f9fa';
+                  }}>
+                    <span>🏠</span>
+                    <span style={{ fontSize: '14px', color: '#007bff', fontWeight: '500' }}>Dashboard</span>
+                  </a>
                 )}
                 
                 {/* Memory - Only for authenticated users */}

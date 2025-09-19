@@ -1,0 +1,135 @@
+/* Dashboard Navigation Styles */
+.dashboard-nav {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-bottom: 1px solid #e9ecef;
+  background-color: #ffffff !important;
+}
+
+.dashboard-nav .nav-link {
+  color: #495057 !important;
+  font-weight: 500;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+}
+
+.dashboard-nav .nav-link:hover {
+  color: #007bff !important;
+  background-color: #f8f9fa;
+  transform: translateY(-1px);
+}
+
+.dashboard-nav .nav-link.active {
+  color: #007bff !important;
+  background-color: #e3f2fd;
+}
+
+.dashboard-nav .dropdown-toggle {
+  text-decoration: none !important;
+  color: #495057 !important;
+}
+
+.dashboard-nav .dropdown-toggle:hover {
+  color: #007bff !important;
+}
+
+.dashboard-nav .dropdown-menu {
+  border: 1px solid #e9ecef;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.dashboard-nav .dropdown-item {
+  padding: 0.5rem 1rem;
+  color: #495057;
+  transition: all 0.2s ease;
+}
+
+.dashboard-nav .dropdown-item:hover {
+  background-color: #f8f9fa;
+  color: #007bff;
+}
+
+/* Dashboard Layout */
+.dashboard-layout {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.dashboard-main {
+  background-color: #ffffff;
+  min-height: calc(100vh - 56px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .dashboard-nav .navbar-nav {
+    margin-top: 1rem;
+  }
+  
+  .dashboard-nav .nav-link {
+    padding: 0.75rem 1rem !important;
+    border-radius: 0;
+    border-bottom: 1px solid #e9ecef;
+  }
+  
+  .dashboard-nav .nav-link:hover {
+    background-color: #f8f9fa;
+    transform: none;
+  }
+  
+  .dashboard-main {
+    padding: 0;
+  }
+}
+
+/* Animation for loading states */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Badge styles */
+.dashboard-nav .badge {
+  font-size: 0.65rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* User avatar in dropdown */
+.dashboard-nav .user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #007bff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Card hover effects */
+.dashboard-card {
+  transition: all 0.2s ease;
+  border: 1px solid #e9ecef;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Status indicators */
+.status-online {
+  color: #28a745;
+}
+
+.status-offline {
+  color: #6c757d;
+}
+
+.status-busy {
+  color: #ffc107;
+}
