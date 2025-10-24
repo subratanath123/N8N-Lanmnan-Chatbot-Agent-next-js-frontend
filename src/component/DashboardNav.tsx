@@ -52,19 +52,16 @@ export default function DashboardNav() {
     }
 
     return (
-        <MDBNavbar expand='lg' light bgColor='light' className="dashboard-nav" style={{ 
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            borderBottom: '1px solid #e9ecef'
-        }}>
+        <MDBNavbar expand='lg' light bgColor='light' className="dashboard-nav">
             <MDBContainer fluid className="dashboard-container">
                 <MDBNavbarBrand href='/' className="dashboard-brand">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <img 
                             src="/favicon.png" 
-                            alt="Lanmnan" 
+                            alt="Jade AI" 
                             style={{ width: '24px', height: '24px' }}
                         />
-                        <span style={{ fontWeight: '600' }}>Lanmnan AI</span>
+                        <span style={{ fontWeight: '600' }}>Jade AI</span>
                     </div>
                 </MDBNavbarBrand>
                 
@@ -78,37 +75,39 @@ export default function DashboardNav() {
                 </MDBNavbarToggler>
                 
                 <MDBCollapse navbar show={showNav}>
-                    <MDBNavbarNav className="me-auto mb-2 mb-lg-0">
-                        <MDBNavbarItem>
-                            <MDBNavbarLink as={Link} href='/' className="nav-link">
-                                <MDBIcon icon='home' className="me-1" />
-                                Home
-                            </MDBNavbarLink>
-                        </MDBNavbarItem>
-                        
-                        <MDBNavbarItem>
-                            <MDBNavbarLink as={Link} href='/dashboard' className="nav-link">
-                                <MDBIcon icon='tachometer-alt' className="me-1" />
-                                Dashboard
-                            </MDBNavbarLink>
-                        </MDBNavbarItem>
-                        
-                        <MDBNavbarItem>
-                            <MDBNavbarLink as={Link} href='/projects' className="nav-link">
-                                <MDBIcon icon='folder' className="me-1" />
-                                Projects
-                            </MDBNavbarLink>
-                        </MDBNavbarItem>
-                        
-                        <MDBNavbarItem>
-                            <MDBNavbarLink as={Link} href='/settings' className="nav-link">
-                                <MDBIcon icon='cog' className="me-1" />
-                                Settings
-                            </MDBNavbarLink>
-                        </MDBNavbarItem>
-                    </MDBNavbarNav>
+                    {/* Search Bar */}
+                    <div className={`search-container ${showNav ? 'show' : 'hide'}`}>
+                        <div className="search-input-wrapper">
+                            <MDBIcon icon='search' className="search-icon-left" />
+                            <input 
+                                type="text" 
+                                placeholder="Search For documents, templates and chatbots"
+                                className="search-input"
+                            />
+                            <MDBIcon icon='microphone' className="search-icon-right" />
+                        </div>
+                    </div>
                     
                     <MDBNavbarNav className="ms-auto">
+                        {/* Action Buttons */}
+                        <MDBNavbarItem>
+                            <button className="upgrade-btn">
+                                Upgrade
+                            </button>
+                        </MDBNavbarItem>
+                        
+                        <MDBNavbarItem>
+                            <MDBIcon icon='sun' className="action-icon" />
+                        </MDBNavbarItem>
+                        
+                        <MDBNavbarItem>
+                            <MDBIcon icon='bell' className="action-icon" />
+                        </MDBNavbarItem>
+                        
+                        <MDBNavbarItem>
+                            <MDBIcon icon='question-circle' className="action-icon" />
+                        </MDBNavbarItem>
+                        
                         <MDBNavbarItem>
                             <MDBDropdown>
                                 <MDBDropdownToggle tag="a" className="nav-link dropdown-toggle" role="button">

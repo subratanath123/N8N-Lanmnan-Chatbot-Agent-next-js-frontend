@@ -24,15 +24,8 @@ export default function DashboardLayout({ children, showNav = true }: DashboardL
                 flexDirection: 'column',
                 gap: '16px'
             }}>
-                <div style={{
-                    width: '40px',
-                    height: '40px',
-                    border: '4px solid #f3f3f3',
-                    borderTop: '4px solid #007bff',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                }} />
-                <p style={{ color: '#6c757d', margin: 0 }}>Loading...</p>
+                <div className="loading-spinner" />
+                <p className="loading-text">Loading...</p>
             </div>
         );
     }
@@ -58,8 +51,22 @@ export default function DashboardLayout({ children, showNav = true }: DashboardL
                     100% { transform: rotate(360deg); }
                 }
                 
+                .loading-spinner {
+                    width: 40px;
+                    height: 40px;
+                    border: 4px solid #f3f3f3;
+                    border-top: 4px solid #007BFF;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+                
+                .loading-text {
+                    color: #6c757d;
+                    margin: 0;
+                }
+                
                 .dashboard-layout {
-                    background-color: #f8f9fa;
+                    background-color: #F8F9FA;
                 }
                 
                 .dashboard-main {

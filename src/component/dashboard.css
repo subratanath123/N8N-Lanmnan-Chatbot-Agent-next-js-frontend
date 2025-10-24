@@ -1,69 +1,74 @@
 /* Dashboard Navigation Styles */
 .dashboard-nav {
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   border-bottom: 1px solid #e9ecef;
   background-color: #ffffff !important;
 }
 
 .dashboard-nav .nav-link {
-  color: #495057 !important;
+  color: #212529 !important;
   font-weight: 500;
   padding: 0.5rem 1rem !important;
-  border-radius: 0.375rem;
+  border-radius: 8px;
   transition: all 0.2s ease;
 }
 
 .dashboard-nav .nav-link:hover {
-  color: #007bff !important;
-  background-color: #f8f9fa;
+  color: #007BFF !important;
+  background-color: #F8F9FA;
   transform: translateY(-1px);
 }
 
 .dashboard-nav .nav-link.active {
-  color: #007bff !important;
-  background-color: #e3f2fd;
+  color: #007BFF !important;
+  background-color: rgba(0, 123, 255, 0.1);
 }
 
 .dashboard-nav .dropdown-toggle {
   text-decoration: none !important;
-  color: #495057 !important;
+  color: #212529 !important;
 }
 
 .dashboard-nav .dropdown-toggle:hover {
-  color: #007bff !important;
+  color: #007BFF !important;
 }
 
 .dashboard-nav .dropdown-menu {
   border: 1px solid #e9ecef;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
   margin-top: 0.5rem;
 }
 
 .dashboard-nav .dropdown-item {
   padding: 0.5rem 1rem;
-  color: #495057;
+  color: #212529;
   transition: all 0.2s ease;
 }
 
 .dashboard-nav .dropdown-item:hover {
-  background-color: #f8f9fa;
-  color: #007bff;
+  background-color: #F8F9FA;
+  color: #007BFF;
 }
 
 /* Dashboard Layout */
 .dashboard-layout {
   min-height: 100vh;
-  background-color: #f8f9fa;
+  background-color: #F8F9FA !important;
 }
 
 .dashboard-main {
-  background-color: #ffffff;
-  min-height: calc(100vh - 56px);
+  background-color: #ffffff !important;
+  min-height: 100vh;
+  padding: 2rem;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .dashboard-layout {
+    margin-left: 0;
+  }
+  
   .dashboard-nav .navbar-nav {
     margin-top: 1rem;
   }
@@ -71,16 +76,20 @@
   .dashboard-nav .nav-link {
     padding: 0.75rem 1rem !important;
     border-radius: 0;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid var(--border-color);
   }
   
   .dashboard-nav .nav-link:hover {
-    background-color: #f8f9fa;
+    background-color: var(--main-bg);
     transform: none;
   }
   
   .dashboard-main {
-    padding: 0;
+    padding: 1rem;
+  }
+  
+  .search-container {
+    display: none !important;
   }
 }
 
@@ -123,13 +132,96 @@
 
 /* Status indicators */
 .status-online {
-  color: #28a745;
+  color: var(--accent-green);
 }
 
 .status-offline {
-  color: #6c757d;
+  color: var(--text-secondary);
 }
 
 .status-busy {
-  color: #ffc107;
+  color: var(--accent-orange);
+}
+
+/* Search Bar Styles */
+.search-container {
+  flex: 1;
+  max-width: 500px;
+  margin: 0 2rem;
+}
+
+.search-container.hide {
+  display: none;
+}
+
+.search-container.show {
+  display: block;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon-left {
+  position: absolute;
+  left: 12px;
+  color: #6c757d;
+  z-index: 1;
+}
+
+.search-icon-right {
+  position: absolute;
+  right: 12px;
+  color: #6c757d;
+  cursor: pointer;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px 8px 40px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 14px;
+  background-color: #ffffff;
+  color: #212529;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  border-color: #007BFF;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+/* Action Button Styles */
+.upgrade-btn {
+  background-color: #28A745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 12px;
+}
+
+.upgrade-btn:hover {
+  background-color: #218838;
+  transform: translateY(-1px);
+}
+
+.action-icon {
+  font-size: 18px;
+  color: #6c757d;
+  cursor: pointer;
+  margin-right: 12px;
+  transition: color 0.2s ease;
+}
+
+.action-icon:hover {
+  color: #007BFF;
 }

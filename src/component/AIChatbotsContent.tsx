@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     MDBRow,
     MDBCol,
@@ -6,13 +6,32 @@ import {
     MDBCardBody,
     MDBCardTitle,
     MDBIcon,
+    MDBBtn,
 } from 'mdb-react-ui-kit';
+import ChatbotCreationForm from './ChatbotCreationForm';
 
 interface AIChatbotsContentProps {
     activeItem: string;
 }
 
 export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps) {
+    const [showCreationForm, setShowCreationForm] = useState(false);
+
+    const handleCreateChatbot = () => {
+        setShowCreationForm(true);
+    };
+
+    const handleCancelCreation = () => {
+        setShowCreationForm(false);
+    };
+
+    const handleSubmitChatbot = (chatbotData: any) => {
+        console.log('Chatbot data submitted:', chatbotData);
+        // Here you would typically send the data to your backend API
+        // For now, we'll just close the form and show a success message
+        setShowCreationForm(false);
+        // You could add a success notification here
+    };
     const renderDashboardContent = () => (
         <>
             {/* AI Chatbots Header */}
@@ -40,32 +59,26 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
                     </p>
                 </div>
                 
-                {/* New Chatbot Button */}
-                <button style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '12px 20px',
-                    backgroundColor: 'transparent',
-                    border: '1px solid #111827',
-                    borderRadius: '8px',
-                    color: '#111827',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#111827';
-                    e.currentTarget.style.color = 'white';
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = '#111827';
-                }}>
-                    <span style={{ fontSize: '16px' }}>+</span>
-                    <span>New Chatbot</span>
-                </button>
+                        {/* New Chatbot Button */}
+                        <MDBBtn
+                            color="dark"
+                            outline
+                            onClick={handleCreateChatbot}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '12px 20px',
+                                border: '1px solid #111827',
+                                borderRadius: '8px',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                                transition: 'all 0.2s ease'
+                            }}
+                        >
+                            <MDBIcon icon="plus" size="sm" />
+                            New Chatbot
+                        </MDBBtn>
             </div>
 
             {/* Statistics Cards */}
@@ -102,7 +115,7 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
                             textDecoration: 'none',
                             fontWeight: '500'
                         }}>
-                            See all >
+                            See all &gt;
                         </a>
                     </div>
                     <div style={{
@@ -174,7 +187,7 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
                             textDecoration: 'none',
                             fontWeight: '500'
                         }}>
-                            See all >
+                            See all &gt;
                         </a>
                     </div>
                     <div style={{
@@ -239,8 +252,22 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
 
     const renderChatbotsContent = () => (
         <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: '600', color: '#111827', marginBottom: '20px' }}>Your Chatbots</h2>
-            <p style={{ color: '#6b7280' }}>Manage your AI chatbots here.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '24px', fontWeight: '600', color: '#111827', margin: '0' }}>Your Chatbots</h2>
+                <MDBBtn
+                    color="primary"
+                    onClick={handleCreateChatbot}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <MDBIcon icon="plus" size="sm" />
+                    Create New Chatbot
+                </MDBBtn>
+            </div>
+            <p style={{ color: '#6b7280', marginBottom: '20px' }}>Manage your AI chatbots here.</p>
             {/* Placeholder for chatbot list/management UI */}
             <div style={{ height: '200px', border: '1px dashed #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', borderRadius: '8px' }}>
                 Chatbot List / Management UI
@@ -268,6 +295,16 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
             </div>
         </div>
     );
+
+    // If showing creation form, render it
+    if (showCreationForm) {
+        return (
+            <ChatbotCreationForm
+                onCancel={handleCancelCreation}
+                onSubmit={handleSubmitChatbot}
+            />
+        );
+    }
 
     switch (activeItem) {
         case 'dashboard':
