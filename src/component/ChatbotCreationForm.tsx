@@ -41,6 +41,10 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const [currentAnswer, setCurrentAnswer] = useState('');
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [websiteUrl, setWebsiteUrl] = useState('');
+    const [textContent, setTextContent] = useState('');
+    const [addedWebsites, setAddedWebsites] = useState<string[]>([]);
+    const [addedTexts, setAddedTexts] = useState<string[]>([]);
     const [formData, setFormData] = useState<ChatbotFormData>({
         title: 'DavinciBot',
         name: 'DavinciBot',
@@ -75,7 +79,25 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             }
         }
 
-        // Step 3 - Training data validation (optional for now)
+        if (step === 3) {
+            // Check if at least one training source is provided
+            let hasTrainingData = false;
+            
+            if (selectedDataSource === 'url' && addedWebsites.length > 0) {
+                hasTrainingData = true;
+            } else if (selectedDataSource === 'pdf' && uploadedFiles.length > 0) {
+                hasTrainingData = true;
+            } else if (selectedDataSource === 'text' && addedTexts.length > 0) {
+                hasTrainingData = true;
+            } else if (selectedDataSource === 'qa' && qaPairs.length > 0) {
+                hasTrainingData = true;
+            }
+            
+            if (!hasTrainingData) {
+                newErrors.instructions = 'Please add at least one training source (URL, PDF, Text, or Q&A)';
+            }
+        }
+
         // Step 4 - Embed configuration (optional for now)  
         // Step 5 - Channels configuration (optional for now)
         setErrors(newErrors);
@@ -105,7 +127,9 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 ...formData,
                 qaPairs: qaPairs,
                 selectedDataSource: selectedDataSource,
-                uploadedFiles: uploadedFiles
+                uploadedFiles: uploadedFiles,
+                addedWebsites: addedWebsites,
+                addedTexts: addedTexts
             };
             onSubmit(submissionData);
         }
@@ -136,6 +160,10 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             setQaPairs(prev => [...prev, newQA]);
             setCurrentQuestion('');
             setCurrentAnswer('');
+            // Clear validation error if exists
+            if (errors.instructions) {
+                setErrors(prev => ({ ...prev, instructions: undefined }));
+            }
         }
     };
 
@@ -169,6 +197,11 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 }
                 return combined;
             });
+            
+            // Clear validation error if exists
+            if (errors.instructions && newFiles.length > 0) {
+                setErrors(prev => ({ ...prev, instructions: undefined }));
+            }
         }
     };
 
@@ -194,6 +227,42 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
 
     const removeFile = (index: number) => {
         setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleAddWebsite = () => {
+        if (websiteUrl.trim()) {
+            setAddedWebsites(prev => [...prev, websiteUrl.trim()]);
+            setWebsiteUrl('');
+            alert(`Website "${websiteUrl}" has been added successfully!`);
+            // Clear validation error if exists
+            if (errors.instructions) {
+                setErrors(prev => ({ ...prev, instructions: undefined }));
+            }
+        } else {
+            alert('Please enter a valid website URL');
+        }
+    };
+
+    const handleAddText = () => {
+        if (textContent.trim()) {
+            setAddedTexts(prev => [...prev, textContent.trim()]);
+            setTextContent('');
+            alert(`Text content has been added successfully!`);
+            // Clear validation error if exists
+            if (errors.instructions) {
+                setErrors(prev => ({ ...prev, instructions: undefined }));
+            }
+        } else {
+            alert('Please enter some text content');
+        }
+    };
+
+    const handleRemoveWebsite = (index: number) => {
+        setAddedWebsites(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleRemoveText = (index: number) => {
+        setAddedTexts(prev => prev.filter((_, i) => i !== index));
     };
 
     const formatFileSize = (bytes: number) => {
@@ -322,6 +391,9 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             <h4 className="mb-4">Add a Knowledge Base</h4>
             <p className="text-muted mb-4">Your chatbot will answer based on the added knowledge to personalize chatbot experience.</p>
             
+            {/* Display error message if validation fails */}
+            {errors.instructions && <div className="alert alert-warning mb-3">{errors.instructions}</div>}
+            
             <div className="mb-4">
                 <h6>Select a data source</h6>
                 <div className="row g-3">
@@ -415,13 +487,42 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                             label="Website URL" 
                             placeholder="https://example.com"
                             type="url"
+                            value={websiteUrl}
+                            onChange={(e) => setWebsiteUrl(e.target.value)}
                         />
                         <small className="text-muted">Enter the website URL to crawl and extract content for training</small>
                     </div>
-                    <MDBBtn color="primary">
+                    <MDBBtn color="primary" onClick={handleAddWebsite}>
                         <MDBIcon icon="plus" className="me-1" />
                         Add Website
                     </MDBBtn>
+                    
+                    {/* Display Added Websites */}
+                    {addedWebsites.length > 0 && (
+                        <div className="mt-4">
+                            <h6>Added Websites ({addedWebsites.length})</h6>
+                            <div className="list-group">
+                                {addedWebsites.map((website, index) => (
+                                    <div key={index} className="list-group-item d-flex justify-content-between align-items-center">
+                                        <div className="d-flex align-items-center">
+                                            <MDBIcon icon="globe" className="me-2 text-primary" />
+                                            <span className="text-truncate" style={{ maxWidth: '300px' }} title={website}>
+                                                {website}
+                                            </span>
+                                        </div>
+                                        <MDBBtn 
+                                            color="danger" 
+                                            size="sm" 
+                                            onClick={() => handleRemoveWebsite(index)}
+                                            style={{ padding: '4px 8px' }}
+                                        >
+                                            <MDBIcon icon="times" />
+                                        </MDBBtn>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -504,13 +605,56 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                             label="Text Content"
                             rows={6}
                             placeholder="Enter your text content here..."
+                            value={textContent}
+                            onChange={(e) => setTextContent(e.target.value)}
                         />
                         <small className="text-muted">Add any specific text content, FAQs, or knowledge base information</small>
                     </div>
-                    <MDBBtn color="primary">
+                    <MDBBtn color="primary" onClick={handleAddText}>
                         <MDBIcon icon="plus" className="me-1" />
                         Add Text
                     </MDBBtn>
+                    
+                    {/* Display Added Text Content */}
+                    {addedTexts.length > 0 && (
+                        <div className="mt-4">
+                            <h6>Added Text Content ({addedTexts.length})</h6>
+                            <div className="list-group">
+                                {addedTexts.map((text, index) => (
+                                    <div key={index} className="list-group-item d-flex justify-content-between align-items-start">
+                                        <div className="d-flex align-items-start flex-grow-1">
+                                            <MDBIcon icon="file-text" className="me-2 text-primary mt-1" />
+                                            <div className="flex-grow-1">
+                                                <div 
+                                                    className="text-truncate" 
+                                                    style={{ 
+                                                        maxWidth: '400px',
+                                                        maxHeight: '60px',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        display: '-webkit-box',
+                                                        WebkitLineClamp: 3,
+                                                        WebkitBoxOrient: 'vertical'
+                                                    }} 
+                                                    title={text}
+                                                >
+                                                    {text}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <MDBBtn 
+                                            color="danger" 
+                                            size="sm" 
+                                            onClick={() => handleRemoveText(index)}
+                                            style={{ padding: '4px 8px', marginLeft: '10px' }}
+                                        >
+                                            <MDBIcon icon="times" />
+                                        </MDBBtn>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
