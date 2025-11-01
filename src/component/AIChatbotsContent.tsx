@@ -8,6 +8,13 @@ import {
     MDBIcon,
     MDBBtn,
     MDBSwitch,
+    MDBModal,
+    MDBModalDialog,
+    MDBModalContent,
+    MDBModalHeader,
+    MDBModalTitle,
+    MDBModalBody,
+    MDBModalFooter,
 } from 'mdb-react-ui-kit';
 import ChatbotCreationForm from './ChatbotCreationForm';
 import { useAuth, useUser } from '@clerk/nextjs';
@@ -21,6 +28,8 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
     const [showCreationForm, setShowCreationForm] = useState(false);
     const [chatbots, setChatbots] = useState<any[]>([]);
     const [isLoadingChatbots, setIsLoadingChatbots] = useState(false);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const router = useRouter();
     
     // Clerk Authentication
@@ -39,7 +48,7 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
         try {
             console.log('Chatbot data submitted:', chatbotData);
             
-            // Convert File objects to base64 strings for JSON serialization
+            // Prepare data with fileIds instead of base64 files
             const processedData: any = {
                 title: chatbotData.title,
                 name: chatbotData.name,
@@ -51,7 +60,7 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
                 greetingMessage: chatbotData.greetingMessage,
                 selectedDataSource: chatbotData.selectedDataSource,
                 qaPairs: [],
-                uploadedFiles: [] as Array<{ name: string; size: number; type: string; content: string }>,
+                fileIds: chatbotData.fileIds || [],
                 addedWebsites: chatbotData.addedWebsites || [],
                 addedTexts: chatbotData.addedTexts || []
             };
@@ -62,21 +71,6 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
                     question: qa.question,
                     answer: qa.answer
                 }));
-            }
-
-            // Convert File objects to base64 if they exist
-            if (chatbotData.uploadedFiles && chatbotData.uploadedFiles.length > 0) {
-                for (const file of chatbotData.uploadedFiles) {
-                    if (file instanceof File) {
-                        const base64 = await fileToBase64(file);
-                        processedData.uploadedFiles.push({
-                            name: file.name,
-                            size: file.size,
-                            type: file.type,
-                            content: base64
-                        });
-                    }
-                }
             }
 
             console.log('Processed chatbot data:', processedData);
@@ -108,7 +102,39 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.errorMessage || `Failed to create chatbot: ${response.status}`);
+                
+                // Extract validation errors
+                const errors: string[] = [];
+                
+                // Check for validation errors array
+                if (errorData.validationErrors && Array.isArray(errorData.validationErrors)) {
+                    errors.push(...errorData.validationErrors);
+                } else if (errorData.errors && Array.isArray(errorData.errors)) {
+                    errors.push(...errorData.errors);
+                } else if (errorData.error && Array.isArray(errorData.error)) {
+                    errors.push(...errorData.error);
+                } else if (errorData.message && Array.isArray(errorData.message)) {
+                    errors.push(...errorData.message);
+                }
+                
+                // Check for single error message
+                if (errorData.errorMessage) {
+                    errors.push(errorData.errorMessage);
+                } else if (errorData.message && !Array.isArray(errorData.message)) {
+                    errors.push(errorData.message);
+                } else if (errorData.error && !Array.isArray(errorData.error)) {
+                    errors.push(errorData.error);
+                }
+                
+                // If no specific errors found, add generic error
+                if (errors.length === 0) {
+                    errors.push(errorData.errorMessage || `Failed to create chatbot: ${response.status}`);
+                }
+                
+                // Show errors in modal
+                setValidationErrors(errors);
+                setShowErrorModal(true);
+                return;
             }
 
             const result = await response.json();
@@ -120,28 +146,33 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
             // Close the form on success
             setShowCreationForm(false);
             
-            // You could add a success notification here
-            alert('Chatbot created successfully!');
-            
         } catch (error) {
             console.error('Error creating chatbot:', error);
-            alert(error instanceof Error ? error.message : 'Failed to create chatbot. Please try again.');
+            // Parse error for validation messages
+            const errors: string[] = [];
+            
+            if (error instanceof Error) {
+                // Try to parse JSON error message
+                try {
+                    const errorObj = JSON.parse(error.message);
+                    if (errorObj.validationErrors && Array.isArray(errorObj.validationErrors)) {
+                        errors.push(...errorObj.validationErrors);
+                    } else if (errorObj.errors && Array.isArray(errorObj.errors)) {
+                        errors.push(...errorObj.errors);
+                    } else {
+                        errors.push(error.message);
+                    }
+                } catch {
+                    errors.push(error.message);
+                }
+            } else {
+                errors.push('Failed to create chatbot. Please try again.');
+            }
+            
+            // Show errors in modal
+            setValidationErrors(errors);
+            setShowErrorModal(true);
         }
-    };
-
-    // Helper function to convert File to base64
-    const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const result = reader.result as string;
-                // Remove the data:application/pdf;base64, prefix if present
-                const base64 = result.includes(',') ? result.split(',')[1] : result;
-                resolve(base64);
-            };
-            reader.onerror = () => reject(new Error('Failed to convert file to base64'));
-            reader.readAsDataURL(file);
-        });
     };
 
     // Fetch chatbots from API
@@ -616,24 +647,118 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
         </div>
     );
 
-    // If showing creation form, render it
+    // Error Modal Component
+    const renderErrorModal = () => (
+        <MDBModal show={showErrorModal} setShow={setShowErrorModal} tabIndex='-1'>
+            <MDBModalDialog centered>
+                <MDBModalContent>
+                    <MDBModalHeader style={{
+                        backgroundColor: '#dc2626',
+                        color: 'white',
+                        borderBottom: 'none',
+                        padding: '20px 24px'
+                    }}>
+                        <MDBModalTitle style={{
+                            color: 'white',
+                            fontWeight: '600',
+                            fontSize: '18px',
+                            display: 'flex',
+                            alignItems: 'center'
+                        }}>
+                            <MDBIcon icon="exclamation-triangle" className="me-2" />
+                            Validation Errors
+                        </MDBModalTitle>
+                    </MDBModalHeader>
+                    <MDBModalBody style={{ padding: '24px' }}>
+                        <p style={{ 
+                            marginBottom: '16px', 
+                            color: '#6b7280',
+                            fontSize: '14px'
+                        }}>
+                            Please fix the following errors before creating your chatbot:
+                        </p>
+                        <ul style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: 0
+                        }}>
+                            {validationErrors.map((error, index) => (
+                                <li key={index} style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    marginBottom: '12px',
+                                    padding: '12px',
+                                    backgroundColor: '#fef2f2',
+                                    borderRadius: '8px',
+                                    borderLeft: '4px solid #dc2626'
+                                }}>
+                                    <MDBIcon 
+                                        icon="circle" 
+                                        className="text-danger me-3 mt-1" 
+                                        style={{ fontSize: '8px', flexShrink: 0 }}
+                                    />
+                                    <span style={{ 
+                                        color: '#991b1b',
+                                        fontSize: '14px',
+                                        lineHeight: '1.5'
+                                    }}>
+                                        {error}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </MDBModalBody>
+                    <MDBModalFooter>
+                        <MDBBtn 
+                            color="danger" 
+                            onClick={() => setShowErrorModal(false)}
+                            style={{
+                                padding: '10px 24px',
+                                borderRadius: '8px',
+                                fontWeight: '500'
+                            }}
+                        >
+                            Close
+                        </MDBBtn>
+                    </MDBModalFooter>
+                </MDBModalContent>
+            </MDBModalDialog>
+        </MDBModal>
+    );
+
+    // If showing creation form, render it with modal
     if (showCreationForm) {
         return (
-            <ChatbotCreationForm
-                onCancel={handleCancelCreation}
-                onSubmit={handleSubmitChatbot}
-            />
+            <>
+                <ChatbotCreationForm
+                    onCancel={handleCancelCreation}
+                    onSubmit={handleSubmitChatbot}
+                />
+                {renderErrorModal()}
+            </>
         );
     }
 
+    // Render content with modal
+    let content;
     switch (activeItem) {
         case 'dashboard':
-            return renderDashboardContent();
+            content = renderDashboardContent();
+            break;
         case 'chatbots':
-            return renderChatbotsContent();
+            content = renderChatbotsContent();
+            break;
         case 'conversations':
-            return renderConversationsContent();
+            content = renderConversationsContent();
+            break;
         default:
-            return renderDefaultContent(activeItem);
+            content = renderDefaultContent(activeItem);
     }
+
+    return (
+        <>
+            {content}
+            {renderErrorModal()}
+        </>
+    );
 }

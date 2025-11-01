@@ -6,7 +6,7 @@ import ChatService from "../../src/component/ChatService";
 const config = (window as any).__CHAT_WIDGET_CONFIG__ || {};
 
 const container = document.createElement("div");
-container.id = "chat-widget-root";process.env.NODE_ENV
+container.id = "chat-widget-root";
 document.body.appendChild(container);
 
 const root = ReactDOM.createRoot(container);

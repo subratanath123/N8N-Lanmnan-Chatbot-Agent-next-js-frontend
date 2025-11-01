@@ -25,8 +25,8 @@ const handler = NextAuth({
 
                 // console.log(token);
             }
-
-            const response = await axios.get(`http://143.198.58.6:8080/v1/api/user/authenticated`, {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const response = await axios.get(`${backendUrl}/v1/api/user/authenticated`, {
                 headers: {
                     'Authorization': `Bearer ${session?.access_token}`
                 }

@@ -25,6 +25,7 @@ import '@/component/openwebui/styles.css';
 import '@/component/openwebui/responsive.css';
 
 export default function OpenWebUIPage() {
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -168,7 +169,7 @@ export default function OpenWebUIPage() {
         }
       }
 
-      const response = await fetch('/api/n8n/file-upload', {
+      const response = await fetch(`${backendUrl}/api/n8n/file-upload`, {
         method: 'POST',
         headers,
         body: formData,
@@ -183,7 +184,7 @@ export default function OpenWebUIPage() {
         throw new Error(data.errorMessage || 'File upload failed');
       }
 
-      return data.fileId || data.fileReference || 'file_uploaded'; // Return file reference
+      return data.fileId  || 'file_uploaded'; // Return file reference
     } catch (error) {
       console.error('Error uploading file:', error);
       throw error;
@@ -193,7 +194,7 @@ export default function OpenWebUIPage() {
   // Function to make API call to get AI response
   const getAIResponse = async (userMessage: string, modelId: string, temp: number, systemPrompt: string, files: File[]): Promise<string> => {
     try {
-      let fileReferences: string[] = [];
+      let fileIdList: string[] = [];
 
       // If there are files, upload them first
       if (files.length > 0) {
@@ -201,9 +202,11 @@ export default function OpenWebUIPage() {
         
         for (const file of files) {
           try {
-            const fileRef = await uploadFileToBackend(file, userMessage);
-            fileReferences.push(fileRef);
-            console.log(`File ${file.name} uploaded successfully with reference: ${fileRef}`);
+            
+            const fileId = await uploadFileToBackend(file, userMessage);
+            fileIdList.push(fileId);
+            console.log(`File ${file.name} uploaded successfully with fileId: ${fileId}`);
+
           } catch (error) {
             console.error(`Failed to upload file ${file.name}:`, error);
             throw new Error(`File upload failed: ${file.name} - ${error instanceof Error ? error.message : 'Unknown error'}`);

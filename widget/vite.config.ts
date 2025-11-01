@@ -1,4 +1,3 @@
-// @ts-check
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'url';
@@ -8,7 +7,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export default defineConfig({
-    root: resolve(__dirname, '.'), // current dir is widget/
+    root: resolve(__dirname, '.'),
+    resolve: {
+        alias: {
+            '@': resolve(__dirname, '../src'),
+        },
+    },
+    define: {
+        'process.env.NODE_ENV': JSON.stringify('production'),
+    },
     build: {
         lib: {
             entry: resolve(__dirname, 'index.tsx'),

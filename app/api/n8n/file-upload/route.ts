@@ -13,13 +13,17 @@ export async function POST(request: NextRequest) {
     const sessionId = formData.get('sessionId') as string;
     const message = formData.get('message') as string;
 
+    // Check if this is a chatbot creation file upload
+    const isChatbotCreation = workflowId === 'chatbot-creation' || webhookUrl === 'chatbot-creation';
+
     // Validate required fields
-    if (!file || !workflowId || !webhookUrl) {
+    // For chatbot creation, workflowId and webhookUrl are not required
+    if (!file || (!isChatbotCreation && (!workflowId || !webhookUrl))) {
       return NextResponse.json(
         { 
           success: false,
           errorCode: 'MISSING_FIELDS',
-          errorMessage: 'Missing required fields: file, workflowId, or webhookUrl',
+          errorMessage: 'Missing required fields: file' + (isChatbotCreation ? '' : ', workflowId, or webhookUrl'),
           timestamp: Date.now()
         },
         { status: 400 }
@@ -46,8 +50,13 @@ export async function POST(request: NextRequest) {
     // Prepare the request to the backend file upload endpoint
     const backendFormData = new FormData();
     backendFormData.append('file', file);
-    backendFormData.append('workflowId', workflowId);
-    backendFormData.append('webhookUrl', webhookUrl);
+    
+    // Only add workflowId and webhookUrl if not chatbot creation
+    if (!isChatbotCreation) {
+      backendFormData.append('workflowId', workflowId);
+      backendFormData.append('webhookUrl', webhookUrl);
+    }
+    
     if (sessionId) {
       backendFormData.append('sessionId', sessionId);
     }
@@ -56,10 +65,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the backend file upload API
-    const backendUrl =  'http://143.198.58.6:8080';
+    const backendUrl =  process.env.NEXT_PUBLIC_BACKEND_URL;
     
-    // Choose endpoint based on user authentication status
-    const endpoint = userId ? '/v1/api/n8n/authenticated/chat/file/direct' : '/v1/api/n8n/anonymous/chat/file/direct';
+    // Choose endpoint based on user authentication status and upload type
+    // For chatbot creation, we might need a different endpoint - adjust as needed
+    let endpoint: string;
+    if (isChatbotCreation) {
+      // Use chatbot file upload endpoint if it exists, otherwise use chat endpoint
+      // Adjust this endpoint path based on your backend API
+      endpoint = userId ? '/v1/api/n8n/authenticated/chat/file/direct' : '/v1/api/n8n/anonymous/chat/file/direct';
+    } else {
+      endpoint = userId ? '/v1/api/n8n/authenticated/chat/file/direct' : '/v1/api/n8n/anonymous/chat/file/direct';
+    }
     
     // Prepare headers
     const headers: Record<string, string> = {};

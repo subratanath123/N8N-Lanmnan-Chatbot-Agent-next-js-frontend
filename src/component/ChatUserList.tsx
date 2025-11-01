@@ -50,9 +50,10 @@ const ChatUserList: React.FC<ChatUserListProps> = ({
         onChatMaximized();
     };
 
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     useEffect(() => {
         axios
-            .get('http://143.198.58.6:8080/v1/api/supportUserList', {
+            .get(`${backendUrl}/v1/api/supportUserList`, {
             headers: {
                 'Authorization': 'Bearer ' + session?.access_token
             }

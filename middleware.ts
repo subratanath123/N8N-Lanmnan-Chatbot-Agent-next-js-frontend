@@ -10,7 +10,8 @@ export default authMiddleware({
     "/api/test",  // Add test API for debugging
     "/projects/list",
     "/projects/new",
-    "/train"
+    "/train",
+    "/widget-dist"  // Allow widget files to be accessed publicly
   ],
   
   // Routes that can be accessed while signed out, but also show user info when signed in

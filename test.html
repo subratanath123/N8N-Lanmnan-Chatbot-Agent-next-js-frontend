@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Widget Test</title>
+</head>
+<body>
+    <h1>Chat Widget Test</h1>
+    <p>This page tests the chatbot widget embedding.</p>
+    <p>Check the browser console for any errors.</p>
+
+    <script>
+        // Load the widget script and initialize when ready
+        (function() {
+            const script = document.createElement('script');
+            script.src = 'http://localhost:3000/widget-dist/chat-widget.iife.js';
+            script.onload = function() {
+                console.log('Widget script loaded successfully');
+                // Wait a bit to ensure everything is ready
+                setTimeout(function() {
+                    if (typeof window.initChatWidget === 'function') {
+                        console.log('Initializing chat widget...');
+                        try {
+                            window.initChatWidget({
+                                chatbotId: "68fe5dbacd12650745d7bb0f",
+                                apiUrl: "http://localhost:8080"
+                            });
+                            console.log('Widget initialization called');
+                        } catch (error) {
+                            console.error('Error initializing widget:', error);
+                        }
+                    } else {
+                        console.error('initChatWidget function not found');
+                    }
+                }, 100);
+            };
+            script.onerror = function() {
+                console.error('Failed to load widget script from http://localhost:3000/widget-dist/chat-widget.iife.js');
+                console.error('Make sure your Next.js server is running on port 3000');
+            };
+            document.head.appendChild(script);
+        })();
+    </script>
+</body>
+</html>
+

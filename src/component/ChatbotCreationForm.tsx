@@ -15,6 +15,7 @@ import {
     MDBSwitch,
     MDBProgress
 } from 'mdb-react-ui-kit';
+import { useAuth, useUser } from '@clerk/nextjs';
 
 interface ChatbotCreationFormProps {
     onCancel: () => void;
@@ -32,14 +33,26 @@ interface ChatbotFormData {
     greetingMessage: string;
 }
 
+interface UploadedFileInfo {
+    id: string;
+    name: string;
+    size: number;
+    fileId: string | null;
+    isUploading: boolean;
+    uploadError: string | null;
+}
+
 export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreationFormProps) {
+    const { isSignedIn } = useUser();
+    const { getToken } = useAuth();
+    
     const [currentStep, setCurrentStep] = useState(1);
     const totalSteps = 5;
     const [selectedDataSource, setSelectedDataSource] = useState<string>('');
     const [qaPairs, setQaPairs] = useState<Array<{id: string, question: string, answer: string}>>([]);
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [currentAnswer, setCurrentAnswer] = useState('');
-    const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+    const [uploadedFiles, setUploadedFiles] = useState<UploadedFileInfo[]>([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const [websiteUrl, setWebsiteUrl] = useState('');
     const [textContent, setTextContent] = useState('');
@@ -86,14 +99,22 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             if (selectedDataSource === 'url' && addedWebsites.length > 0) {
                 hasTrainingData = true;
             } else if (selectedDataSource === 'pdf' && uploadedFiles.length > 0) {
-                hasTrainingData = true;
+                // Check if all files have been successfully uploaded
+                const allFilesUploaded = uploadedFiles.every(file => file.fileId !== null && !file.isUploading);
+                if (allFilesUploaded && uploadedFiles.length > 0) {
+                    hasTrainingData = true;
+                } else if (uploadedFiles.some(file => file.isUploading)) {
+                    newErrors.instructions = 'Please wait for all files to finish uploading';
+                } else if (uploadedFiles.some(file => file.uploadError)) {
+                    newErrors.instructions = 'Some files failed to upload. Please remove failed files and try again';
+                }
             } else if (selectedDataSource === 'text' && addedTexts.length > 0) {
                 hasTrainingData = true;
             } else if (selectedDataSource === 'qa' && qaPairs.length > 0) {
                 hasTrainingData = true;
             }
             
-            if (!hasTrainingData) {
+            if (!hasTrainingData && !newErrors.instructions) {
                 newErrors.instructions = 'Please add at least one training source (URL, PDF, Text, or Q&A)';
             }
         }
@@ -123,11 +144,17 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
 
     const handleSubmit = () => {
         if (validateStep(currentStep)) {
+            // Extract fileIds from uploaded files
+            const fileIds = uploadedFiles
+                .filter(file => file.fileId !== null)
+                .map(file => file.fileId as string);
+            
             const submissionData = {
                 ...formData,
                 qaPairs: qaPairs,
                 selectedDataSource: selectedDataSource,
-                uploadedFiles: uploadedFiles,
+                fileIds: fileIds,
+                uploadedFiles: [], // Keep for backward compatibility but empty
                 addedWebsites: addedWebsites,
                 addedTexts: addedTexts
             };
@@ -171,7 +198,48 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         setQaPairs(prev => prev.filter(qa => qa.id !== id));
     };
 
-    const handleFileSelect = (files: FileList | null) => {
+    const uploadFile = async (file: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        // Use placeholder values for chatbot creation context
+        formData.append('workflowId', 'chatbot-creation');
+        formData.append('webhookUrl', 'chatbot-creation');
+
+        const headers: Record<string, string> = {};
+        
+        // Add bearer token if user is signed in
+        if (isSignedIn) {
+            try {
+                const token = await getToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+            } catch (error) {
+                console.warn('Failed to get auth token:', error);
+            }
+        }
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+        const response = await fetch(`${backendUrl}/v1/api/file/upload`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.errorMessage || `Failed to upload file: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.fileId) {
+            throw new Error(result.errorMessage || 'File upload failed');
+        }
+
+        return result.fileId;
+    };
+
+    const handleFileSelect = async (files: FileList | null) => {
         if (files) {
             const newFiles = Array.from(files).filter(file => {
                 // Check file type and size
@@ -189,19 +257,58 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 return true;
             });
 
-            setUploadedFiles(prev => {
-                const combined = [...prev, ...newFiles];
-                if (combined.length > 10) {
-                    alert('Maximum 10 files allowed. Some files were not added.');
-                    return combined.slice(0, 10);
-                }
-                return combined;
-            });
+            // Check total file count
+            const currentCount = uploadedFiles.length;
+            if (currentCount + newFiles.length > 10) {
+                alert('Maximum 10 files allowed. Some files were not added.');
+                newFiles.splice(10 - currentCount);
+            }
+
+            // Add files to state with uploading status
+            const newFileInfos: UploadedFileInfo[] = newFiles.map((file, index) => ({
+                id: `${Date.now()}-${index}`,
+                name: file.name,
+                size: file.size,
+                fileId: null,
+                isUploading: true,
+                uploadError: null,
+            }));
+
+            setUploadedFiles(prev => [...prev, ...newFileInfos]);
             
             // Clear validation error if exists
             if (errors.instructions && newFiles.length > 0) {
                 setErrors(prev => ({ ...prev, instructions: undefined }));
             }
+
+            // Upload files asynchronously
+            newFiles.forEach(async (file, index) => {
+                const fileInfoId = newFileInfos[index].id;
+                try {
+                    const fileId = await uploadFile(file);
+                    setUploadedFiles(prev =>
+                        prev.map(f =>
+                            f.id === fileInfoId
+                                ? { ...f, fileId, isUploading: false, uploadError: null }
+                                : f
+                        )
+                    );
+                } catch (error) {
+                    console.error(`Failed to upload ${file.name}:`, error);
+                    setUploadedFiles(prev =>
+                        prev.map(f =>
+                            f.id === fileInfoId
+                                ? {
+                                      ...f,
+                                      isUploading: false,
+                                      uploadError: error instanceof Error ? error.message : 'Upload failed',
+                                  }
+                                : f
+                        )
+                    );
+                    alert(`Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+            });
         }
     };
 
@@ -225,15 +332,14 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         handleFileSelect(e.dataTransfer.files);
     };
 
-    const removeFile = (index: number) => {
-        setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    const removeFile = (id: string) => {
+        setUploadedFiles(prev => prev.filter(f => f.id !== id));
     };
 
     const handleAddWebsite = () => {
         if (websiteUrl.trim()) {
             setAddedWebsites(prev => [...prev, websiteUrl.trim()]);
             setWebsiteUrl('');
-            alert(`Website "${websiteUrl}" has been added successfully!`);
             // Clear validation error if exists
             if (errors.instructions) {
                 setErrors(prev => ({ ...prev, instructions: undefined }));
@@ -247,7 +353,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         if (textContent.trim()) {
             setAddedTexts(prev => [...prev, textContent.trim()]);
             setTextContent('');
-            alert(`Text content has been added successfully!`);
             // Clear validation error if exists
             if (errors.instructions) {
                 setErrors(prev => ({ ...prev, instructions: undefined }));
@@ -563,19 +668,41 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                         <div className="mt-3">
                             <h6>Uploaded Files ({uploadedFiles.length}/10)</h6>
                             <div className="mt-2">
-                                {uploadedFiles.map((file, index) => (
-                                    <div key={index} className="d-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-light">
-                                        <div className="d-flex align-items-center">
-                                            <MDBIcon icon="file-pdf" className="text-danger me-2" />
-                                            <div>
-                                                <div className="fw-medium">{file.name}</div>
-                                                <small className="text-muted">{formatFileSize(file.size)}</small>
+                                {uploadedFiles.map((fileInfo) => (
+                                    <div key={fileInfo.id} className="d-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-light">
+                                        <div className="d-flex align-items-center flex-grow-1">
+                                            <MDBIcon 
+                                                icon="file-pdf" 
+                                                className="text-danger me-2" 
+                                            />
+                                            <div className="flex-grow-1">
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <span className="fw-medium">{fileInfo.name}</span>
+                                                    {fileInfo.isUploading && (
+                                                        <div className="spinner-border spinner-border-sm text-primary" role="status">
+                                                            <span className="visually-hidden">Uploading...</span>
+                                                        </div>
+                                                    )}
+                                                    {fileInfo.fileId && !fileInfo.isUploading && (
+                                                        <MDBIcon icon="check-circle" className="text-success" size="sm" />
+                                                    )}
+                                                    {fileInfo.uploadError && (
+                                                        <MDBIcon icon="exclamation-circle" className="text-danger" size="sm" />
+                                                    )}
+                                                </div>
+                                                <small className="text-muted">
+                                                    {formatFileSize(fileInfo.size)}
+                                                    {fileInfo.isUploading && ' - Uploading...'}
+                                                    {fileInfo.fileId && !fileInfo.isUploading && ' - Uploaded'}
+                                                    {fileInfo.uploadError && ` - Error: ${fileInfo.uploadError}`}
+                                                </small>
                                             </div>
                                         </div>
                                         <MDBBtn 
                                             color="danger" 
                                             size="sm"
-                                            onClick={() => removeFile(index)}
+                                            onClick={() => removeFile(fileInfo.id)}
+                                            disabled={fileInfo.isUploading}
                                         >
                                             <MDBIcon icon="trash" size="sm" />
                                         </MDBBtn>
@@ -586,13 +713,9 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                     )}
 
                     <div className="mt-3">
-                        <MDBBtn 
-                            color="primary"
-                            disabled={uploadedFiles.length === 0}
-                        >
-                            <MDBIcon icon="upload" className="me-1" />
-                            Upload & Train ({uploadedFiles.length} files)
-                        </MDBBtn>
+                        <small className="text-muted d-block mb-2">
+                            Files are automatically uploaded when selected. Uploaded files will be used for training.
+                        </small>
                     </div>
                 </div>
             )}

@@ -162,7 +162,7 @@ async function callN8NService(message: string, workflowId: string, webhookUrl: s
 
     console.log(`[${requestId}] N8N request payload:`, JSON.stringify(n8nRequest, null, 2));
 
-    const backendUrl =  'http://143.198.58.6:8080';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const fullUrl = `${backendUrl}/v1/api/n8n/chat/custom`;
     console.log(`[${requestId}] Calling N8N backend at: ${fullUrl}`);
     

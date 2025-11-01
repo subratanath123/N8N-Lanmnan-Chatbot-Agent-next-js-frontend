@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Call backend API to get chat history
-    const backendUrl = 'http://143.198.58.6:8080';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const fullUrl = `${backendUrl}/v1/api/chat-history?limit=${limit}&offset=${offset}`;
     console.log(`[${requestId}] Calling backend API: ${fullUrl}`);
     console.log(`[${requestId}] Backend request headers:`, headers);
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
     console.log(`[${requestId}] Prepared save data:`, JSON.stringify(saveData, null, 2));
 
     // Call backend API to save chat history
-    const backendUrl = 'http://143.198.58.6:8080';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const fullUrl = `${backendUrl}/v1/api/chat-history`;
     console.log(`[${requestId}] Calling backend API to save: ${fullUrl}`);
     console.log(`[${requestId}] Backend request headers:`, headers);
@@ -313,7 +313,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Call backend API to delete chat history
-    const backendUrl = 'http://143.198.58.6:8080';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const fullUrl = `${backendUrl}/v1/api/chat-history/${sessionId}`;
     console.log(`[${requestId}] Calling backend API to delete: ${fullUrl}`);
     console.log(`[${requestId}] Backend request headers:`, headers);

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import PageLayout from '@/component/PageLayout';
+import LeftSidebar from '@/component/LeftSidebar';
 import {
     MDBContainer,
     MDBRow,
@@ -37,39 +37,64 @@ export default function ProjectsPage() {
   const [activeTab, setActiveTab] = useState('website');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const handleDrawerStateChange = (isOpen: boolean, activeItem: string, collapsed?: boolean) => {
+    if (collapsed !== undefined) {
+      setSidebarCollapsed(collapsed);
+    }
+  };
+
+  const handleNavItemClick = (itemName: string, itemHref: string) => {
+    if (itemHref && itemHref !== '#' && itemHref.startsWith('/')) {
+      window.location.href = itemHref;
+    }
+  };
 
   if (!isLoaded) {
     return (
-      <PageLayout showNav={false}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
-        }}>
-          <div>Loading...</div>
+      <div className="full-height-layout">
+        <LeftSidebar 
+          onDrawerStateChange={handleDrawerStateChange}
+          onNavItemClick={handleNavItemClick}
+        />
+        <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            height: '100vh' 
+          }}>
+            <div>Loading...</div>
+          </div>
         </div>
-      </PageLayout>
+      </div>
     );
   }
 
   if (!isSignedIn) {
     return (
-      <PageLayout showNav={false}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh',
-          flexDirection: 'column',
-          gap: '16px'
-        }}>
-          <h2>Please sign in to view your projects</h2>
-          <a href="/">
-            <MDBBtn color="primary">Go to Home</MDBBtn>
-          </a>
+      <div className="full-height-layout">
+        <LeftSidebar 
+          onDrawerStateChange={handleDrawerStateChange}
+          onNavItemClick={handleNavItemClick}
+        />
+        <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            height: '100vh',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <h2>Please sign in to view your projects</h2>
+            <a href="/">
+              <MDBBtn color="primary">Go to Home</MDBBtn>
+            </a>
+          </div>
         </div>
-      </PageLayout>
+      </div>
     );
   }
 
@@ -112,8 +137,13 @@ export default function ProjectsPage() {
   };
 
   return (
-    <PageLayout>
-      <MDBContainer fluid className="py-4">
+    <div className="full-height-layout">
+      <LeftSidebar 
+        onDrawerStateChange={handleDrawerStateChange}
+        onNavItemClick={handleNavItemClick}
+      />
+      <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <MDBContainer fluid className="py-4">
         <div className="mb-4 d-flex justify-content-between align-items-center">
           <div>
             <h1 className="h2 mb-1">Website Training Projects</h1>
@@ -465,6 +495,40 @@ export default function ProjectsPage() {
           </MDBModalFooter>
         </MDBModal>
       </MDBContainer>
-    </PageLayout>
+      </div>
+      
+      <style jsx>{`
+        .full-height-layout {
+          display: flex;
+          width: 100%;
+          height: 100vh;
+          position: relative;
+          background-color: #F8F9FA;
+        }
+        
+        .main-content {
+          flex: 1;
+          margin-left: 280px;
+          padding: 2rem;
+          min-height: 100vh;
+          background-color: #ffffff;
+          transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          overflow-x: hidden;
+          position: relative;
+          z-index: 1;
+        }
+        
+        .main-content.collapsed {
+          margin-left: 60px;
+        }
+        
+        @media (max-width: 768px) {
+          .main-content {
+            margin-left: 0;
+            padding: 1rem;
+          }
+        }
+      `}</style>
+    </div>
   );
 }

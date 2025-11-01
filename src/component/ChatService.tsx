@@ -14,7 +14,8 @@ const fabStyle : React.CSSProperties = {
     zIndex: 1000,
 };
 
-const SOCKET_URL = "http://143.198.58.6:8080/websocket";
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+const SOCKET_URL = `${backendUrl}/websocket`;
 
 export default function ChatService({projectId}: { projectId: string | undefined }) {
     const {data: session} = useSession();

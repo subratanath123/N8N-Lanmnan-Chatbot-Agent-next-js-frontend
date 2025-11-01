@@ -1,9 +1,13 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { resolve } from "path";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default defineConfig({
-  root: ".",
+  root: resolve(__dirname, "."),
   resolve: {
     alias: {
       "@": resolve(__dirname, "../src"),
@@ -20,7 +24,7 @@ export default defineConfig({
       fileName: "chat-widget",
       formats: ["iife"],
     },
-    outDir: resolve(__dirname, "../public/widget-dist", "/usr/local/static-server/public/chat/"),
+    outDir: resolve(__dirname, "../public/widget-dist"),
     rollupOptions: {
       external: [],
     },

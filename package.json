@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:widget": "cd widget && vite build",
     "start": "next start",
     "lint": "next lint"
   },
