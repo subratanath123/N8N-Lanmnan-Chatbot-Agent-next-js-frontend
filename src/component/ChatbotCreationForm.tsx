@@ -59,8 +59,8 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const [addedWebsites, setAddedWebsites] = useState<string[]>([]);
     const [addedTexts, setAddedTexts] = useState<string[]>([]);
     const [formData, setFormData] = useState<ChatbotFormData>({
-        title: 'DavinciBot',
-        name: 'DavinciBot',
+        title: 'JadeAIBot',
+        name: 'JadeAIBot',
         hideName: false,
         instructions: 'You are a helpful AI assistant that can provide information and assistance to users. You should be friendly, professional, and helpful in all interactions.',
         restrictToDataSource: false,

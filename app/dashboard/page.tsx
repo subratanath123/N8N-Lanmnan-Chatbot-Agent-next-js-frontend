@@ -53,23 +53,21 @@ export default function DashboardPage() {
         }
     };
 
-    if (isLoading) {
-        return (
-            <div style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: '100vh',
-                flexDirection: 'column',
-                gap: '16px'
-            }}>
-                <div className="loading-spinner" />
-                <p className="loading-text">Loading Dashboard...</p>
-            </div>
-        );
-    }
-
     return (
+        <DashboardLayout>
+            {isLoading ? (
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    height: 'calc(100vh - 72px)',
+                    flexDirection: 'column',
+                    gap: '16px'
+                }}>
+                    <div className="loading-spinner" />
+                    <p className="loading-text">Loading Dashboard...</p>
+                </div>
+            ) : (
         <div className="full-height-layout">
             <LeftSidebar 
                 onDrawerStateChange={handleDrawerStateChange}
@@ -396,5 +394,7 @@ export default function DashboardPage() {
                 }
             `}</style>
         </div>
+            )}
+        </DashboardLayout>
     );
 }

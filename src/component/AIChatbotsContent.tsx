@@ -22,14 +22,18 @@ import { useRouter } from 'next/navigation';
 
 interface AIChatbotsContentProps {
     activeItem: string;
+    embedOrigin?: string;
 }
 
-export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps) {
+export default function AIChatbotsContent({ activeItem, embedOrigin: externalOrigin }: AIChatbotsContentProps) {
     const [showCreationForm, setShowCreationForm] = useState(false);
     const [chatbots, setChatbots] = useState<any[]>([]);
     const [isLoadingChatbots, setIsLoadingChatbots] = useState(false);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [expandedChatbotId, setExpandedChatbotId] = useState<string | null>(null);
+    const [copyStates, setCopyStates] = useState<Record<string, 'idle' | 'copied' | 'error'>>({});
+    const [resolvedOrigin, setResolvedOrigin] = useState<string>(externalOrigin || '');
     const router = useRouter();
     
     // Clerk Authentication
@@ -238,6 +242,53 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
             fetchChatbots();
         }
     }, [activeItem]);
+
+    useEffect(() => {
+        if (externalOrigin) {
+            setResolvedOrigin(externalOrigin);
+            return;
+        }
+
+        if (typeof window !== 'undefined') {
+            setResolvedOrigin(window.location.origin);
+        }
+    }, [externalOrigin]);
+
+    const getEmbedCode = (chatbotId: string) => {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+        const origin = resolvedOrigin || '';
+
+        return `<script src="${origin}/widget-dist/chat-widget.iife.js"></script>
+<script>
+  window.initChatWidget({
+    chatbotId: "${chatbotId}",
+    apiUrl: "${backendUrl}"
+  });
+</script>`;
+    };
+
+    const handleToggleEmbed = (chatbotId: string) => {
+        setExpandedChatbotId((prev) => (prev === chatbotId ? null : chatbotId));
+    };
+
+    const handleCopyEmbed = async (chatbotId: string) => {
+        const embedCode = getEmbedCode(chatbotId);
+
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            try {
+                await navigator.clipboard.writeText(embedCode);
+                setCopyStates((prev) => ({ ...prev, [chatbotId]: 'copied' }));
+                setTimeout(() => {
+                    setCopyStates((prev) => ({ ...prev, [chatbotId]: 'idle' }));
+                }, 2000);
+            } catch (error) {
+                console.error('Failed to copy embed code:', error);
+                setCopyStates((prev) => ({ ...prev, [chatbotId]: 'error' }));
+            }
+        } else {
+            setCopyStates((prev) => ({ ...prev, [chatbotId]: 'error' }));
+        }
+    };
 
     // Handle chatbot click - navigate to detail page
     const handleChatbotClick = (chatbotId: string) => {
@@ -479,88 +530,212 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
                 ) : chatbots.length > 0 ? (
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                        gap: '20px'
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                        gap: '32px',
+                        alignItems: 'stretch'
                     }}>
-                        {chatbots.map((chatbot, index) => (
-                            <div
-                                key={chatbot.id || index}
-                                style={{
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: '12px',
-                                    padding: '24px',
-                                    backgroundColor: 'white',
-                                    transition: 'box-shadow 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.boxShadow = 'none';
-                                }}
-                            >
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    marginBottom: '12px'
-                                }}>
-                                    <h3 
-                                        onClick={() => handleChatbotClick(chatbot.id)}
-                                        style={{
-                                            fontSize: '18px',
-                                            fontWeight: '600',
-                                            color: '#111827',
-                                            margin: '0',
-                                            cursor: 'pointer'
-                                        }}>
-                                        {chatbot.title || chatbot.name || `Chatbot ${index + 1}`}
-                                    </h3>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontSize: '12px', color: '#6b7280' }}>Enabled</span>
-                                        <MDBSwitch
-                                            checked={chatbot.status === 'ACTIVE'}
-                                            onChange={(e) => handleToggleEnabled(chatbot.id, chatbot.status)}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </div>
-                                </div>
-                                {chatbot.message && (
-                                    <p style={{
-                                        fontSize: '14px',
-                                        color: '#6b7280',
-                                        margin: '0 0 12px 0',
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical',
+                        {chatbots.map((chatbot, index) => {
+                            const totalConversations =
+                                chatbot.totalConversations ??
+                                chatbot.conversationCount ??
+                                chatbot.conversations ??
+                                0;
+                            const totalMessages =
+                                chatbot.totalMessages ??
+                                chatbot.messageCount ??
+                                chatbot.messages ??
+                                0;
+
+                            const isExpanded = expandedChatbotId === chatbot.id;
+
+                            return (
+                                <div
+                                    key={chatbot.id || index}
+                                    style={{
+                                        border: '1px solid #E5E7EB',
+                                        borderRadius: '20px',
+                                        padding: '28px',
+                                        background: '#FFFFFF',
+                                        boxShadow: '0 18px 32px rgba(15, 23, 42, 0.04)',
+                                        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+                                        cursor: 'pointer',
+                                        position: 'relative',
                                         overflow: 'hidden',
-                                        textOverflow: 'ellipsis'
+                                    }}
+                                    onClick={() => handleChatbotClick(chatbot.id)}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.boxShadow = '0 22px 45px rgba(15, 23, 42, 0.08)';
+                                        e.currentTarget.style.transform = 'translateY(-4px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.boxShadow = 'none';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            inset: 0,
+                                            background: isExpanded ? 'rgba(226, 232, 240, 0.28)' : 'transparent',
+                                            opacity: isExpanded ? 1 : 0,
+                                            transition: 'opacity 0.2s ease',
+                                            pointerEvents: 'none',
+                                        }}
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                                        <div style={{ display: 'flex', gap: '16px', flex: '1 1 auto' }}>
+                                            <div
+                                                style={{
+                                                    width: '64px',
+                                                    height: '64px',
+                                                    borderRadius: '18px',
+                                                    background: '#F3F4F6',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    boxShadow: 'inset 0 0 0 1px rgba(148, 163, 184, 0.3)',
+                                                }}
+                                            >
+                                                <MDBIcon icon="robot" size="lg" className="text-muted" />
+                                            </div>
+                                            <div>
+                                                <h3
+                                                    style={{
+                                                        fontSize: '20px',
+                                                        fontWeight: 700,
+                                                        color: '#0f172a',
+                                                        margin: '0 0 6px',
+                                                        letterSpacing: '-0.01em',
+                                                    }}
+                                                >
+                                                    {chatbot.title || chatbot.name || `Chatbot ${index + 1}`}
+                                                </h3>
+                                                <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
+                                                    Created on{' '}
+                                                    {chatbot.createdAt
+                                                        ? new Date(chatbot.createdAt).toLocaleDateString(undefined, {
+                                                              day: 'numeric',
+                                                              month: 'long',
+                                                              year: 'numeric',
+                                                          })
+                                                        : 'Unknown'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <span style={{ fontSize: '12px', color: '#4b5563' }}>
+                                                {chatbot.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                                            </span>
+                                            <MDBSwitch
+                                                checked={chatbot.status === 'ACTIVE'}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleEnabled(chatbot.id, chatbot.status);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                            gap: '18px',
+                                            paddingTop: '20px',
+                                            marginTop: '20px',
+                                            borderTop: '1px solid #E5E7EB',
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '6px',
+                                                padding: '18px 12px',
+                                                borderRight: '1px solid #E5E7EB',
+                                            }}
+                                        >
+                                            <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#6b7280', letterSpacing: '0.1em', fontWeight: 600 }}>
+                                                Total Conversations
+                                            </span>
+                                            <span style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
+                                                {totalConversations.toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '6px',
+                                                padding: '18px 12px',
+                                            }}
+                                        >
+                                            <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#6b7280', letterSpacing: '0.1em', fontWeight: 600 }}>
+                                                Total Messages
+                                            </span>
+                                            <span style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
+                                                {totalMessages.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {isExpanded && (
+                                    <div style={{
+                                        marginTop: '18px',
+                                        borderRadius: '16px',
+                                        border: '1px solid rgba(17, 24, 39, 0.25)',
+                                        backgroundColor: '#1F2937',
+                                        color: '#F9FAFB',
+                                        padding: '20px',
+                                        position: 'relative',
+                                        boxShadow: '0 18px 38px rgba(15, 23, 42, 0.35)',
                                     }}>
-                                        {chatbot.message}
-                                    </p>
+                                        <pre style={{
+                                            margin: 0,
+                                            whiteSpace: 'pre-wrap',
+                                            wordBreak: 'break-word',
+                                            fontSize: '13px',
+                                            lineHeight: 1.7,
+                                            fontFamily: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+                                        }}>
+{getEmbedCode(chatbot.id)}
+                                        </pre>
+                                        <MDBBtn
+                                            color="primary"
+                                            size="sm"
+                                            style={{
+                                                position: 'absolute',
+                                                top: '12px',
+                                                right: '12px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '6px 10px',
+                                                fontSize: '12px'
+                                            }}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleCopyEmbed(chatbot.id);
+                                            }}
+                                        >
+                                            <MDBIcon icon={copyStates[chatbot.id] === 'copied' ? 'check' : 'copy'} size="sm" />
+                                            {copyStates[chatbot.id] === 'copied'
+                                                ? 'Copied'
+                                                : copyStates[chatbot.id] === 'error'
+                                                    ? 'Copy Failed'
+                                                    : 'Copy'}
+                                        </MDBBtn>
+                                    </div>
                                 )}
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    fontSize: '12px',
-                                    color: '#6b7280'
-                                }}>
-                                    {chatbot.createdAt && (
-                                        <span>{new Date(chatbot.createdAt).toLocaleDateString()}</span>
-                                    )}
-                                    <span style={{
-                                        padding: '4px 8px',
-                                        backgroundColor: chatbot.status === 'ACTIVE' ? '#d1fae5' : '#f3f4f6',
-                                        color: chatbot.status === 'ACTIVE' ? '#065f46' : '#6b7280',
-                                        borderRadius: '4px',
-                                        fontWeight: '500'
-                                    }}>
-                                        {chatbot.status || 'UNKNOWN'}
-                                    </span>
-                                </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : (
                     <div style={{
@@ -649,7 +824,7 @@ export default function AIChatbotsContent({ activeItem }: AIChatbotsContentProps
 
     // Error Modal Component
     const renderErrorModal = () => (
-        <MDBModal show={showErrorModal} setShow={setShowErrorModal} tabIndex='-1'>
+        <MDBModal open={showErrorModal} setOpen={setShowErrorModal} tabIndex='-1'>
             <MDBModalDialog centered>
                 <MDBModalContent>
                     <MDBModalHeader style={{

@@ -8,14 +8,15 @@ import {
     MDBIcon,
     MDBBtn
 } from 'mdb-react-ui-kit';
+import { usePathname, useRouter } from 'next/navigation';
 import './dashboard-sidebar.css';
 
 interface NavigationItem {
     name: string;
     icon: string;
     href: string;
-    active?: boolean;
     hasArrow?: boolean;
+    children?: NavigationItem[];
 }
 
 interface NavigationSection {
@@ -30,6 +31,8 @@ interface LeftSidebarProps {
 
 export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: LeftSidebarProps) {
     const [darkMode, setDarkMode] = useState(false);
+    const pathname = usePathname() || '';
+    const router = useRouter();
 
 
     const sidebarItems = [
@@ -49,15 +52,16 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
         {
             title: 'AI PANEL',
             items: [
-                { name: 'Dashboard', icon: 'home', href: '/dashboard', active: false },
+                { name: 'Dashboard', icon: 'home', href: '/dashboard' },
                 { name: 'Documents', icon: 'file-text', href: '/documents' },
-                { name: 'AI Chatbots', icon: 'robot', href: '/ai-chatbots', active: true },
+                { name: 'AI Chatbots', icon: 'robot', href: '/ai-chatbots' },
             ]
         },
         {
             title: 'AI CHAT',
             items: [
-                { name: 'AI Chat', icon: 'comments', href: '/chat' },
+                { name: 'AI Chat', icon: 'comments', href: '/ai-chat' },
+                { name: 'Support Chat', icon: 'life-ring', href: '/support-chat' },
                 { name: 'AI Realtime Voice Chat', icon: 'microphone', href: '/ai-voice-chat' },
                 { name: 'AI File Chat', icon: 'file-alt', href: '/ai-file-chat' },
                 { name: 'AI Web Chat', icon: 'globe', href: '/ai-web-chat' },
@@ -93,28 +97,33 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
                             <div className="section-title">
                                 {section.title}
                             </div>
-                            {section.items.map((item, index) => (
-                                <MDBListGroupItem
-                                    key={index}
-                                    action
-                                    className={`sidebar-item ${item.active ? 'active' : ''}`}
-                                    onClick={() => {
-                                        if (onNavItemClick) {
-                                            onNavItemClick(item.name, item.href);
-                                        }
-                                    }}
-                                    style={{ 
-                                        backgroundColor: item.active ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                                        border: 'none',
-                                        color: '#ffffff',
-                                        padding: '10px 20px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    <MDBIcon icon={item.icon} className="me-2" />
-                                    <span className="sidebar-text">{item.name}</span>
-                                </MDBListGroupItem>
-                            ))}
+                            {section.items.map((item, index) => {
+                                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+                                return (
+                                    <MDBListGroupItem
+                                        key={index}
+                                        action
+                                        className={`sidebar-item ${isActive ? 'active' : ''}`}
+                                        onClick={() => {
+                                            router.push(item.href);
+                                            if (onNavItemClick) {
+                                                onNavItemClick(item.name, item.href);
+                                            }
+                                        }}
+                                        style={{ 
+                                            backgroundColor: isActive ? 'rgba(59, 130, 246, 0.22)' : 'transparent',
+                                            border: 'none',
+                                            color: '#ffffff',
+                                            padding: '10px 20px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <MDBIcon icon={item.icon} className="me-2" />
+                                        <span className="sidebar-text">{item.name}</span>
+                                    </MDBListGroupItem>
+                                );
+                            })}
                         </div>
                     ))}
                 </MDBListGroup>
