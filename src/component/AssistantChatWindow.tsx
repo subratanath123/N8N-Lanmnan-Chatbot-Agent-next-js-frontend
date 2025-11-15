@@ -11,6 +11,17 @@ interface Message {
   createdAt: Date;
 }
 
+interface UserChatHistory {
+  id: string;
+  email: string;
+  conversationid: string;
+  userMessage: string;
+  createdAt: string; // ISO string from Instant
+  aiMessage: string;
+  mode: string;
+  isAnonymous: boolean;
+}
+
 interface AssistantChatWindowProps {
   chatbotId: string;
   apiUrl: string;
@@ -19,10 +30,20 @@ interface AssistantChatWindowProps {
   assistantAvatar?: string;
   accentColor?: string;
   backgroundGradient?: string;
+  conversationId?: string; // Optional conversation ID to load history
+  getToken?: () => Promise<string | null>; // Function to get bearer token for authenticated requests
+  isSignedIn?: boolean; // Whether user is signed in
 }
 
 const DEFAULT_BACKGROUND = '#ffffff';
 const DEFAULT_ACCENT = '#2563eb';
+
+// Helper function to detect if content contains HTML
+const containsHTML = (text: string): boolean => {
+  if (!text) return false;
+  const htmlRegex = /<[a-z][\s\S]*>/i;
+  return htmlRegex.test(text);
+};
 
 const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
   chatbotId,
@@ -32,7 +53,20 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
   assistantAvatar,
   accentColor = DEFAULT_ACCENT,
   backgroundGradient = DEFAULT_BACKGROUND,
+  conversationId,
+  getToken,
+  isSignedIn,
 }) => {
+  // Debug: Log props on mount
+  useEffect(() => {
+    console.log('AssistantChatWindow - Props received:', {
+      isSignedIn,
+      hasGetToken: !!getToken,
+      conversationId,
+      chatbotId,
+    });
+  }, [isSignedIn, getToken, conversationId, chatbotId]);
+
   const [messages, setMessages] = useState<Message[]>(() => [
     {
       id: 'intro',
@@ -43,7 +77,9 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loadHistoryRef = useRef<string | null>(null);
   const sessionKey = useMemo(() => `chatbot_session_${chatbotId}`, [chatbotId]);
 
   const getSessionId = (): string => {
@@ -60,6 +96,146 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
   };
 
   const sessionIdRef = useRef<string>(getSessionId());
+
+  // Generate new sessionId when starting a new conversation, or use conversationId for existing ones
+  useEffect(() => {
+    if (!conversationId) {
+      // New conversation - generate a new sessionId
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      sessionIdRef.current = newSessionId;
+      
+      // Update localStorage for new conversations
+      try {
+        localStorage.setItem(sessionKey, newSessionId);
+      } catch (error) {
+        console.warn('Failed to update sessionId in localStorage:', error);
+      }
+      
+      console.log('AssistantChatWindow - New conversation, generated new sessionId:', newSessionId);
+    } else {
+      // Existing conversation - use the conversationId as sessionId to maintain continuity
+      sessionIdRef.current = conversationId;
+      console.log('AssistantChatWindow - Using conversationId as sessionId:', conversationId);
+    }
+  }, [conversationId, sessionKey]);
+
+  // Function to get chat history for a specific conversation
+  const getChatHistory = async (conversationId: string): Promise<UserChatHistory[]> => {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Always try to get token if getToken function is available
+      // The endpoint requires authentication, so we must have a token
+      if (getToken) {
+        try {
+          const token = await getToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+            console.log('AssistantChatWindow getChatHistory - Authorization header added with token');
+          } else {
+            console.warn('AssistantChatWindow getChatHistory - getToken returned null/undefined');
+          }
+        } catch (error) {
+          console.error('AssistantChatWindow getChatHistory - Failed to get auth token:', error);
+          throw new Error('Authentication required but token could not be retrieved');
+        }
+      } else {
+        console.warn('AssistantChatWindow getChatHistory - No getToken function provided, request may fail');
+      }
+
+      console.log('AssistantChatWindow getChatHistory - Request headers:', Object.keys(headers));
+      const response = await fetch(`${apiUrl}/v1/api/n8n/authenticated/chatHistory/${chatbotId}/${conversationId}`, {
+        method: 'POST',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: UserChatHistory[] = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching chat history:', error);
+      throw error;
+    }
+  };
+
+  // Function to load chat history and populate messages
+  const loadChatHistory = async (conversationId: string) => {
+    // Prevent duplicate calls for the same conversation
+    if (loadHistoryRef.current === conversationId && isLoadingHistory) {
+      console.log('loadChatHistory - Already loading this conversation, skipping duplicate call');
+      return;
+    }
+    
+    loadHistoryRef.current = conversationId;
+    setIsLoadingHistory(true);
+    try {
+      const history = await getChatHistory(conversationId);
+      
+      // Convert UserChatHistory to Message format
+      const loadedMessages: Message[] = [];
+      
+      history.forEach((item) => {
+        // Add user message
+        if (item.userMessage) {
+          loadedMessages.push({
+            id: `${item.id}_user`,
+            role: 'user',
+            content: item.userMessage,
+            createdAt: new Date(item.createdAt),
+          });
+        }
+        
+        // Add AI message
+        if (item.aiMessage) {
+          loadedMessages.push({
+            id: `${item.id}_ai`,
+            role: 'assistant',
+            content: item.aiMessage,
+            createdAt: new Date(item.createdAt),
+          });
+        }
+      });
+      
+      // Sort by createdAt to maintain chronological order
+      loadedMessages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      
+      // If we have loaded messages, replace the intro message
+      if (loadedMessages.length > 0) {
+        setMessages(loadedMessages);
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+      if (loadHistoryRef.current === conversationId) {
+        loadHistoryRef.current = null;
+      }
+    }
+  };
+
+  // Load chat history when conversationId changes
+  useEffect(() => {
+    if (conversationId) {
+      loadChatHistory(conversationId);
+    } else {
+      // Reset to intro message if no conversationId
+      setMessages([
+        {
+          id: 'intro',
+          role: 'assistant',
+          content: `Hello! I'm ${assistantName.split(' ')[0]}. Ask me anything, and I'll do my best to help.`,
+          createdAt: new Date(),
+        },
+      ]);
+      loadHistoryRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, chatbotId, apiUrl, assistantName]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -89,9 +265,25 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
         chatbotId,
       };
 
-      const response = await fetch(`${apiUrl}/v1/api/n8n/anonymous/chat`, {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add bearer token if user is signed in
+      if (isSignedIn && getToken) {
+        try {
+          const token = await getToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+        } catch (error) {
+          console.warn('Failed to get auth token:', error);
+        }
+      }
+
+      const response = await fetch(`${apiUrl}/v1/api/n8n/authenticated/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       });
 
@@ -99,14 +291,60 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
         throw new Error(`HTTP error ${response.status}`);
       }
 
-      const data = await response.json();
-      const payloadData = data?.data || data;
-      const assistantReply =
-        payloadData?.response ||
-        payloadData?.message ||
-        payloadData?.answer ||
-        data?.message ||
-        `Thanks for the message! I'm ${assistantName} and I'm here to help.`;
+      const responseText = await response.text();
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse JSON:', e);
+        data = responseText;
+      }
+      
+      // The response has nested JSON strings - need to parse twice
+      // Response structure: { "output": "{\"output\":\"message\"}", "data": "{\"output\":\"message\"}", ... }
+      let assistantReply: string = '';
+      
+      // Try to extract from various fields that might contain the JSON string
+      const jsonString = 
+        (typeof data.output === 'string' ? data.output : '') ||
+        (typeof data.data === 'string' ? data.data : '') ||
+        (typeof data.message === 'string' ? data.message : '') ||
+        (typeof data.responseContent === 'string' ? data.responseContent : '') ||
+        (typeof data.result === 'string' ? data.result : '') ||
+        '';
+      
+      // If we found a JSON string, parse it to get the actual message
+      if (jsonString && jsonString.trim().startsWith('{')) {
+        try {
+          const innerData = JSON.parse(jsonString);
+          assistantReply = 
+            (typeof innerData.output === 'string' ? innerData.output : '') ||
+            (typeof innerData.response === 'string' ? innerData.response : '') ||
+            (typeof innerData.message === 'string' ? innerData.message : '') ||
+            (typeof innerData.answer === 'string' ? innerData.answer : '') ||
+            '';
+        } catch (e) {
+          console.error('Failed to parse inner JSON:', e);
+        }
+      }
+      
+      // Fallback: try direct extraction if the structure is different
+      if (!assistantReply && typeof data === 'object' && data !== null) {
+        // Check if output/data/message are already the final strings (not JSON)
+        assistantReply = 
+          (typeof data.output === 'string' && !data.output.trim().startsWith('{') ? data.output : '') ||
+          (typeof data.data === 'string' && !data.data.trim().startsWith('{') ? data.data : '') ||
+          (typeof data.message === 'string' && !data.message.trim().startsWith('{') ? data.message : '') ||
+          (typeof data.response === 'string' ? data.response : '') ||
+          (typeof data.answer === 'string' ? data.answer : '') ||
+          '';
+      }
+
+      // Ensure we have a valid string
+      if (!assistantReply || typeof assistantReply !== 'string' || assistantReply.trim().length === 0) {
+        assistantReply = `Thanks for the message! I'm ${assistantName} and I'm here to help.`;
+      }
 
       const assistantMessage: Message = {
         id: `${Date.now() + 1}`,
@@ -266,6 +504,7 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
               }}
             >
               <div
+                className={containsHTML(message.content) ? 'chatbot-html-content' : ''}
                 style={{
                   maxWidth: '70%',
                   padding: '16px 20px',
@@ -278,16 +517,38 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
                   boxShadow: isUser
                     ? '0 16px 28px rgba(37, 99, 235, 0.2)'
                     : '0 16px 28px rgba(15, 23, 42, 0.05)',
-                  whiteSpace: 'pre-wrap',
+                  whiteSpace: containsHTML(message.content) ? 'normal' : 'pre-wrap',
                   border: isUser ? 'none' : '1px solid rgba(148, 163, 184, 0.2)',
                 }}
+                {...(containsHTML(message.content) ? {
+                  dangerouslySetInnerHTML: { __html: message.content }
+                } : {})}
               >
-                {message.content}
+                {!containsHTML(message.content) && message.content}
               </div>
             </div>
           );
         })}
 
+        {isLoadingHistory && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: '#ffffff',
+              color: '#64748b',
+              padding: '12px 16px',
+              borderRadius: '18px',
+              border: '1px solid rgba(226, 232, 240, 0.8)',
+              boxShadow: '0 10px 22px rgba(15, 23, 42, 0.05)',
+              fontSize: '14px',
+            }}
+          >
+            <span className="typing-dot" />
+            <span>Loading conversation...</span>
+          </div>
+        )}
         {isLoading && (
           <div
             style={{
@@ -371,6 +632,62 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
       </form>
 
       <style jsx>{`
+        .chatbot-html-content h1, .chatbot-html-content h2, .chatbot-html-content h3 {
+          margin: 0.5em 0;
+          font-weight: 600;
+          line-height: 1.3;
+        }
+        .chatbot-html-content h1 { font-size: 1.5em; }
+        .chatbot-html-content h2 { font-size: 1.3em; }
+        .chatbot-html-content h3 { font-size: 1.1em; }
+        .chatbot-html-content ul, .chatbot-html-content ol {
+          margin: 0.5em 0;
+          padding-left: 1.5em;
+        }
+        .chatbot-html-content li {
+          margin: 0.3em 0;
+          line-height: 1.5;
+        }
+        .chatbot-html-content p {
+          margin: 0.5em 0;
+          line-height: 1.6;
+        }
+        .chatbot-html-content a {
+          color: inherit;
+          text-decoration: underline;
+        }
+        .chatbot-html-content code {
+          background: rgba(0, 0, 0, 0.1);
+          padding: 0.2em 0.4em;
+          border-radius: 3px;
+          font-size: 0.9em;
+        }
+        .chatbot-html-content pre {
+          background: rgba(0, 0, 0, 0.05);
+          padding: 0.8em;
+          border-radius: 6px;
+          overflow-x: auto;
+          margin: 0.5em 0;
+        }
+        .chatbot-html-content blockquote {
+          border-left: 3px solid rgba(0, 0, 0, 0.2);
+          padding-left: 1em;
+          margin: 0.5em 0;
+          font-style: italic;
+        }
+        .chatbot-html-content table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 0.5em 0;
+        }
+        .chatbot-html-content th, .chatbot-html-content td {
+          padding: 0.5em;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        .chatbot-html-content th {
+          background: rgba(0, 0, 0, 0.05);
+          font-weight: 600;
+        }
         .typing-dot {
           width: 8px;
           height: 8px;

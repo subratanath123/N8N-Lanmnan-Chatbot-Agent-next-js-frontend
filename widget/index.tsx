@@ -5,6 +5,9 @@ import ChatbotWidget from "./ChatbotWidget";
 interface ChatbotWidgetConfig {
   chatbotId: string;
   apiUrl: string;
+  authToken?: string;
+  width?: number; // Optional widget width in pixels (default: 380)
+  height?: number; // Optional widget height in pixels (default: 600)
 }
 
 // Helper function to wait for DOM to be ready

@@ -254,15 +254,19 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
         }
     }, [externalOrigin]);
 
-    const getEmbedCode = (chatbotId: string) => {
+    const getEmbedCode = (chatbotId: string, width?: number, height?: number) => {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
         const origin = resolvedOrigin || '';
+        const widgetWidth = width || 380;
+        const widgetHeight = height || 600;
 
         return `<script src="${origin}/widget-dist/chat-widget.iife.js"></script>
 <script>
   window.initChatWidget({
     chatbotId: "${chatbotId}",
-    apiUrl: "${backendUrl}"
+    apiUrl: "${backendUrl}",
+    width: ${widgetWidth},
+    height: ${widgetHeight}
   });
 </script>`;
     };
@@ -272,7 +276,8 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
     };
 
     const handleCopyEmbed = async (chatbotId: string) => {
-        const embedCode = getEmbedCode(chatbotId);
+        const chatbot = chatbots.find(c => c.id === chatbotId);
+        const embedCode = getEmbedCode(chatbotId, chatbot?.embedWidth, chatbot?.embedHeight);
 
         if (typeof navigator !== 'undefined' && navigator.clipboard) {
             try {
@@ -703,7 +708,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                             lineHeight: 1.7,
                                             fontFamily: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
                                         }}>
-{getEmbedCode(chatbot.id)}
+{getEmbedCode(chatbot.id, chatbot.embedWidth, chatbot.embedHeight)}
                                         </pre>
                                         <MDBBtn
                                             color="primary"

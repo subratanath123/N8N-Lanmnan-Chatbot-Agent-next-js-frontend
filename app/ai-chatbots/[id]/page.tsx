@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     MDBContainer,
     MDBRow,
@@ -88,6 +88,9 @@ interface Chatbot {
     embedHeight?: number;
     enableWhatsappIntegration?: boolean;
     enableFacebookIntegration?: boolean;
+    instructions?: string; // Instructions for replying user
+    fallbackMessage?: string; // Fallback message for replying user
+    restrictDataSource?: boolean; // Restrict to Datasource and knowledgebase during user's reply
 }
 
 export default function ChatbotDetailPage() {
@@ -129,7 +132,68 @@ export default function ChatbotDetailPage() {
     const [facebookErrors, setFacebookErrors] = useState<Record<string, string>>({});
     const [isTestingFacebook, setIsTestingFacebook] = useState(false);
     const [facebookTestResult, setFacebookTestResult] = useState<'success' | 'error' | null>(null);
+    const [isConversationDrawerOpen, setIsConversationDrawerOpen] = useState(false);
+    const [conversationDrawerMode, setConversationDrawerMode] = useState<'history' | 'new'>('history');
+    const [conversationSearchTerm, setConversationSearchTerm] = useState('');
+    const [newConversationForm, setNewConversationForm] = useState({
+        customerName: '',
+        topic: '',
+        channel: 'Website widget',
+        priority: 'Normal',
+        message: '',
+    });
     
+    const conversationHistory = useMemo(() => [
+        {
+            id: 'CNV-' + chatbotId,
+            title: 'New Conversation',
+            messageCount: 2,
+            updatedAt: '22 hours ago',
+            preview: 'Hey there! How can I help you today?',
+        },
+        {
+            id: 'CNV-1023',
+            title: 'Onboarding Walkthrough',
+            messageCount: 5,
+            updatedAt: '1 day ago',
+            preview: 'We are deploying the chatbot this week...',
+        },
+        {
+            id: 'CNV-1022',
+            title: 'Pricing Clarification',
+            messageCount: 12,
+            updatedAt: '1 week ago',
+            preview: 'Could you explain the enterprise plan limits?',
+        },
+        {
+            id: 'CNV-1021',
+            title: 'Widget Customization',
+            messageCount: 17,
+            updatedAt: '1 week ago',
+            preview: 'Is there a way to change the header color?',
+        },
+        {
+            id: 'CNV-1020',
+            title: 'Integration Follow-up',
+            messageCount: 9,
+            updatedAt: '3 weeks ago',
+            preview: 'Thanks for sharing the API docs!',
+        },
+    ], [chatbotId]);
+
+    const filteredConversations = useMemo(() => {
+        if (!conversationSearchTerm.trim()) {
+            return conversationHistory;
+        }
+        const term = conversationSearchTerm.toLowerCase();
+        return conversationHistory.filter(
+            (item) =>
+                item.title.toLowerCase().includes(term) ||
+                item.preview.toLowerCase().includes(term) ||
+                item.id.toLowerCase().includes(term),
+        );
+    }, [conversationHistory, conversationSearchTerm]);
+
     const { isSignedIn } = useUser();
     const { getToken } = useAuth();
 
@@ -148,6 +212,39 @@ export default function ChatbotDetailPage() {
         if (itemHref && itemHref !== '#') {
             router.push(itemHref);
         }
+    };
+
+    const handleOpenConversationDrawer = (mode: 'history' | 'new') => {
+        setConversationDrawerMode(mode);
+        setIsConversationDrawerOpen(true);
+    };
+
+    const handleCloseConversationDrawer = () => {
+        setIsConversationDrawerOpen(false);
+    };
+
+    const handleConversationSearch = (value: string) => {
+        setConversationSearchTerm(value);
+    };
+
+    const handleConversationFormChange = (field: keyof typeof newConversationForm, value: string) => {
+        setNewConversationForm((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    };
+
+    const handleCreateConversation = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        // Placeholder submit handler. Integrate API call here.
+        setNewConversationForm({
+            customerName: '',
+            topic: '',
+            channel: 'Website widget',
+            priority: 'Normal',
+            message: '',
+        });
+        setIsConversationDrawerOpen(false);
     };
 
     const handleKnowledgeModalOpen = () => {
@@ -780,6 +877,35 @@ export default function ChatbotDetailPage() {
                         <MDBIcon icon="database" />
                         Knowledge Base
                     </MDBBtn>
+                                <MDBBtn
+                                    color="secondary"
+                                    outline
+                                    onClick={() => handleOpenConversationDrawer('history')}
+                                    className="d-flex align-items-center gap-2"
+                                    style={{
+                                        borderRadius: '999px',
+                                        padding: '10px 20px',
+                                        fontWeight: 600,
+                                        fontSize: '14px',
+                                    }}
+                                >
+                                    <MDBIcon icon="history" />
+                                    Conversation History
+                                </MDBBtn>
+                                <MDBBtn
+                                    color="primary"
+                                    onClick={() => handleOpenConversationDrawer('new')}
+                                    className="d-flex align-items-center gap-2"
+                                    style={{
+                                        borderRadius: '999px',
+                                        padding: '10px 20px',
+                                        fontWeight: 600,
+                                        fontSize: '14px',
+                                    }}
+                                >
+                                    <MDBIcon icon="plus" />
+                                    New Conversation
+                                </MDBBtn>
                     {!isEditing ? (
                         <MDBBtn onClick={() => setIsEditing(true)} color="primary" className="d-flex align-items-center gap-2">
                             <MDBIcon icon="edit" />
@@ -883,6 +1009,71 @@ export default function ChatbotDetailPage() {
                                 />
                             ) : (
                                 <p className="mb-0">{chatbot.message || 'No message'}</p>
+                            )}
+                        </MDBCol>
+
+                        <MDBCol md="12" className="mb-3">
+                            <label className="form-label">Instructions for Replying User</label>
+                            {isEditing ? (
+                                <MDBTextArea
+                                    rows={4}
+                                    value={editedChatbot?.instructions || ''}
+                                    onChange={(e) =>
+                                        setEditedChatbot((prev) =>
+                                            prev ? { ...prev, instructions: e.target.value } : null
+                                        )
+                                    }
+                                    placeholder="Enter instructions for how the chatbot should reply to users..."
+                                />
+                            ) : (
+                                <p className="mb-0">{chatbot.instructions || 'No instructions set'}</p>
+                            )}
+                        </MDBCol>
+
+                        <MDBCol md="12" className="mb-3">
+                            <label className="form-label">Fallback Message for Replying User</label>
+                            {isEditing ? (
+                                <MDBTextArea
+                                    rows={3}
+                                    value={editedChatbot?.fallbackMessage || ''}
+                                    onChange={(e) =>
+                                        setEditedChatbot((prev) =>
+                                            prev ? { ...prev, fallbackMessage: e.target.value } : null
+                                        )
+                                    }
+                                    placeholder="Enter fallback message when the chatbot cannot find an answer..."
+                                />
+                            ) : (
+                                <p className="mb-0">{chatbot.fallbackMessage || 'No fallback message set'}</p>
+                            )}
+                        </MDBCol>
+
+                        <MDBCol md="12" className="mb-3">
+                            <label className="form-label">Restrict to Datasource and Knowledgebase</label>
+                            {isEditing ? (
+                                <MDBSwitch
+                                    checked={editedChatbot?.restrictDataSource || false}
+                                    onChange={(e) =>
+                                        setEditedChatbot((prev) =>
+                                            prev ? { ...prev, restrictDataSource: e.target.checked } : null
+                                        )
+                                    }
+                                    label="Restrict replies to only use datasource and knowledgebase content"
+                                />
+                            ) : (
+                                <p className="mb-0">
+                                    <span
+                                        style={{
+                                            padding: '4px 12px',
+                                            backgroundColor: chatbot.restrictDataSource ? '#d1fae5' : '#f3f4f6',
+                                            color: chatbot.restrictDataSource ? '#065f46' : '#6b7280',
+                                            borderRadius: '16px',
+                                            fontWeight: '500',
+                                        }}
+                                    >
+                                        {chatbot.restrictDataSource ? 'Enabled' : 'Disabled'}
+                                    </span>
+                                </p>
                             )}
                         </MDBCol>
 
@@ -1015,7 +1206,9 @@ export default function ChatbotDetailPage() {
 <script>
   window.initChatWidget({
     chatbotId: "${chatbotId}",
-    apiUrl: "${process.env.NEXT_PUBLIC_BACKEND_URL || ''}"
+    apiUrl: "${process.env.NEXT_PUBLIC_BACKEND_URL || ''}",
+    width: ${(isEditing ? editedChatbot?.embedWidth : chatbot?.embedWidth) ?? 380},
+    height: ${(isEditing ? editedChatbot?.embedHeight : chatbot?.embedHeight) ?? 600}
   });
 </script>`}
                                             </pre>
@@ -1026,11 +1219,15 @@ export default function ChatbotDetailPage() {
                                                 style={{ top: '12px', right: '12px' }}
                                                 onClick={async () => {
                                                     const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                                                    const width = (isEditing ? editedChatbot?.embedWidth : chatbot?.embedWidth) ?? 380;
+                                                    const height = (isEditing ? editedChatbot?.embedHeight : chatbot?.embedHeight) ?? 600;
                                                     const embedCode = `<script src="${origin}/widget-dist/chat-widget.iife.js"></script>
 <script>
   window.initChatWidget({
     chatbotId: "${chatbotId}",
-    apiUrl: "${process.env.NEXT_PUBLIC_BACKEND_URL || ''}"
+    apiUrl: "${process.env.NEXT_PUBLIC_BACKEND_URL || ''}",
+    width: ${width},
+    height: ${height}
   });
 </script>`;
                                                     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -1609,6 +1806,123 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                     </MDBModalContent>
                 </MDBModalDialog>
             </MDBModal>
+            {isConversationDrawerOpen && (
+                <div className="conversation-drawer-overlay" onClick={handleCloseConversationDrawer} aria-hidden="true"></div>
+            )}
+            <aside className={`conversation-drawer ${isConversationDrawerOpen ? 'open' : ''}`}>
+                <div className="drawer-header">
+                    <div>
+                        <h4>{conversationDrawerMode === 'history' ? 'Conversation History' : 'Start New Conversation'}</h4>
+                        <p>
+                            {conversationDrawerMode === 'history'
+                                ? 'Review recent user chats for this bot.'
+                                : 'Capture context before connecting a user to the assistant.'}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        className="drawer-close"
+                        onClick={handleCloseConversationDrawer}
+                        aria-label="Close conversation drawer"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                {conversationDrawerMode === 'history' ? (
+                    <div className="drawer-history">
+                        <div className="history-toolbar">
+                            <div className="history-search">
+                                <MDBIcon icon="search" className="me-2 text-muted" />
+                                <input
+                                    type="text"
+                                    placeholder="Search conversations..."
+                                    value={conversationSearchTerm}
+                                    onChange={(e) => handleConversationSearch(e.target.value)}
+                                />
+                            </div>
+                            <span className="history-count">{filteredConversations.length} results</span>
+                        </div>
+                        <div className="history-list">
+                            {filteredConversations.map((conversation) => (
+                                <div key={conversation.id} className="history-card">
+                                    <div className="history-card-id">{conversation.id}</div>
+                                    <div>
+                                        <h5>{conversation.title}</h5>
+                                        <p>{conversation.preview}</p>
+                                    </div>
+                                    <div className="history-meta">
+                                        <span>{conversation.messageCount} messages</span>
+                                        <span>{conversation.updatedAt}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <form className="drawer-form" onSubmit={handleCreateConversation}>
+                        <label>
+                            Customer Name
+                            <input
+                                type="text"
+                                placeholder="Jane Doe"
+                                value={newConversationForm.customerName}
+                                onChange={(e) => handleConversationFormChange('customerName', e.target.value)}
+                                required
+                            />
+                        </label>
+                        <label>
+                            Conversation Topic
+                            <input
+                                type="text"
+                                placeholder="What is the conversation about?"
+                                value={newConversationForm.topic}
+                                onChange={(e) => handleConversationFormChange('topic', e.target.value)}
+                                required
+                            />
+                        </label>
+                        <div className="drawer-form-row">
+                            <label>
+                                Channel
+                                <select
+                                    value={newConversationForm.channel}
+                                    onChange={(e) => handleConversationFormChange('channel', e.target.value)}
+                                >
+                                    <option>Website widget</option>
+                                    <option>WhatsApp</option>
+                                    <option>Facebook Messenger</option>
+                                    <option>Email</option>
+                                </select>
+                            </label>
+                            <label>
+                                Priority
+                                <select
+                                    value={newConversationForm.priority}
+                                    onChange={(e) => handleConversationFormChange('priority', e.target.value)}
+                                >
+                                    <option>Urgent</option>
+                                    <option>High</option>
+                                    <option>Normal</option>
+                                    <option>Low</option>
+                                </select>
+                            </label>
+                        </div>
+                        <label>
+                            Initial Message
+                            <textarea
+                                rows={4}
+                                placeholder="Write the opening message that will greet the user..."
+                                value={newConversationForm.message}
+                                onChange={(e) => handleConversationFormChange('message', e.target.value)}
+                                required
+                            />
+                        </label>
+                        <button type="submit" className="drawer-submit">
+                            Launch Conversation
+                        </button>
+                    </form>
+                )}
+            </aside>
             <style jsx>{`
                 .full-height-layout {
                     display: flex;
@@ -1639,6 +1953,213 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                         margin-left: 0;
                         padding: 1rem;
                     }
+                    .conversation-drawer {
+                        width: 100%;
+                        right: ${isConversationDrawerOpen ? '0' : '-100%'};
+                    }
+                }
+
+                .conversation-drawer-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(15, 23, 42, 0.4);
+                    backdrop-filter: blur(2px);
+                    z-index: 990;
+                }
+
+                .conversation-drawer {
+                    position: fixed;
+                    top: 0;
+                    right: -420px;
+                    width: 420px;
+                    height: 100%;
+                    background: #ffffff;
+                    border-left: 1px solid rgba(226, 232, 240, 0.9);
+                    box-shadow: -24px 0 48px rgba(15, 23, 42, 0.08);
+                    z-index: 1000;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 24px;
+                    padding: 28px;
+                    transition: right 0.3s ease;
+                }
+
+                .conversation-drawer.open {
+                    right: 0;
+                }
+
+                .drawer-header {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 16px;
+                    align-items: flex-start;
+                }
+
+                .drawer-header h4 {
+                    margin: 0;
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #0f172a;
+                }
+
+                .drawer-header p {
+                    margin: 6px 0 0;
+                    font-size: 14px;
+                    color: #64748b;
+                }
+
+                .drawer-close {
+                    border: none;
+                    background: rgba(148, 163, 184, 0.2);
+                    color: #0f172a;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    font-size: 18px;
+                    cursor: pointer;
+                }
+
+                .drawer-history {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                    flex: 1;
+                }
+
+                .history-toolbar {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .history-search {
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 14px;
+                    border-radius: 12px;
+                    background: #f8fafc;
+                    border: 1px solid rgba(226, 232, 240, 0.9);
+                }
+
+                .history-search input {
+                    flex: 1;
+                    border: none;
+                    background: transparent;
+                    outline: none;
+                    font-size: 14px;
+                    color: #0f172a;
+                }
+
+                .history-count {
+                    font-size: 12px;
+                    color: #64748b;
+                    font-weight: 600;
+                }
+
+                .history-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    overflow-y: auto;
+                }
+
+                .history-card {
+                    border: 1px solid rgba(226, 232, 240, 0.8);
+                    border-radius: 16px;
+                    padding: 16px;
+                    display: grid;
+                    grid-template-columns: auto 1fr auto;
+                    gap: 14px;
+                    box-shadow: 0 16px 28px rgba(15, 23, 42, 0.05);
+                    background: #ffffff;
+                }
+
+                .history-card-id {
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #2563eb;
+                    background: rgba(37, 99, 235, 0.12);
+                    padding: 6px 12px;
+                    border-radius: 999px;
+                }
+
+                .history-card h5 {
+                    margin: 0 0 6px;
+                    font-size: 15px;
+                    color: #0f172a;
+                }
+
+                .history-card p {
+                    margin: 0;
+                    font-size: 13px;
+                    color: #64748b;
+                }
+
+                .history-meta {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    align-items: flex-end;
+                    font-size: 12px;
+                    color: #94a3b8;
+                    font-weight: 600;
+                }
+
+                .drawer-form {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                }
+
+                .drawer-form label {
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: #475569;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .drawer-form input,
+                .drawer-form textarea,
+                .drawer-form select {
+                    border: 1px solid rgba(226, 232, 240, 0.9);
+                    border-radius: 12px;
+                    padding: 12px 14px;
+                    font-size: 14px;
+                    background: #f8fafc;
+                    color: #0f172a;
+                    outline: none;
+                }
+
+                .drawer-form input:focus,
+                .drawer-form textarea:focus,
+                .drawer-form select:focus {
+                    border-color: #2563eb;
+                    background: #ffffff;
+                    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+                }
+
+                .drawer-form-row {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 12px;
+                }
+
+                .drawer-submit {
+                    border: none;
+                    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                    color: #ffffff;
+                    font-size: 14px;
+                    font-weight: 600;
+                    padding: 14px;
+                    border-radius: 14px;
+                    cursor: pointer;
+                    box-shadow: 0 18px 32px rgba(37, 99, 235, 0.24);
+                    margin-top: 8px;
                 }
             `}</style>
             <div
