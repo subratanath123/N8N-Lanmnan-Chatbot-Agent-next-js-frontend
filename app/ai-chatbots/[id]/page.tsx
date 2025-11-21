@@ -170,6 +170,43 @@ export default function ChatbotDetailPage() {
     }>>([]);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     
+    // Knowledge base editing state
+    interface UploadedFileInfo {
+        id: string;
+        name: string;
+        size: number;
+        fileId: string | null;
+        isUploading: boolean;
+        uploadError: string | null;
+        isExisting?: boolean; // Track if this is an existing file from the chatbot
+    }
+    
+    interface QAInfo {
+        id: string;
+        question: string;
+        answer: string;
+        isExisting?: boolean; // Track if this is an existing QA pair from the chatbot
+    }
+    
+    interface TextInfo {
+        content: string;
+        isExisting?: boolean; // Track if this is existing text from the chatbot
+    }
+    
+    interface WebsiteInfo {
+        url: string;
+        isExisting?: boolean; // Track if this is existing website from the chatbot
+    }
+    
+    const [editingFiles, setEditingFiles] = useState<UploadedFileInfo[]>([]);
+    const [editingQAPairs, setEditingQAPairs] = useState<QAInfo[]>([]);
+    const [editingTexts, setEditingTexts] = useState<TextInfo[]>([]);
+    const [editingWebsites, setEditingWebsites] = useState<WebsiteInfo[]>([]);
+    const [currentQAQuestion, setCurrentQAQuestion] = useState('');
+    const [currentQAAnswer, setCurrentQAAnswer] = useState('');
+    const [currentTextContent, setCurrentTextContent] = useState('');
+    const [currentWebsiteUrl, setCurrentWebsiteUrl] = useState('');
+    
     // Interface for UserChatHistory from API
     interface UserChatHistory {
         id: string | null;
@@ -682,11 +719,32 @@ export default function ChatbotDetailPage() {
                 }
             }
 
+            // Extract fileIds from uploaded files
+            const fileIds = editingFiles
+                .filter(file => file.fileId !== null)
+                .map(file => file.fileId as string);
+            
+            // Prepare QA pairs (remove internal id field and isExisting flag)
+            const qaPairs = editingQAPairs.map(qa => ({
+                question: qa.question,
+                answer: qa.answer
+            }));
+            
+            // Prepare texts (extract content from TextInfo)
+            const texts = editingTexts.map(textInfo => textInfo.content);
+            
+            // Prepare websites (extract url from WebsiteInfo)
+            const websites = editingWebsites.map(websiteInfo => websiteInfo.url);
+
             // Ensure width and height are included from current preview values
             const chatbotToSave = {
                 ...editedChatbot,
                 width: previewWidth,
                 height: previewHeight,
+                fileIds: fileIds,
+                qaPairs: qaPairs,
+                addedTexts: texts,
+                addedWebsites: websites,
             };
 
             const response = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}`, {
@@ -704,6 +762,12 @@ export default function ChatbotDetailPage() {
             setChatbot(updatedChatbot);
             setEditedChatbot(updatedChatbot);
             setIsEditing(false);
+            
+            // Clear editing state
+            setEditingFiles([]);
+            setEditingQAPairs([]);
+            setEditingTexts([]);
+            setEditingWebsites([]);
         } catch (error) {
             console.error('Error updating chatbot:', error);
             alert('Failed to update chatbot');
@@ -713,6 +777,261 @@ export default function ChatbotDetailPage() {
     const handleCancel = () => {
         setEditedChatbot(chatbot);
         setIsEditing(false);
+        // Reset editing state
+        setEditingFiles([]);
+        setEditingQAPairs([]);
+        setEditingTexts([]);
+        setEditingWebsites([]);
+        setCurrentQAQuestion('');
+        setCurrentQAAnswer('');
+        setCurrentTextContent('');
+        setCurrentWebsiteUrl('');
+    };
+    
+    // Initialize editing state when entering edit mode
+    useEffect(() => {
+        if (isEditing && chatbot) {
+            // Initialize files from chatbot
+            let files: UploadedFileInfo[] = [];
+            
+            // First, use full file objects if available
+            if (chatbot.files && chatbot.files.length > 0) {
+                files = chatbot.files.map((file, index) => ({
+                    id: file.id || `existing-${index}`,
+                    name: file.name || `File ${index + 1}`,
+                    size: file.size || 0,
+                    fileId: file.id || null,
+                    isUploading: false,
+                    uploadError: null,
+                    isExisting: true, // Mark as existing
+                }));
+            }
+            
+            // If we have fileIds but no full file objects (or fileIds not in files), create entries from fileIds
+            if (chatbot.fileIds && chatbot.fileIds.length > 0) {
+                // Get existing fileIds from files array
+                const existingFileIds = new Set(files.map(f => f.fileId).filter(Boolean));
+                
+                // Add entries for fileIds that aren't already in files
+                chatbot.fileIds.forEach((fileId, index) => {
+                    if (!existingFileIds.has(fileId)) {
+                        // Find if this fileId was already added from files array
+                        const existingFile = files.find(f => f.fileId === fileId);
+                        if (!existingFile) {
+                            files.push({
+                                id: fileId,
+                                name: `File ${files.length + 1}`,
+                                size: 0,
+                                fileId: fileId,
+                                isUploading: false,
+                                uploadError: null,
+                                isExisting: true, // Mark as existing
+                            });
+                        }
+                    }
+                });
+                
+                // If no files were created from files array, create all from fileIds
+                if (files.length === 0) {
+                    files = chatbot.fileIds.map((fileId, index) => ({
+                        id: fileId,
+                        name: `File ${index + 1}`,
+                        size: 0,
+                        fileId: fileId,
+                        isUploading: false,
+                        uploadError: null,
+                        isExisting: true, // Mark as existing
+                    }));
+                }
+            }
+            
+            setEditingFiles(files);
+            
+            // Initialize QA pairs - mark as existing
+            const qaPairs: QAInfo[] = (chatbot.qaPairs || []).map((qa, index) => ({
+                id: `existing-qa-${index}`,
+                question: qa.question,
+                answer: qa.answer,
+                isExisting: true, // Mark as existing
+            }));
+            setEditingQAPairs(qaPairs);
+            
+            // Initialize texts - mark as existing
+            const texts: TextInfo[] = (chatbot.addedTexts || []).map(text => ({
+                content: text,
+                isExisting: true, // Mark as existing
+            }));
+            setEditingTexts(texts);
+            
+            // Initialize websites - mark as existing
+            const websites: WebsiteInfo[] = (chatbot.addedWebsites || []).map(url => ({
+                url: url,
+                isExisting: true, // Mark as existing
+            }));
+            setEditingWebsites(websites);
+        }
+    }, [isEditing, chatbot]);
+    
+    // File upload handler
+    const uploadFile = async (file: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('workflowId', 'chatbot-creation');
+        formData.append('webhookUrl', 'chatbot-creation');
+
+        const headers: Record<string, string> = {};
+        
+        if (isSignedIn) {
+            try {
+                const token = await getToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+            } catch (error) {
+                console.warn('Failed to get auth token:', error);
+            }
+        }
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+        const response = await fetch(`${backendUrl}/v1/api/file/upload`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.errorMessage || `Failed to upload file: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (!result.fileId) {
+            throw new Error(result.errorMessage || 'File upload failed');
+        }
+
+        return result.fileId;
+    };
+    
+    const handleFileSelect = async (files: FileList | null) => {
+        if (!files) return;
+        
+        const newFiles = Array.from(files).filter(file => {
+            const isValidSize = file.size <= 30 * 1024 * 1024; // 30MB
+            if (!isValidSize) {
+                alert(`${file.name} is too large. Please select files smaller than 30MB.`);
+                return false;
+            }
+            return true;
+        });
+
+        // Check total file count
+        const currentCount = editingFiles.length;
+        if (currentCount + newFiles.length > 50) {
+            alert('Maximum 50 files allowed. Some files were not added.');
+            newFiles.splice(50 - currentCount);
+        }
+
+        // Add files to state with uploading status - mark as NOT existing (newly added)
+        const newFileInfos: UploadedFileInfo[] = newFiles.map((file, index) => ({
+            id: `${Date.now()}-${index}`,
+            name: file.name,
+            size: file.size,
+            fileId: null,
+            isUploading: true,
+            uploadError: null,
+            isExisting: false, // Mark as newly added, not existing
+        }));
+
+        setEditingFiles(prev => [...prev, ...newFileInfos]);
+
+        // Upload files asynchronously
+        newFiles.forEach(async (file, index) => {
+            const fileInfoId = newFileInfos[index].id;
+            try {
+                const fileId = await uploadFile(file);
+                setEditingFiles(prev =>
+                    prev.map(f =>
+                        f.id === fileInfoId
+                            ? { ...f, fileId, isUploading: false, uploadError: null }
+                            : f
+                    )
+                );
+            } catch (error) {
+                console.error(`Failed to upload ${file.name}:`, error);
+                setEditingFiles(prev =>
+                    prev.map(f =>
+                        f.id === fileInfoId
+                            ? {
+                                  ...f,
+                                  isUploading: false,
+                                  uploadError: error instanceof Error ? error.message : 'Upload failed',
+                              }
+                            : f
+                    )
+                );
+                alert(`Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        });
+    };
+    
+    const handleRemoveFile = (id: string) => {
+        setEditingFiles(prev => prev.filter(f => f.id !== id));
+    };
+    
+    const handleAddQA = () => {
+        if (currentQAQuestion.trim() && currentQAAnswer.trim()) {
+            const newQA: QAInfo = {
+                id: Date.now().toString(),
+                question: currentQAQuestion.trim(),
+                answer: currentQAAnswer.trim(),
+                isExisting: false, // Mark as newly added, not existing
+            };
+            setEditingQAPairs(prev => [...prev, newQA]);
+            setCurrentQAQuestion('');
+            setCurrentQAAnswer('');
+        }
+    };
+    
+    const handleRemoveQA = (id: string) => {
+        setEditingQAPairs(prev => prev.filter(qa => qa.id !== id));
+    };
+    
+    const handleAddText = () => {
+        if (currentTextContent.trim()) {
+            const newText: TextInfo = {
+                content: currentTextContent.trim(),
+                isExisting: false, // Mark as newly added, not existing
+            };
+            setEditingTexts(prev => [...prev, newText]);
+            setCurrentTextContent('');
+        } else {
+            alert('Please enter some text content');
+        }
+    };
+    
+    const handleRemoveText = (index: number) => {
+        setEditingTexts(prev => prev.filter((_, i) => i !== index));
+    };
+    
+    const handleAddWebsite = () => {
+        if (currentWebsiteUrl.trim()) {
+            try {
+                new URL(currentWebsiteUrl.trim()); // Validate URL
+                const newWebsite: WebsiteInfo = {
+                    url: currentWebsiteUrl.trim(),
+                    isExisting: false, // Mark as newly added, not existing
+                };
+                setEditingWebsites(prev => [...prev, newWebsite]);
+                setCurrentWebsiteUrl('');
+            } catch {
+                alert('Please enter a valid website URL');
+            }
+        } else {
+            alert('Please enter a website URL');
+        }
+    };
+    
+    const handleRemoveWebsite = (index: number) => {
+        setEditingWebsites(prev => prev.filter((_, i) => i !== index));
     };
 
     // Fetch knowledge bases list
@@ -770,7 +1089,25 @@ export default function ChatbotDetailPage() {
         }
     }, [showKnowledgeModal, fetchKnowledgeBasesList]);
 
-    const mergedFiles = knowledgeBase?.files || chatbot?.files || [];
+    // Create files list - prioritize knowledgeBase files, then chatbot files, then create from fileIds
+    let mergedFiles: KnowledgeFile[] = [];
+    if (knowledgeBase?.files && knowledgeBase.files.length > 0) {
+        mergedFiles = knowledgeBase.files;
+    } else if (chatbot?.files && chatbot.files.length > 0) {
+        mergedFiles = chatbot.files;
+    } else if (chatbot?.fileIds && chatbot.fileIds.length > 0) {
+        // Create file entries from fileIds with names like "File 1", "File 2", etc.
+        mergedFiles = chatbot.fileIds.map((fileId, index) => ({
+            id: fileId,
+            name: `File ${index + 1}`,
+            size: undefined,
+            mimeType: undefined,
+            sourceType: undefined,
+            uploadedAt: undefined,
+            url: undefined,
+        }));
+    }
+    
     const mergedWebsites =
         knowledgeBase?.websites ||
         (chatbot?.addedWebsites || []).map((url, index) => ({
@@ -1164,6 +1501,421 @@ export default function ChatbotDetailPage() {
                                 </p>
                             )}
                         </MDBCol>
+                        
+                        {/* Knowledge Base View Section (Non-edit mode) */}
+                        {!isEditing && (mergedFiles.length > 0 || mergedQAPairs.length > 0 || mergedTexts.length > 0 || mergedWebsites.length > 0) && (
+                            <>
+                                <MDBCol md="12" className="mb-4 mt-4">
+                                    <hr />
+                                    <h5 className="mb-3 d-flex align-items-center gap-2">
+                                        <MDBIcon icon="database" className="text-primary" />
+                                        Knowledge Base
+                                    </h5>
+                                </MDBCol>
+                                
+                                {/* Files Display */}
+                                {mergedFiles.length > 0 && (
+                                    <MDBCol md="12" className="mb-3">
+                                        <label className="form-label fw-bold">Files ({mergedFiles.length})</label>
+                                        <MDBCard className="border">
+                                            <MDBCardBody>
+                                                <div className="d-flex flex-column gap-2">
+                                                    {mergedFiles.map((file, index) => (
+                                                        <div
+                                                            key={file.id || index}
+                                                            className="d-flex align-items-center justify-content-between p-2 border rounded"
+                                                            style={{ backgroundColor: '#f9fafb' }}
+                                                        >
+                                                            <div className="d-flex align-items-center gap-2">
+                                                                <MDBIcon icon="file" className="text-primary" />
+                                                                <div>
+                                                                    <div className="fw-semibold">{file.name}</div>
+                                                                    {file.size && (
+                                                                        <small className="text-muted">
+                                                                            {formatFileSize(file.size)}
+                                                                        </small>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </MDBCardBody>
+                                        </MDBCard>
+                                    </MDBCol>
+                                )}
+                                
+                                {/* QA Pairs Display */}
+                                {mergedQAPairs.length > 0 && (
+                                    <MDBCol md="12" className="mb-3">
+                                        <label className="form-label fw-bold">Question & Answer Pairs ({mergedQAPairs.length})</label>
+                                        <MDBCard className="border">
+                                            <MDBCardBody>
+                                                <div className="d-flex flex-column gap-3">
+                                                    {mergedQAPairs.map((qa, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="p-3 border rounded"
+                                                            style={{ backgroundColor: '#f9fafb' }}
+                                                        >
+                                                            <div className="fw-semibold text-primary mb-1">
+                                                                <MDBIcon icon="question-circle" className="me-1" />
+                                                                {qa.question}
+                                                            </div>
+                                                            <div className="text-muted">
+                                                                <MDBIcon icon="check-circle" className="me-1" />
+                                                                {qa.answer}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </MDBCardBody>
+                                        </MDBCard>
+                                    </MDBCol>
+                                )}
+                                
+                                {/* Texts Display */}
+                                {mergedTexts.length > 0 && (
+                                    <MDBCol md="12" className="mb-3">
+                                        <label className="form-label fw-bold">Text Content ({mergedTexts.length})</label>
+                                        <MDBCard className="border">
+                                            <MDBCardBody>
+                                                <div className="d-flex flex-column gap-2">
+                                                    {mergedTexts.map((text, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="p-2 border rounded"
+                                                            style={{ backgroundColor: '#f9fafb' }}
+                                                        >
+                                                            <small className="text-muted">
+                                                                {text.substring(0, 200)}
+                                                                {text.length > 200 ? '...' : ''}
+                                                            </small>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </MDBCardBody>
+                                        </MDBCard>
+                                    </MDBCol>
+                                )}
+                                
+                                {/* Websites Display */}
+                                {mergedWebsites.length > 0 && (
+                                    <MDBCol md="12" className="mb-3">
+                                        <label className="form-label fw-bold">Website URLs ({mergedWebsites.length})</label>
+                                        <MDBCard className="border">
+                                            <MDBCardBody>
+                                                <div className="d-flex flex-column gap-2">
+                                                    {mergedWebsites.map((website, index) => (
+                                                        <div
+                                                            key={website.id || index}
+                                                            className="d-flex align-items-center p-2 border rounded"
+                                                            style={{ backgroundColor: '#f9fafb' }}
+                                                        >
+                                                            <MDBIcon icon="link" className="me-2 text-primary" />
+                                                            <a href={website.url} target="_blank" rel="noopener noreferrer">
+                                                                {website.url}
+                                                            </a>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </MDBCardBody>
+                                        </MDBCard>
+                                    </MDBCol>
+                                )}
+                            </>
+                        )}
+                        
+                        {/* Knowledge Base Editing Section */}
+                        {isEditing && (
+                            <>
+                                <MDBCol md="12" className="mb-4 mt-4">
+                                    <hr />
+                                    <h5 className="mb-3 d-flex align-items-center gap-2">
+                                        <MDBIcon icon="database" className="text-primary" />
+                                        Knowledge Base
+                                    </h5>
+                                </MDBCol>
+                                
+                                {/* Files Section */}
+                                <MDBCol md="12" className="mb-4">
+                                    <label className="form-label fw-bold">Files</label>
+                                    <MDBCard className="border">
+                                        <MDBCardBody>
+                                            <div className="mb-3">
+                                                <input
+                                                    type="file"
+                                                    id="file-upload-input"
+                                                    multiple
+                                                    accept=".pdf,.txt,.doc,.docx,.md,.csv,.json"
+                                                    onChange={(e) => handleFileSelect(e.target.files)}
+                                                    style={{ display: 'none' }}
+                                                />
+                                                <MDBBtn
+                                                    color="primary"
+                                                    outline
+                                                    onClick={() => document.getElementById('file-upload-input')?.click()}
+                                                    className="d-flex align-items-center gap-2"
+                                                >
+                                                    <MDBIcon icon="upload" />
+                                                    Upload Files (PDF, TXT, DOC, etc.)
+                                                </MDBBtn>
+                                                <small className="text-muted d-block mt-2">
+                                                    Supported: PDF, TXT, DOC, DOCX, MD, CSV, JSON (Max 30MB per file, up to 50 files)
+                                                </small>
+                                            </div>
+                                            
+                                            {editingFiles.length > 0 && (
+                                                <div className="mt-3">
+                                                    <h6 className="mb-2">Uploaded Files ({editingFiles.length})</h6>
+                                                    <div className="d-flex flex-column gap-2">
+                                                        {editingFiles.map((fileInfo) => (
+                                                            <div
+                                                                key={fileInfo.id}
+                                                                className="d-flex align-items-center justify-content-between p-2 border rounded"
+                                                                style={{
+                                                                    backgroundColor: fileInfo.isUploading
+                                                                        ? '#f0f9ff'
+                                                                        : fileInfo.uploadError
+                                                                        ? '#fef2f2'
+                                                                        : fileInfo.fileId
+                                                                        ? '#f0fdf4'
+                                                                        : '#f9fafb',
+                                                                }}
+                                                            >
+                                                                <div className="d-flex align-items-center gap-2 flex-grow-1">
+                                                                    {fileInfo.isUploading ? (
+                                                                        <div className="spinner-border spinner-border-sm text-info" role="status">
+                                                                            <span className="visually-hidden">Loading...</span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <MDBIcon
+                                                                            icon={
+                                                                                fileInfo.uploadError
+                                                                                    ? 'exclamation-triangle'
+                                                                                    : 'check-circle'
+                                                                            }
+                                                                            className={
+                                                                                fileInfo.uploadError
+                                                                                    ? 'text-danger'
+                                                                                    : 'text-success'
+                                                                            }
+                                                                        />
+                                                                    )}
+                                                                    <div>
+                                                                        <div className="fw-semibold">{fileInfo.name}</div>
+                                                                        <small className="text-muted">
+                                                                            {formatFileSize(fileInfo.size || 0)}
+                                                                            {fileInfo.isUploading && ' - Uploading...'}
+                                                                            {fileInfo.uploadError && ` - Error: ${fileInfo.uploadError}`}
+                                                                        </small>
+                                                                    </div>
+                                                                </div>
+                                                                {!fileInfo.isExisting && (
+                                                                    <MDBBtn
+                                                                        color="danger"
+                                                                        size="sm"
+                                                                        onClick={() => handleRemoveFile(fileInfo.id)}
+                                                                        disabled={fileInfo.isUploading}
+                                                                    >
+                                                                        <MDBIcon icon="trash" />
+                                                                    </MDBBtn>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </MDBCardBody>
+                                    </MDBCard>
+                                </MDBCol>
+                                
+                                {/* QA Pairs Section */}
+                                <MDBCol md="12" className="mb-4">
+                                    <label className="form-label fw-bold">Question & Answer Pairs</label>
+                                    <MDBCard className="border">
+                                        <MDBCardBody>
+                                            <div className="mb-3">
+                                                <MDBInput
+                                                    label="Question"
+                                                    value={currentQAQuestion}
+                                                    onChange={(e) => setCurrentQAQuestion(e.target.value)}
+                                                    className="mb-2"
+                                                />
+                                                <MDBTextArea
+                                                    label="Answer"
+                                                    rows={3}
+                                                    value={currentQAAnswer}
+                                                    onChange={(e) => setCurrentQAAnswer(e.target.value)}
+                                                    className="mb-2"
+                                                />
+                                                <MDBBtn
+                                                    color="primary"
+                                                    onClick={handleAddQA}
+                                                    disabled={!currentQAQuestion.trim() || !currentQAAnswer.trim()}
+                                                >
+                                                    <MDBIcon icon="plus" className="me-2" />
+                                                    Add QA Pair
+                                                </MDBBtn>
+                                            </div>
+                                            
+                                            {editingQAPairs.length > 0 && (
+                                                <div className="mt-3">
+                                                    <h6 className="mb-2">QA Pairs ({editingQAPairs.length})</h6>
+                                                    <div className="d-flex flex-column gap-3">
+                                                        {editingQAPairs.map((qa) => (
+                                                            <div
+                                                                key={qa.id}
+                                                                className="p-3 border rounded"
+                                                                style={{ backgroundColor: '#f9fafb' }}
+                                                            >
+                                                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                                                    <div className="flex-grow-1">
+                                                                        <div className="fw-semibold text-primary mb-1">
+                                                                            <MDBIcon icon="question-circle" className="me-1" />
+                                                                            {qa.question}
+                                                                        </div>
+                                                                        <div className="text-muted">
+                                                                            <MDBIcon icon="check-circle" className="me-1" />
+                                                                            {qa.answer}
+                                                                        </div>
+                                                                    </div>
+                                                                    {!qa.isExisting && (
+                                                                        <MDBBtn
+                                                                            color="danger"
+                                                                            size="sm"
+                                                                            onClick={() => handleRemoveQA(qa.id)}
+                                                                        >
+                                                                            <MDBIcon icon="trash" />
+                                                                        </MDBBtn>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </MDBCardBody>
+                                    </MDBCard>
+                                </MDBCol>
+                                
+                                {/* Text Content Section */}
+                                <MDBCol md="12" className="mb-4">
+                                    <label className="form-label fw-bold">Text Content</label>
+                                    <MDBCard className="border">
+                                        <MDBCardBody>
+                                            <div className="mb-3">
+                                                <MDBTextArea
+                                                    label="Add Text Content"
+                                                    rows={4}
+                                                    value={currentTextContent}
+                                                    onChange={(e) => setCurrentTextContent(e.target.value)}
+                                                    className="mb-2"
+                                                    placeholder="Enter text content for training..."
+                                                />
+                                                <MDBBtn
+                                                    color="primary"
+                                                    onClick={handleAddText}
+                                                    disabled={!currentTextContent.trim()}
+                                                >
+                                                    <MDBIcon icon="plus" className="me-2" />
+                                                    Add Text
+                                                </MDBBtn>
+                                            </div>
+                                            
+                                            {editingTexts.length > 0 && (
+                                                <div className="mt-3">
+                                                    <h6 className="mb-2">Text Contents ({editingTexts.length})</h6>
+                                                    <div className="d-flex flex-column gap-2">
+                                                        {editingTexts.map((textInfo, index) => (
+                                                            <div
+                                                                key={index}
+                                                                className="d-flex align-items-start justify-content-between p-2 border rounded"
+                                                                style={{ backgroundColor: '#f9fafb' }}
+                                                            >
+                                                                <div className="flex-grow-1">
+                                                                    <small className="text-muted">
+                                                                        {textInfo.content.substring(0, 150)}
+                                                                        {textInfo.content.length > 150 ? '...' : ''}
+                                                                    </small>
+                                                                </div>
+                                                                {!textInfo.isExisting && (
+                                                                    <MDBBtn
+                                                                        color="danger"
+                                                                        size="sm"
+                                                                        onClick={() => handleRemoveText(index)}
+                                                                    >
+                                                                        <MDBIcon icon="trash" />
+                                                                    </MDBBtn>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </MDBCardBody>
+                                    </MDBCard>
+                                </MDBCol>
+                                
+                                {/* Website URLs Section */}
+                                <MDBCol md="12" className="mb-4">
+                                    <label className="form-label fw-bold">Website URLs</label>
+                                    <MDBCard className="border">
+                                        <MDBCardBody>
+                                            <div className="mb-3">
+                                                <MDBInput
+                                                    label="Website URL"
+                                                    type="url"
+                                                    value={currentWebsiteUrl}
+                                                    onChange={(e) => setCurrentWebsiteUrl(e.target.value)}
+                                                    className="mb-2"
+                                                    placeholder="https://example.com"
+                                                />
+                                                <MDBBtn
+                                                    color="primary"
+                                                    onClick={handleAddWebsite}
+                                                    disabled={!currentWebsiteUrl.trim()}
+                                                >
+                                                    <MDBIcon icon="plus" className="me-2" />
+                                                    Add Website
+                                                </MDBBtn>
+                                            </div>
+                                            
+                                            {editingWebsites.length > 0 && (
+                                                <div className="mt-3">
+                                                    <h6 className="mb-2">Website URLs ({editingWebsites.length})</h6>
+                                                    <div className="d-flex flex-column gap-2">
+                                                        {editingWebsites.map((websiteInfo, index) => (
+                                                            <div
+                                                                key={index}
+                                                                className="d-flex align-items-center justify-content-between p-2 border rounded"
+                                                                style={{ backgroundColor: '#f9fafb' }}
+                                                            >
+                                                                <div className="flex-grow-1">
+                                                                    <MDBIcon icon="link" className="me-2 text-primary" />
+                                                                    <a href={websiteInfo.url} target="_blank" rel="noopener noreferrer">
+                                                                        {websiteInfo.url}
+                                                                    </a>
+                                                                </div>
+                                                                {!websiteInfo.isExisting && (
+                                                                    <MDBBtn
+                                                                        color="danger"
+                                                                        size="sm"
+                                                                        onClick={() => handleRemoveWebsite(index)}
+                                                                    >
+                                                                        <MDBIcon icon="trash" />
+                                                                    </MDBBtn>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </MDBCardBody>
+                                    </MDBCard>
+                                </MDBCol>
+                            </>
+                        )}
 
                         <MDBCol md="6" className="mb-3">
                             <label className="form-label">Created At</label>
