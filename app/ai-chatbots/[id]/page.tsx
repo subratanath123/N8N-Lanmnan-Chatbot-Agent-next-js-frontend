@@ -115,6 +115,7 @@ export default function ChatbotDetailPage() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showEmbedCode, setShowEmbedCode] = useState(false);
     const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+    const [showApiCopyTooltip, setShowApiCopyTooltip] = useState(false);
     const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
     const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseResponse | null>(null);
     const [knowledgeBasesList, setKnowledgeBasesList] = useState<KnowledgeBase[]>([]);
@@ -568,7 +569,7 @@ export default function ChatbotDetailPage() {
             setEditedChatbot(chatbotData);
         } catch (error) {
             console.error('Error fetching chatbot details:', error);
-            alert('Failed to load chatbot details');
+            // alert('Failed to load chatbot details');
         } finally {
             setIsLoading(false);
         }
@@ -2117,7 +2118,8 @@ Headers: { "Content-Type": "application/json", "Authorization": "Bearer YOUR_TOK
 Body: { "message": "Hello", "sessionId": "optional" }`;
                                         if (typeof navigator !== 'undefined' && navigator.clipboard) {
                                             navigator.clipboard.writeText(apiInfo).then(() => {
-                                                alert('API information copied to clipboard!');
+                                                setShowApiCopyTooltip(true);
+                                                setTimeout(() => setShowApiCopyTooltip(false), 3000);
                                             }).catch(() => {
                                                 alert('Failed to copy API info. Please select and copy manually.');
                                             });
@@ -2646,6 +2648,33 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                     </MDBModalContent>
                 </MDBModalDialog>
             </MDBModal>
+            
+            {/* API Copy Tooltip */}
+            {showApiCopyTooltip && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        padding: '12px 20px',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        opacity: showApiCopyTooltip ? 1 : 0,
+                        transform: showApiCopyTooltip ? 'translateY(0)' : 'translateY(-10px)',
+                        transition: 'opacity 0.3s ease-in, transform 0.3s ease-in',
+                    }}
+                >
+                    <MDBIcon icon="check-circle" className="me-2" />
+                    <span>API information copied to clipboard!</span>
+                </div>
+            )}
+            
             {isConversationDrawerOpen && (
                 <div className="conversation-drawer-overlay" onClick={handleCloseConversationDrawer} aria-hidden="true"></div>
             )}

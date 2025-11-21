@@ -1,32 +1,163 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/component/DashboardLayout';
 import LeftSidebar from '@/component/LeftSidebar';
+import { useAuth } from '@clerk/nextjs';
 
-const favoriteAssistants = [
-  { name: 'Robert Williams', role: 'Life Coach', tag: 'Premium', color: '#9a8cff', bg: '#f4f0ff' },
-  { name: 'Barron Wuffle', role: 'Investment Manager', tag: 'Pro', color: '#60a5fa', bg: '#eef5ff' },
-  { name: 'Camila Adams', role: 'Screenwriter', color: '#fb7185', bg: '#fff1f2' },
-  { name: 'Samantha Phubber', role: 'Relationship Coach', color: '#fbbf24', bg: '#fff7ed' },
-];
+// TypeScript interfaces for API responses
+interface OverallStats {
+  totalChatBots: number;
+  totalConversations: number;
+  totalMessages: number;
+  totalUsers: number;
+  activeChatBots: number;
+  activeConversationsToday: number;
+  totalKnowledgeBases: number;
+}
 
-const templates = [
-  { name: 'Video Descriptions', description: 'Write compelling YouTube descriptions to drive engagement.' },
-  { name: 'Welcome Email', description: 'Create warm welcome emails for new customers.' },
-  { name: 'Amazon Product Description', description: 'Craft conversion-ready Amazon listings.' },
-  { name: 'Company Bio', description: 'Design a comprehensive company overview based on your inputs.' },
-];
+interface ChatBotStats {
+  totalChatBots: number;
+  chatBotsByStatus: Record<string, number>;
+  chatBotsCreatedToday: number;
+  chatBotsCreatedThisWeek: number;
+  chatBotsCreatedThisMonth: number;
+  averageChatBotsPerUser: number;
+  chatBotsByDataSource: Record<string, number>;
+}
 
-const quickActions = [
-  { title: 'Upgrade Plan', description: '187,471 words left · Remaining vs used', theme: '#2563eb' },
-  { title: 'Invite & Earn', description: 'Share Davinci and earn rewards on every signup.' },
-  { title: 'Blog Post', description: 'Write a long article with full control.' },
-  { title: 'Social Media Post', description: 'Create your next viral post effortlessly.' },
-];
+interface ConversationStats {
+  totalConversations: number;
+  conversationsToday: number;
+  conversationsThisWeek: number;
+  conversationsThisMonth: number;
+  averageMessagesPerConversation: number;
+  longestConversation: number;
+  conversationsByMode: Record<string, number>;
+  anonymousConversations: number;
+  authenticatedConversations: number;
+}
+
+interface UsageStats {
+  totalMessages: number;
+  messagesToday: number;
+  messagesThisWeek: number;
+  messagesThisMonth: number;
+  averageMessagesPerDay: number;
+  peakMessagesInDay: number;
+  messagesByHour: Record<string, number>;
+  totalUsers: number;
+  activeUsersToday: number;
+  activeUsersThisWeek: number;
+  activeUsersThisMonth: number;
+}
+
+interface TimeSeriesData {
+  date: string;
+  conversations: number;
+  messages: number;
+  users: number;
+  chatBots: number;
+}
+
+interface TopChatBot {
+  chatBotId: string;
+  chatBotName: string;
+  chatBotTitle: string;
+  conversationCount: number;
+  messageCount: number;
+  uniqueUsers: number;
+  status: string;
+  createdBy: string;
+}
+
+interface UserActivity {
+  email: string;
+  conversationCount: number;
+  messageCount: number;
+  chatBotsCreated: number;
+  lastActivityDate: string;
+}
+
+interface DashboardStatsResponse {
+  overallStats: OverallStats;
+  chatBotStats: ChatBotStats;
+  conversationStats: ConversationStats;
+  usageStats: UsageStats;
+  usageOverTime: TimeSeriesData[];
+  topChatBots: TopChatBot[];
+  topActiveUsers: UserActivity[];
+}
+
+// Cache configuration
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+const CACHE_KEYS = {
+  overallStats: 'dashboard_overall_stats',
+  chatBotStats: 'dashboard_chatbot_stats',
+  conversationStats: 'dashboard_conversation_stats',
+  usageStats: 'dashboard_usage_stats',
+  usageOverTime: 'dashboard_usage_over_time',
+  topChatBots: 'dashboard_top_chatbots',
+  topActiveUsers: 'dashboard_top_active_users',
+};
+
+// Cache utility functions
+const getCachedData = <T,>(key: string): { data: T; timestamp: number } | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    const now = Date.now();
+    if (now - parsed.timestamp > CACHE_DURATION) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    console.error(`Error reading cache for ${key}:`, error);
+    return null;
+  }
+};
+
+const setCachedData = <T,>(key: string, data: T): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const cacheItem = {
+      data,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(key, JSON.stringify(cacheItem));
+  } catch (error) {
+    console.error(`Error writing cache for ${key}:`, error);
+  }
+};
 
 export default function DashboardPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  // Separate states for each section
+  const [overallStats, setOverallStats] = useState<OverallStats | null>(null);
+  const [chatBotStats, setChatBotStats] = useState<ChatBotStats | null>(null);
+  const [conversationStats, setConversationStats] = useState<ConversationStats | null>(null);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const [usageOverTime, setUsageOverTime] = useState<TimeSeriesData[] | null>(null);
+  const [topChatBots, setTopChatBots] = useState<TopChatBot[] | null>(null);
+  const [topActiveUsers, setTopActiveUsers] = useState<UserActivity[] | null>(null);
+  
+  // Loading states for each section
+  const [loadingStates, setLoadingStates] = useState({
+    overallStats: false,
+    chatBotStats: false,
+    conversationStats: false,
+    usageStats: false,
+    usageOverTime: false,
+    topChatBots: false,
+    topActiveUsers: false,
+  });
+  
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { getToken } = useAuth();
 
   const handleDrawerStateChange = (_isOpen: boolean, _activeItem: string, collapsed?: boolean) => {
     if (collapsed !== undefined) {
@@ -38,25 +169,257 @@ export default function DashboardPage() {
     // Navigation handled within sidebar component for dashboard links
   };
 
+  // Generic fetch function with caching
+  const fetchWithCache = useCallback(async (
+    endpoint: string,
+    cacheKey: string,
+    setData: (data: any) => void,
+    setLoading: (loading: boolean) => void,
+    setError: (error: string | null) => void
+  ) => {
+    // Check cache first
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+      setData(cached.data);
+      setLoading(false);
+      // Still fetch in background to update cache
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('Backend URL not configured');
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add bearer token if user is signed in
+      if (getToken) {
+        try {
+          const token = await getToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+        } catch (error) {
+          console.warn('Failed to get auth token:', error);
+        }
+      }
+
+      const response = await fetch(`${backendUrl}${endpoint}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setData(data);
+      setCachedData(cacheKey, data);
+    } catch (err) {
+      console.error(`Error fetching ${endpoint}:`, err);
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+      // If we have cached data, keep showing it even if fetch fails
+      if (!cached) {
+        setData(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken]);
+
+  // Fetch all sections independently
+  useEffect(() => {
+    // Load overall stats first (most important)
+    fetchWithCache(
+      '/v1/api/dashboard/stats/overall',
+      CACHE_KEYS.overallStats,
+      setOverallStats,
+      (loading) => setLoadingStates(prev => ({ ...prev, overallStats: loading })),
+      (error) => setErrors(prev => ({ ...prev, overallStats: error || '' }))
+    );
+
+    // Load other sections in parallel
+    fetchWithCache(
+      '/v1/api/dashboard/stats/chatbots',
+      CACHE_KEYS.chatBotStats,
+      setChatBotStats,
+      (loading) => setLoadingStates(prev => ({ ...prev, chatBotStats: loading })),
+      (error) => setErrors(prev => ({ ...prev, chatBotStats: error || '' }))
+    );
+
+    fetchWithCache(
+      '/v1/api/dashboard/stats/conversations',
+      CACHE_KEYS.conversationStats,
+      setConversationStats,
+      (loading) => setLoadingStates(prev => ({ ...prev, conversationStats: loading })),
+      (error) => setErrors(prev => ({ ...prev, conversationStats: error || '' }))
+    );
+
+    fetchWithCache(
+      '/v1/api/dashboard/stats/usage',
+      CACHE_KEYS.usageStats,
+      setUsageStats,
+      (loading) => setLoadingStates(prev => ({ ...prev, usageStats: loading })),
+      (error) => setErrors(prev => ({ ...prev, usageStats: error || '' }))
+    );
+
+    fetchWithCache(
+      '/v1/api/dashboard/stats/usage-over-time?days=30',
+      CACHE_KEYS.usageOverTime,
+      setUsageOverTime,
+      (loading) => setLoadingStates(prev => ({ ...prev, usageOverTime: loading })),
+      (error) => setErrors(prev => ({ ...prev, usageOverTime: error || '' }))
+    );
+
+    fetchWithCache(
+      '/v1/api/dashboard/top/chatbots?limit=10',
+      CACHE_KEYS.topChatBots,
+      setTopChatBots,
+      (loading) => setLoadingStates(prev => ({ ...prev, topChatBots: loading })),
+      (error) => setErrors(prev => ({ ...prev, topChatBots: error || '' }))
+    );
+
+    fetchWithCache(
+      '/v1/api/dashboard/top/users?limit=10',
+      CACHE_KEYS.topActiveUsers,
+      setTopActiveUsers,
+      (loading) => setLoadingStates(prev => ({ ...prev, topActiveUsers: loading })),
+      (error) => setErrors(prev => ({ ...prev, topActiveUsers: error || '' }))
+    );
+  }, [fetchWithCache]);
+
+  // Format numbers with commas
+  const formatNumber = (num: number | undefined): string => {
+    if (num === undefined || num === null) return '0';
+    return num.toLocaleString('en-US');
+  };
+
+  // Calculate percentage
+  const calculatePercentage = (value: number, total: number): number => {
+    if (total === 0) return 0;
+    return Math.round((value / total) * 100);
+  };
+
+  // Get peak hour from messagesByHour
+  const getPeakHour = (messagesByHour: Record<string, number> | undefined): string => {
+    if (!messagesByHour) return 'N/A';
+    const entries = Object.entries(messagesByHour);
+    if (entries.length === 0) return 'N/A';
+    const peak = entries.reduce((max, [hour, count]) => 
+      count > max[1] ? [hour, count] : max
+    );
+    return `${peak[0]}:00`;
+  };
+
   const stats = useMemo(
-    () => [
-      { label: 'Words Left', value: '43,906,039', accent: '#2563eb' },
-      { label: 'Media Credits Left', value: '0', accent: '#0ea5e9' },
-      { label: 'Characters Left', value: '49,791,289', accent: '#6366f1' },
-      { label: 'Minutes Left', value: '199,988', accent: '#22d3ee' },
-    ],
-    []
+    () => {
+      if (!overallStats) return [];
+      
+      return [
+        { 
+          label: 'Total Chatbots', 
+          value: formatNumber(overallStats.totalChatBots), 
+          accent: '#2563eb',
+          loading: loadingStates.overallStats
+        },
+        { 
+          label: 'Total Conversations', 
+          value: formatNumber(overallStats.totalConversations), 
+          accent: '#0ea5e9',
+          loading: loadingStates.overallStats
+        },
+        { 
+          label: 'Total Messages', 
+          value: formatNumber(overallStats.totalMessages), 
+          accent: '#6366f1',
+          loading: loadingStates.overallStats
+        },
+        { 
+          label: 'Total Users', 
+          value: formatNumber(overallStats.totalUsers), 
+          accent: '#22d3ee',
+          loading: loadingStates.overallStats
+        },
+      ];
+    },
+    [overallStats, loadingStates.overallStats]
   );
 
-  const totals = useMemo(
+  const usageMetrics = useMemo(
+    () => {
+      if (!usageStats || !conversationStats || !overallStats) return [];
+      
+      return [
+        { 
+          label: 'Messages Today', 
+          value: formatNumber(usageStats.messagesToday), 
+          icon: '💬',
+          loading: loadingStates.usageStats
+        },
+        { 
+          label: 'Conversations Today', 
+          value: formatNumber(conversationStats.conversationsToday), 
+          icon: '📊',
+          loading: loadingStates.conversationStats
+        },
+        { 
+          label: 'Active Users Today', 
+          value: formatNumber(usageStats.activeUsersToday), 
+          icon: '👥',
+          loading: loadingStates.usageStats
+        },
+        { 
+          label: 'Active Chatbots', 
+          value: formatNumber(overallStats.activeChatBots), 
+          icon: '🤖',
+          loading: loadingStates.overallStats
+        },
+        { 
+          label: 'Knowledge Bases', 
+          value: formatNumber(overallStats.totalKnowledgeBases), 
+          icon: '📚',
+          loading: loadingStates.overallStats
+        },
+      ];
+    },
+    [usageStats, conversationStats, overallStats, loadingStates]
+  );
+
+  const quickActions = useMemo(
     () => [
-      { label: 'Words Generated', value: '1,084,650', icon: '📝' },
-      { label: 'Documents Saved', value: '12,219 documents', icon: '💾' },
-      { label: 'Images Created', value: '10 images', icon: '🖼️' },
-      { label: 'Voiceovers', value: '1,400 tasks', icon: '🎙️' },
-      { label: 'Audio Transcribed', value: '29 audio files', icon: '🎧' },
+      { 
+        title: 'View Chatbots', 
+        description: `${formatNumber(overallStats?.totalChatBots || 0)} chatbots available`, 
+        theme: '#2563eb',
+        href: '/ai-chatbots'
+      },
+      { 
+        title: 'View Conversations', 
+        description: `${formatNumber(conversationStats?.conversationsToday || 0)} conversations today`, 
+        theme: '#0ea5e9',
+        href: '/history'
+      },
+      { 
+        title: 'Create Chatbot', 
+        description: 'Build a new AI chatbot for your needs.', 
+        theme: '#6366f1',
+        href: '/ai-chatbots'
+      },
+      { 
+        title: 'Analytics', 
+        description: 'View detailed analytics and insights.', 
+        theme: '#22d3ee',
+        href: '/support-chat/analytics'
+      },
     ],
-    []
+    [overallStats, conversationStats]
   );
 
   return (
@@ -65,147 +428,420 @@ export default function DashboardPage() {
         <LeftSidebar onDrawerStateChange={handleDrawerStateChange} onNavItemClick={handleNavItemClick} />
 
         <main className={`dashboard-main ${sidebarCollapsed ? 'collapsed' : ''}`}>
-          <section className="top-grid">
-            <div className="plan-card">
-              <div className="plan-header">
-                <h2>Words Remaining</h2>
-                <span className="plan-cta">Upgrade Your Plan</span>
-              </div>
-              <div className="plan-counter">
-                <div>
-                  <div className="plan-total">187,471/375</div>
-                  <p className="plan-meta">Words Used</p>
+          <>
+            {/* Platform Overview Section - Shows immediately if cached, otherwise shows loading */}
+            <section className="top-grid">
+              <div className="plan-card">
+                <div className="plan-header">
+                  <h2>Platform Overview</h2>
+                  <span className="plan-cta">Active Today</span>
                 </div>
-                <div className="plan-progress">
-                  <div className="plan-progress-bar" />
-                  <div className="plan-progress-labels">
-                    <span>Remaining</span>
-                    <span>Used</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="quick-actions">
-              {quickActions.map((action) => (
-                <div key={action.title} className="quick-card">
-                  <div className="quick-pill" style={{ backgroundColor: action.theme ?? '#f1f5f9' }} />
-                  <div>
-                    <h3>{action.title}</h3>
-                    <p>{action.description}</p>
-                  </div>
-                  <button type="button">View More</button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="search-section">
-            <div className="search-left">
-              <h2>Hey, What can I do for you today?</h2>
-              <p>Search for documents, templates and chatbots…</p>
-              <div className="search-input">
-                <span role="img" aria-label="search">
-                  🔍
-                </span>
-                <input placeholder="Search for documents, templates and chatbots" />
-                <button type="button" className="search-voice">
-                  🎙️
-                </button>
-              </div>
-            </div>
-            <button type="button" className="new-doc-btn">
-              + Create a blank document
-            </button>
-          </section>
-
-          <section className="metrics-row">
-            {stats.map((stat) => (
-              <div key={stat.label} className="metric-card">
-                <span className="metric-label">{stat.label}</span>
-                <div className="metric-value" style={{ color: stat.accent }}>
-                  {stat.value}
-                </div>
-                <a href="#" className="metric-link">
-                  View All Credits
-                </a>
-              </div>
-            ))}
-          </section>
-
-          <section className="usage-section">
-            <div className="usage-progress">
-              <div className="usage-bar">
-                <div className="usage-bar-fill" />
-              </div>
-              <div className="usage-metrics">
-                {totals.map((item) => (
-                  <div key={item.label} className="usage-item">
-                    <span className="usage-icon">{item.icon}</span>
+                {overallStats && conversationStats ? (
+                  <div className="plan-counter">
                     <div>
-                      <div className="usage-value">{item.value}</div>
-                      <div className="usage-label">{item.label}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="two-column">
-            <div className="assistants-card">
-              <div className="section-header">
-                <h2>Favorite AI Chat Assistants</h2>
-                <button type="button">View all</button>
-              </div>
-              <div className="assistants-grid">
-                {favoriteAssistants.map((assistant) => (
-                  <div key={assistant.name} className="assistant-card" style={{ backgroundColor: assistant.bg }}>
-                    <div className="assistant-top">
-                      <div className="assistant-avatar" style={{ borderColor: assistant.color }}>
-                        {assistant.name
-                          .split(' ')
-                          .map((part) => part[0])
-                          .join('')
-                          .slice(0, 2)
-                          .toUpperCase()}
+                      <div className="plan-total">
+                        {formatNumber(overallStats.activeConversationsToday)}
                       </div>
-                      {assistant.tag && (
-                        <span className="assistant-tag" style={{ backgroundColor: assistant.color }}>
-                          {assistant.tag}
-                        </span>
-                      )}
+                      <p className="plan-meta">Active Conversations</p>
                     </div>
+                    <div className="plan-progress">
+                      <div className="plan-progress-bar">
+                        <div 
+                          className="plan-progress-fill"
+                          style={{ 
+                            width: `${calculatePercentage(
+                              overallStats.activeConversationsToday,
+                              conversationStats.conversationsThisWeek || 1
+                            )}%` 
+                          }}
+                        />
+                      </div>
+                      <div className="plan-progress-labels">
+                        <span>Today</span>
+                        <span>This Week: {formatNumber(conversationStats.conversationsThisWeek)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="plan-counter">
                     <div>
-                      <h3>{assistant.name}</h3>
-                      <p>{assistant.role}</p>
+                      <div className="plan-total skeleton-text" style={{ width: '120px', height: '40px' }}></div>
+                      <p className="plan-meta skeleton-text" style={{ width: '150px', height: '16px', marginTop: '8px' }}></p>
                     </div>
-                    <button type="button" className="assistant-cta">
-                      Open Chat
+                    <div className="plan-progress">
+                      <div className="plan-progress-bar">
+                        <div className="plan-progress-fill skeleton" style={{ width: '60%' }}></div>
+                      </div>
+                      <div className="plan-progress-labels">
+                        <span className="skeleton-text" style={{ width: '60px', height: '12px' }}></span>
+                        <span className="skeleton-text" style={{ width: '120px', height: '12px' }}></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+                <div className="quick-actions">
+                  {quickActions.map((action) => (
+                    <div key={action.title} className="quick-card">
+                      <div className="quick-pill" style={{ backgroundColor: action.theme ?? '#f1f5f9' }} />
+                      <div>
+                        <h3>{action.title}</h3>
+                        <p>{action.description}</p>
+                      </div>
+                      <a href={action.href} className="quick-button">View More</a>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="search-section">
+                <div className="search-left">
+                  <h2>Hey, What can I do for you today?</h2>
+                  <p>Search for documents, templates and chatbots…</p>
+                  <div className="search-input">
+                    <span role="img" aria-label="search">
+                      🔍
+                    </span>
+                    <input placeholder="Search for documents, templates and chatbots" />
+                    <button type="button" className="search-voice">
+                      🎙️
                     </button>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+                <a href="/ai-chatbots" className="new-doc-btn">
+                  + Create a new chatbot
+                </a>
+              </section>
 
-            <div className="templates-card">
-              <div className="section-header">
-                <h2>Favorite AI Templates</h2>
-                <button type="button">View all</button>
-              </div>
-              <div className="template-list">
-                {templates.map((template) => (
-                  <div key={template.name} className="template-item">
-                    <div>
-                      <h3>{template.name}</h3>
-                      <p>{template.description}</p>
+              {/* Metrics Row - Shows immediately if cached */}
+              <section className="metrics-row">
+                {stats.length > 0 ? (
+                  stats.map((stat) => (
+                    <div key={stat.label} className="metric-card">
+                      <span className="metric-label">{stat.label}</span>
+                      {stat.loading && !overallStats ? (
+                        <div className="metric-value skeleton-text" style={{ width: '100px', height: '32px' }}></div>
+                      ) : (
+                        <div className="metric-value" style={{ color: stat.accent }}>
+                          {stat.value}
+                        </div>
+                      )}
+                      <a href="#" className="metric-link">
+                        View Details
+                      </a>
                     </div>
-                    <button type="button">Open</button>
+                  ))
+                ) : (
+                  // Show skeleton while loading
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="metric-card">
+                      <span className="metric-label skeleton-text" style={{ width: '120px', height: '16px' }}></span>
+                      <div className="metric-value skeleton-text" style={{ width: '100px', height: '32px', marginTop: '8px' }}></div>
+                      <a href="#" className="metric-link skeleton-text" style={{ width: '80px', height: '14px', marginTop: '8px' }}></a>
+                    </div>
+                  ))
+                )}
+              </section>
+
+              {/* Usage Section - Shows immediately if cached */}
+              {usageStats && conversationStats && overallStats ? (
+                <section className="usage-section">
+                  <div className="usage-header">
+                    <h2>Usage Statistics</h2>
+                    <div className="usage-summary">
+                      <span>Peak Hour: {getPeakHour(usageStats.messagesByHour)}</span>
+                      <span>Avg/Day: {formatNumber(usageStats.averageMessagesPerDay)}</span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </section>
+                  <div className="usage-bar">
+                    <div 
+                      className="usage-bar-fill"
+                      style={{ 
+                        width: `${calculatePercentage(
+                          usageStats.messagesToday,
+                          usageStats.peakMessagesInDay || 1
+                        )}%` 
+                      }}
+                    />
+                  </div>
+                  <div className="usage-metrics">
+                    {usageMetrics.map((item) => (
+                      <div key={item.label} className="usage-item">
+                        <span className="usage-icon">{item.icon}</span>
+                        <div>
+                          <div className="usage-value">{item.value}</div>
+                          <div className="usage-label">{item.label}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <section className="usage-section">
+                  <div className="usage-header">
+                    <h2>Usage Statistics</h2>
+                    <div className="usage-summary">
+                      <span className="skeleton-text" style={{ width: '100px', height: '14px' }}></span>
+                      <span className="skeleton-text" style={{ width: '80px', height: '14px' }}></span>
+                    </div>
+                  </div>
+                  <div className="usage-bar">
+                    <div className="usage-bar-fill skeleton" style={{ width: '60%' }}></div>
+                  </div>
+                  <div className="usage-metrics">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="usage-item">
+                        <span className="usage-icon">⏳</span>
+                        <div>
+                          <div className="usage-value skeleton-text" style={{ width: '60px', height: '18px' }}></div>
+                          <div className="usage-label skeleton-text" style={{ width: '100px', height: '14px', marginTop: '4px' }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Top Chatbots and Top Users - Show immediately if cached */}
+              <section className="two-column">
+                <div className="assistants-card">
+                  <div className="section-header">
+                    <h2>Top Chatbots</h2>
+                    <a href="/ai-chatbots" className="section-link">View all</a>
+                  </div>
+                  {topChatBots ? (
+                    <div className="assistants-grid">
+                      {topChatBots.slice(0, 4).map((chatbot) => (
+                        <div key={chatbot.chatBotId} className="assistant-card" style={{ backgroundColor: '#f4f0ff' }}>
+                          <div className="assistant-top">
+                            <div className="assistant-avatar" style={{ borderColor: '#9a8cff' }}>
+                              {chatbot.chatBotTitle
+                                .split(' ')
+                                .map((part) => part[0])
+                                .join('')
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </div>
+                            <span className="assistant-tag" style={{ backgroundColor: '#9a8cff' }}>
+                              {chatbot.status}
+                            </span>
+                          </div>
+                          <div>
+                            <h3>{chatbot.chatBotTitle}</h3>
+                            <p>{formatNumber(chatbot.conversationCount)} conversations</p>
+                          </div>
+                          <a href={`/ai-chatbots/${chatbot.chatBotId}`} className="assistant-cta">
+                            View Details
+                          </a>
+                        </div>
+                      ))}
+                      {topChatBots.length === 0 && (
+                        <div className="empty-state">
+                          <p>No chatbots yet. Create your first chatbot!</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="assistants-grid">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="assistant-card" style={{ backgroundColor: '#f4f0ff' }}>
+                          <div className="assistant-top">
+                            <div className="assistant-avatar skeleton" style={{ borderColor: '#9a8cff', width: '48px', height: '48px' }}></div>
+                            <span className="assistant-tag skeleton-text" style={{ width: '60px', height: '24px' }}></span>
+                          </div>
+                          <div>
+                            <h3 className="skeleton-text" style={{ width: '120px', height: '20px' }}></h3>
+                            <p className="skeleton-text" style={{ width: '100px', height: '16px', marginTop: '8px' }}></p>
+                          </div>
+                          <div className="assistant-cta skeleton-text" style={{ width: '100px', height: '36px' }}></div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="templates-card">
+                  <div className="section-header">
+                    <h2>Top Active Users</h2>
+                    <a href="#" className="section-link">View all</a>
+                  </div>
+                  {topActiveUsers ? (
+                    <div className="template-list">
+                      {topActiveUsers.slice(0, 4).map((user) => (
+                        <div key={user.email} className="template-item">
+                          <div>
+                            <h3>{user.email}</h3>
+                            <p>
+                              {formatNumber(user.conversationCount)} conversations · {formatNumber(user.messageCount)} messages
+                            </p>
+                          </div>
+                          <span className="user-badge">
+                            {formatNumber(user.chatBotsCreated)} bots
+                          </span>
+                        </div>
+                      ))}
+                      {topActiveUsers.length === 0 && (
+                        <div className="empty-state">
+                          <p>No user activity data available.</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="template-list">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="template-item">
+                          <div>
+                            <h3 className="skeleton-text" style={{ width: '180px', height: '18px' }}></h3>
+                            <p className="skeleton-text" style={{ width: '200px', height: '14px', marginTop: '6px' }}></p>
+                          </div>
+                          <span className="user-badge skeleton-text" style={{ width: '60px', height: '32px' }}></span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Time Series Chart Section - Shows immediately if cached */}
+              {usageOverTime && usageOverTime.length > 0 ? (
+                <section className="chart-section">
+                  <div className="chart-card">
+                    <div className="section-header">
+                      <h2>Usage Over Time (Last 30 Days)</h2>
+                      <div className="chart-legend">
+                        <span className="legend-item" style={{ color: '#2563eb' }}>● Conversations</span>
+                        <span className="legend-item" style={{ color: '#0ea5e9' }}>● Messages</span>
+                        <span className="legend-item" style={{ color: '#6366f1' }}>● Users</span>
+                      </div>
+                    </div>
+                    <div className="chart-container">
+                      <div className="chart-bars">
+                        {usageOverTime.slice(-30).map((data, index) => {
+                          const maxValue = Math.max(
+                            ...usageOverTime.slice(-30).map(d => 
+                              Math.max(d.conversations, d.messages, d.users)
+                            )
+                          );
+                          const conversationsHeight = maxValue > 0 ? (data.conversations / maxValue) * 100 : 0;
+                          const messagesHeight = maxValue > 0 ? (data.messages / maxValue) * 100 : 0;
+                          const usersHeight = maxValue > 0 ? (data.users / maxValue) * 100 : 0;
+                          
+                          return (
+                            <div key={index} className="chart-bar-group">
+                              <div className="chart-bar-wrapper">
+                                <div 
+                                  className="chart-bar conversations-bar"
+                                  style={{ height: `${conversationsHeight}%` }}
+                                  title={`Conversations: ${data.conversations}`}
+                                />
+                                <div 
+                                  className="chart-bar messages-bar"
+                                  style={{ height: `${messagesHeight}%` }}
+                                  title={`Messages: ${data.messages}`}
+                                />
+                                <div 
+                                  className="chart-bar users-bar"
+                                  style={{ height: `${usersHeight}%` }}
+                                  title={`Users: ${data.users}`}
+                                />
+                              </div>
+                              <span className="chart-label">
+                                {new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : loadingStates.usageOverTime ? (
+                <section className="chart-section">
+                  <div className="chart-card">
+                    <div className="section-header">
+                      <h2>Usage Over Time (Last 30 Days)</h2>
+                      <div className="chart-legend">
+                        <span className="skeleton-text" style={{ width: '120px', height: '14px' }}></span>
+                        <span className="skeleton-text" style={{ width: '100px', height: '14px' }}></span>
+                        <span className="skeleton-text" style={{ width: '80px', height: '14px' }}></span>
+                      </div>
+                    </div>
+                    <div className="chart-container">
+                      <div className="chart-bars">
+                        {Array.from({ length: 30 }).map((_, i) => (
+                          <div key={i} className="chart-bar-group">
+                            <div className="chart-bar-wrapper">
+                              <div className="chart-bar skeleton" style={{ height: `${Math.random() * 100}%` }}></div>
+                              <div className="chart-bar skeleton" style={{ height: `${Math.random() * 100}%` }}></div>
+                              <div className="chart-bar skeleton" style={{ height: `${Math.random() * 100}%` }}></div>
+                            </div>
+                            <span className="chart-label skeleton-text" style={{ width: '40px', height: '12px' }}></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {/* Additional Stats Section - Shows immediately if cached */}
+              {chatBotStats && conversationStats ? (
+                <section className="stats-grid">
+                  <div className="stat-card">
+                    <h3>Chatbot Status Distribution</h3>
+                    <div className="stat-distribution">
+                      {Object.entries(chatBotStats.chatBotsByStatus).map(([status, count]) => (
+                        <div key={status} className="stat-item">
+                          <span className="stat-label">{status}</span>
+                          <span className="stat-value">{formatNumber(count)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <h3>Conversation Modes</h3>
+                    <div className="stat-distribution">
+                      {Object.entries(conversationStats.conversationsByMode).map(([mode, count]) => (
+                        <div key={mode} className="stat-item">
+                          <span className="stat-label">{mode}</span>
+                          <span className="stat-value">{formatNumber(count)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <h3>Data Sources</h3>
+                    <div className="stat-distribution">
+                      {Object.entries(chatBotStats.chatBotsByDataSource).map(([source, count]) => (
+                        <div key={source} className="stat-item">
+                          <span className="stat-label">{source}</span>
+                          <span className="stat-value">{formatNumber(count)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              ) : (
+                <section className="stats-grid">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="stat-card">
+                      <h3 className="skeleton-text" style={{ width: '180px', height: '20px' }}></h3>
+                      <div className="stat-distribution">
+                        {Array.from({ length: 4 }).map((_, j) => (
+                          <div key={j} className="stat-item">
+                            <span className="stat-label skeleton-text" style={{ width: '100px', height: '16px' }}></span>
+                            <span className="stat-value skeleton-text" style={{ width: '50px', height: '18px' }}></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              )}
+            </>
         </main>
       </div>
 
@@ -226,6 +862,31 @@ export default function DashboardPage() {
 
         .dashboard-main.collapsed {
           margin-left: 60px;
+        }
+
+        /* Skeleton Loading Styles */
+        .skeleton {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200% 100%;
+          animation: loading 1.5s ease-in-out infinite;
+          border-radius: 4px;
+        }
+
+        .skeleton-text {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200% 100%;
+          animation: loading 1.5s ease-in-out infinite;
+          border-radius: 4px;
+          display: inline-block;
+        }
+
+        @keyframes loading {
+          0% {
+            background-position: 200% 0;
+          }
+          100% {
+            background-position: -200% 0;
+          }
         }
 
         .top-grid {
@@ -298,12 +959,11 @@ export default function DashboardPage() {
           overflow: hidden;
         }
 
-        .plan-progress-bar::after {
-          content: '';
+        .plan-progress-fill {
           position: absolute;
           inset: 0;
-          width: 58%;
           background: #93c5fd;
+          transition: width 0.3s ease;
         }
 
         .plan-progress-labels {
@@ -344,7 +1004,7 @@ export default function DashboardPage() {
           color: #64748b;
         }
 
-        .quick-card button {
+        .quick-button {
           border: none;
           background: rgba(37, 99, 235, 0.1);
           color: #2563eb;
@@ -352,6 +1012,8 @@ export default function DashboardPage() {
           padding: 8px 14px;
           border-radius: 12px;
           cursor: pointer;
+          text-decoration: none;
+          display: inline-block;
         }
 
         .quick-pill {
@@ -429,6 +1091,8 @@ export default function DashboardPage() {
           box-shadow: 0 20px 30px rgba(29, 78, 216, 0.25);
           cursor: pointer;
           white-space: nowrap;
+          text-decoration: none;
+          display: inline-block;
         }
 
         .metrics-row {
@@ -477,6 +1141,27 @@ export default function DashboardPage() {
           margin-bottom: 24px;
         }
 
+        .usage-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 18px;
+        }
+
+        .usage-header h2 {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        .usage-summary {
+          display: flex;
+          gap: 16px;
+          font-size: 13px;
+          color: #64748b;
+        }
+
         .usage-bar {
           width: 100%;
           height: 14px;
@@ -490,8 +1175,8 @@ export default function DashboardPage() {
         .usage-bar-fill {
           position: absolute;
           inset: 0;
-          width: 68%;
           background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
+          transition: width 0.3s ease;
         }
 
         .usage-metrics {
@@ -529,6 +1214,7 @@ export default function DashboardPage() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 20px;
+          margin-bottom: 24px;
         }
 
         .assistants-card,
@@ -556,7 +1242,7 @@ export default function DashboardPage() {
           color: #0f172a;
         }
 
-        .section-header button {
+        .section-link {
           border: none;
           background: rgba(37, 99, 235, 0.1);
           color: #2563eb;
@@ -565,6 +1251,7 @@ export default function DashboardPage() {
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
+          text-decoration: none;
         }
 
         .assistants-grid {
@@ -634,6 +1321,8 @@ export default function DashboardPage() {
           font-weight: 600;
           cursor: pointer;
           box-shadow: 0 14px 24px rgba(29, 78, 216, 0.25);
+          text-decoration: none;
+          display: inline-block;
         }
 
         .template-list {
@@ -665,16 +1354,159 @@ export default function DashboardPage() {
           color: #64748b;
         }
 
-        .template-item button {
-          border: none;
+        .user-badge {
           background: #ffffff;
           border-radius: 12px;
-          padding: 10px 16px;
+          padding: 8px 14px;
           font-size: 13px;
           font-weight: 600;
           color: #2563eb;
-          cursor: pointer;
           box-shadow: 0 12px 20px rgba(37, 99, 235, 0.18);
+        }
+
+        .empty-state {
+          padding: 24px;
+          text-align: center;
+          color: #64748b;
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+
+        .stat-card {
+          background: #ffffff;
+          border-radius: 20px;
+          padding: 20px;
+          border: 1px solid rgba(226, 232, 240, 0.8);
+          box-shadow: 0 16px 28px rgba(15, 23, 42, 0.05);
+        }
+
+        .stat-card h3 {
+          margin: 0 0 16px;
+          font-size: 16px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        .stat-distribution {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .stat-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px;
+          background: #f8fafc;
+          border-radius: 12px;
+        }
+
+        .stat-label {
+          font-size: 14px;
+          color: #64748b;
+          text-transform: capitalize;
+        }
+
+        .stat-value {
+          font-size: 16px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        .chart-section {
+          margin-bottom: 24px;
+        }
+
+        .chart-card {
+          background: #ffffff;
+          border-radius: 24px;
+          padding: 22px;
+          border: 1px solid rgba(226, 232, 240, 0.8);
+          box-shadow: 0 18px 32px rgba(15, 23, 42, 0.05);
+        }
+
+        .chart-legend {
+          display: flex;
+          gap: 16px;
+          font-size: 13px;
+        }
+
+        .legend-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .chart-container {
+          margin-top: 24px;
+          padding: 20px 0;
+          overflow-x: auto;
+        }
+
+        .chart-bars {
+          display: flex;
+          align-items: flex-end;
+          gap: 8px;
+          min-height: 200px;
+          padding-bottom: 40px;
+        }
+
+        .chart-bar-group {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          flex: 1;
+          min-width: 30px;
+        }
+
+        .chart-bar-wrapper {
+          display: flex;
+          align-items: flex-end;
+          gap: 2px;
+          width: 100%;
+          height: 200px;
+          position: relative;
+        }
+
+        .chart-bar {
+          flex: 1;
+          min-width: 8px;
+          border-radius: 4px 4px 0 0;
+          transition: opacity 0.2s;
+          cursor: pointer;
+        }
+
+        .chart-bar:hover {
+          opacity: 0.8;
+        }
+
+        .conversations-bar {
+          background: #2563eb;
+        }
+
+        .messages-bar {
+          background: #0ea5e9;
+        }
+
+        .users-bar {
+          background: #6366f1;
+        }
+
+        .chart-label {
+          font-size: 11px;
+          color: #64748b;
+          text-align: center;
+          writing-mode: horizontal-tb;
+          transform: rotate(-45deg);
+          transform-origin: center;
+          white-space: nowrap;
         }
 
         @media (max-width: 1280px) {
@@ -683,6 +1515,10 @@ export default function DashboardPage() {
           }
 
           .quick-actions {
+            grid-template-columns: 1fr;
+          }
+
+          .stats-grid {
             grid-template-columns: 1fr;
           }
         }
@@ -714,6 +1550,10 @@ export default function DashboardPage() {
 
           .new-doc-btn {
             width: 100%;
+          }
+
+          .metrics-row {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
