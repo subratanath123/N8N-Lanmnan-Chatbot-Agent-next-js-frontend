@@ -379,8 +379,20 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     };
 
     const renderStep1 = () => (
-        <div>
-            <h4 className="mb-4">Basic Configuration</h4>
+        <div style={{
+            padding: '24px',
+            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+            borderRadius: '16px',
+            border: '1px solid rgba(59, 130, 246, 0.1)'
+        }}>
+            <h4 className="mb-4" style={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontWeight: '700',
+                fontSize: '24px'
+            }}>Basic Configuration</h4>
             
             {/* Chatbot Title */}
             <div className="mb-4">
@@ -436,8 +448,20 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     );
 
     const renderStep2 = () => (
-        <div>
-            <h4 className="mb-4">Behavior Configuration</h4>
+        <div style={{
+            padding: '24px',
+            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+            borderRadius: '16px',
+            border: '1px solid rgba(59, 130, 246, 0.1)'
+        }}>
+            <h4 className="mb-4" style={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontWeight: '700',
+                fontSize: '24px'
+            }}>Behavior Configuration</h4>
             
             {/* Restrict to Data Source */}
             <div className="mb-4">
@@ -492,92 +516,222 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     );
 
     const renderStep3 = () => (
-        <div>
-            <h4 className="mb-4">Add a Knowledge Base</h4>
+        <div style={{
+            padding: '24px',
+            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+            borderRadius: '16px',
+            border: '1px solid rgba(59, 130, 246, 0.1)'
+        }}>
+            <h4 className="mb-4" style={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontWeight: '700',
+                fontSize: '24px'
+            }}>Add a Knowledge Base</h4>
             <p className="text-muted mb-4">Your chatbot will answer based on the added knowledge to personalize chatbot experience.</p>
             
             {/* Display error message if validation fails */}
             {errors.instructions && <div className="alert alert-warning mb-3">{errors.instructions}</div>}
             
             <div className="mb-4">
-                <h6>Select a data source</h6>
+                <h6 style={{ 
+                    color: '#1e293b',
+                    fontWeight: '600',
+                    marginBottom: '20px',
+                    fontSize: '16px'
+                }}>Select a data source</h6>
                 <div className="row g-3">
                     <div className="col-md-4">
                         <div 
-                            className={`border rounded p-3 text-center cursor-pointer ${
-                                selectedDataSource === 'url' ? 'border-primary bg-light' : 'border-secondary'
-                            }`}
-                            style={{ cursor: 'pointer', position: 'relative' }}
+                            className="rounded text-center"
+                            style={{ 
+                                cursor: 'pointer', 
+                                position: 'relative',
+                                padding: '24px',
+                                border: selectedDataSource === 'url' 
+                                    ? '2px solid #3b82f6' 
+                                    : '2px solid #e2e8f0',
+                                background: selectedDataSource === 'url'
+                                    ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)'
+                                    : 'white',
+                                transition: 'all 0.3s ease',
+                                boxShadow: selectedDataSource === 'url'
+                                    ? '0 8px 24px rgba(59, 130, 246, 0.15)'
+                                    : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                                transform: selectedDataSource === 'url' ? 'translateY(-4px)' : 'translateY(0)'
+                            }}
                             onClick={() => setSelectedDataSource('url')}
+                            onMouseEnter={(e) => {
+                                if (selectedDataSource !== 'url') {
+                                    e.currentTarget.style.borderColor = '#93c5fd';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.1)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (selectedDataSource !== 'url') {
+                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)';
+                                }
+                            }}
                         >
                             {selectedDataSource === 'url' && (
-                                <div className="position-absolute top-0 end-0 m-2">
-                                    <MDBIcon icon="check-circle" className="text-primary" size="lg" />
+                                <div className="position-absolute top-2 end-2">
+                                    <MDBIcon icon="check-circle" style={{ color: '#3b82f6' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="link" size="2x" className="text-primary mb-2" />
-                            <h6>URL</h6>
+                            <MDBIcon icon="link" size="2x" style={{ color: '#3b82f6', marginBottom: '12px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>URL</h6>
                         </div>
                     </div>
                     <div className="col-md-4">
                         <div 
-                            className={`border rounded p-3 text-center cursor-pointer ${
-                                selectedDataSource === 'pdf' ? 'border-primary bg-light' : 'border-secondary'
-                            }`}
-                            style={{ cursor: 'pointer', position: 'relative' }}
+                            className="rounded text-center"
+                            style={{ 
+                                cursor: 'pointer', 
+                                position: 'relative',
+                                padding: '24px',
+                                border: selectedDataSource === 'pdf' 
+                                    ? '2px solid #3b82f6' 
+                                    : '2px solid #e2e8f0',
+                                background: selectedDataSource === 'pdf'
+                                    ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)'
+                                    : 'white',
+                                transition: 'all 0.3s ease',
+                                boxShadow: selectedDataSource === 'pdf'
+                                    ? '0 8px 24px rgba(59, 130, 246, 0.15)'
+                                    : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                                transform: selectedDataSource === 'pdf' ? 'translateY(-4px)' : 'translateY(0)'
+                            }}
                             onClick={() => setSelectedDataSource('pdf')}
+                            onMouseEnter={(e) => {
+                                if (selectedDataSource !== 'pdf') {
+                                    e.currentTarget.style.borderColor = '#93c5fd';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.1)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (selectedDataSource !== 'pdf') {
+                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)';
+                                }
+                            }}
                         >
                             {selectedDataSource === 'pdf' && (
-                                <div className="position-absolute top-0 end-0 m-2">
-                                    <MDBIcon icon="check-circle" className="text-primary" size="lg" />
+                                <div className="position-absolute top-2 end-2">
+                                    <MDBIcon icon="check-circle" style={{ color: '#3b82f6' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="file-pdf" size="2x" className="text-danger mb-2" />
-                            <h6>PDF</h6>
+                            <MDBIcon icon="file-pdf" size="2x" style={{ color: '#ef4444', marginBottom: '12px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>PDF</h6>
                         </div>
                     </div>
                     <div className="col-md-4">
                         <div 
-                            className={`border rounded p-3 text-center cursor-pointer ${
-                                selectedDataSource === 'text' ? 'border-primary bg-light' : 'border-secondary'
-                            }`}
-                            style={{ cursor: 'pointer', position: 'relative' }}
+                            className="rounded text-center"
+                            style={{ 
+                                cursor: 'pointer', 
+                                position: 'relative',
+                                padding: '24px',
+                                border: selectedDataSource === 'text' 
+                                    ? '2px solid #22c55e' 
+                                    : '2px solid #e2e8f0',
+                                background: selectedDataSource === 'text'
+                                    ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%)'
+                                    : 'white',
+                                transition: 'all 0.3s ease',
+                                boxShadow: selectedDataSource === 'text'
+                                    ? '0 8px 24px rgba(34, 197, 94, 0.15)'
+                                    : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                                transform: selectedDataSource === 'text' ? 'translateY(-4px)' : 'translateY(0)'
+                            }}
                             onClick={() => setSelectedDataSource('text')}
+                            onMouseEnter={(e) => {
+                                if (selectedDataSource !== 'text') {
+                                    e.currentTarget.style.borderColor = '#86efac';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.1)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (selectedDataSource !== 'text') {
+                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)';
+                                }
+                            }}
                         >
                             {selectedDataSource === 'text' && (
-                                <div className="position-absolute top-0 end-0 m-2">
-                                    <MDBIcon icon="check-circle" className="text-primary" size="lg" />
+                                <div className="position-absolute top-2 end-2">
+                                    <MDBIcon icon="check-circle" style={{ color: '#22c55e' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="file-alt" size="2x" className="text-info mb-2" />
-                            <h6>Text</h6>
+                            <MDBIcon icon="file-alt" size="2x" style={{ color: '#22c55e', marginBottom: '12px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>Text</h6>
                         </div>
                     </div>
                     <div className="col-md-4">
                         <div 
-                            className={`border rounded p-3 text-center cursor-pointer ${
-                                selectedDataSource === 'qa' ? 'border-primary bg-light' : 'border-secondary'
-                            }`}
-                            style={{ cursor: 'pointer', position: 'relative' }}
+                            className="rounded text-center"
+                            style={{ 
+                                cursor: 'pointer', 
+                                position: 'relative',
+                                padding: '24px',
+                                border: selectedDataSource === 'qa' 
+                                    ? '2px solid #22c55e' 
+                                    : '2px solid #e2e8f0',
+                                background: selectedDataSource === 'qa'
+                                    ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%)'
+                                    : 'white',
+                                transition: 'all 0.3s ease',
+                                boxShadow: selectedDataSource === 'qa'
+                                    ? '0 8px 24px rgba(34, 197, 94, 0.15)'
+                                    : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                                transform: selectedDataSource === 'qa' ? 'translateY(-4px)' : 'translateY(0)'
+                            }}
                             onClick={() => setSelectedDataSource('qa')}
+                            onMouseEnter={(e) => {
+                                if (selectedDataSource !== 'qa') {
+                                    e.currentTarget.style.borderColor = '#86efac';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.1)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (selectedDataSource !== 'qa') {
+                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.05)';
+                                }
+                            }}
                         >
                             {selectedDataSource === 'qa' && (
-                                <div className="position-absolute top-0 end-0 m-2">
-                                    <MDBIcon icon="check-circle" className="text-primary" size="lg" />
+                                <div className="position-absolute top-2 end-2">
+                                    <MDBIcon icon="check-circle" style={{ color: '#22c55e' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="question-circle" size="2x" className="text-warning mb-2" />
-                            <h6>Q&A</h6>
+                            <MDBIcon icon="question-circle" size="2x" style={{ color: '#f59e0b', marginBottom: '12px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>Q&A</h6>
                         </div>
                     </div>
                     <div className="col-md-4">
                         <div 
-                            className="border rounded p-3 text-center border-secondary"
-                            style={{ opacity: 0.5 }}
+                            className="rounded text-center border-secondary"
+                            style={{ 
+                                padding: '24px',
+                                border: '2px solid #e2e8f0',
+                                background: 'white',
+                                opacity: 0.6
+                            }}
                         >
-                            <MDBIcon icon="play-circle" size="2x" className="text-danger mb-2" />
-                            <h6>YouTube</h6>
-                            <small className="text-muted">Coming Soon</small>
+                            <MDBIcon icon="play-circle" size="2x" style={{ color: '#ef4444', marginBottom: '12px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>YouTube</h6>
+                            <small style={{ color: '#94a3b8' }}>Coming Soon</small>
                         </div>
                     </div>
                 </div>
@@ -597,7 +751,29 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                         />
                         <small className="text-muted">Enter the website URL to crawl and extract content for training</small>
                     </div>
-                    <MDBBtn color="primary" onClick={handleAddWebsite}>
+                    <MDBBtn 
+                        color="primary" 
+                        onClick={handleAddWebsite}
+                        style={{
+                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            padding: '10px 24px',
+                            fontWeight: '600',
+                            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                            transition: 'all 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
+                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.35)';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.25)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                    >
                         <MDBIcon icon="plus" className="me-1" />
                         Add Website
                     </MDBBtn>
@@ -635,18 +811,35 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 <div className="mb-4">
                     <h6>Upload PDF Files</h6>
                     <div 
-                        className={`border border-dashed rounded p-5 text-center ${
-                            isDragOver ? 'border-primary bg-light' : 'border-secondary'
-                        }`}
+                        className="rounded text-center"
                         style={{ 
-                            borderWidth: '2px',
+                            border: isDragOver 
+                                ? '3px dashed #3b82f6' 
+                                : '2px dashed #cbd5e1',
+                            padding: '48px 24px',
                             cursor: 'pointer',
-                            transition: 'all 0.3s ease'
+                            transition: 'all 0.3s ease',
+                            background: isDragOver
+                                ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(34, 197, 94, 0.08) 100%)'
+                                : 'linear-gradient(135deg, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+                            borderRadius: '16px'
                         }}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onClick={() => document.getElementById('pdf-file-input')?.click()}
+                        onMouseEnter={(e) => {
+                            if (!isDragOver) {
+                                e.currentTarget.style.borderColor = '#93c5fd';
+                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(34, 197, 94, 0.05) 100%)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!isDragOver) {
+                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)';
+                            }
+                        }}
                     >
                         <input
                             id="pdf-file-input"
@@ -733,7 +926,29 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                         />
                         <small className="text-muted">Add any specific text content, FAQs, or knowledge base information</small>
                     </div>
-                    <MDBBtn color="primary" onClick={handleAddText}>
+                    <MDBBtn 
+                        color="primary" 
+                        onClick={handleAddText}
+                        style={{
+                            background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            padding: '10px 24px',
+                            fontWeight: '600',
+                            boxShadow: '0 4px 12px rgba(34, 197, 94, 0.25)',
+                            transition: 'all 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)';
+                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(34, 197, 94, 0.35)';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.25)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                    >
                         <MDBIcon icon="plus" className="me-1" />
                         Add Text
                     </MDBBtn>
@@ -805,6 +1020,33 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                         color="primary"
                         onClick={handleAddQA}
                         disabled={!currentQuestion.trim() || !currentAnswer.trim()}
+                        style={{
+                            background: !currentQuestion.trim() || !currentAnswer.trim()
+                                ? '#cbd5e1'
+                                : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            padding: '10px 24px',
+                            fontWeight: '600',
+                            boxShadow: !currentQuestion.trim() || !currentAnswer.trim()
+                                ? 'none'
+                                : '0 4px 12px rgba(34, 197, 94, 0.25)',
+                            transition: 'all 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                            if (currentQuestion.trim() && currentAnswer.trim()) {
+                                e.currentTarget.style.background = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)';
+                                e.currentTarget.style.boxShadow = '0 6px 16px rgba(34, 197, 94, 0.35)';
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (currentQuestion.trim() && currentAnswer.trim()) {
+                                e.currentTarget.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.25)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                            }
+                        }}
                     >
                         <MDBIcon icon="plus" className="me-1" />
                         Add Q&A
@@ -844,8 +1086,20 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     );
 
     const renderStep4 = () => (
-        <div>
-            <h4 className="mb-4">Embed Configuration</h4>
+        <div style={{
+            padding: '24px',
+            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+            borderRadius: '16px',
+            border: '1px solid rgba(59, 130, 246, 0.1)'
+        }}>
+            <h4 className="mb-4" style={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontWeight: '700',
+                fontSize: '24px'
+            }}>Embed Configuration</h4>
             
             <div className="mb-4">
                 <h6>Embedding Options</h6>
@@ -874,8 +1128,20 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     );
 
     const renderStep5 = () => (
-        <div>
-            <h4 className="mb-4">Channels & Deployment</h4>
+        <div style={{
+            padding: '24px',
+            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+            borderRadius: '16px',
+            border: '1px solid rgba(59, 130, 246, 0.1)'
+        }}>
+            <h4 className="mb-4" style={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontWeight: '700',
+                fontSize: '24px'
+            }}>Channels & Deployment</h4>
             
             <div className="mb-4">
                 <h6>Communication Channels</h6>
@@ -940,64 +1206,174 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     ];
 
     const renderStepNavigation = () => (
-        <div className="d-flex justify-content-center mb-4">
-            <div className="d-flex align-items-center gap-4">
-                {stepLabels.map((step, index) => (
-                    <div key={step.number} className="d-flex flex-column align-items-center">
-                        <div
-                            className={`d-flex align-items-center justify-content-center rounded-circle ${
-                                currentStep === step.number
-                                    ? 'bg-primary text-white border-primary'
-                                    : currentStep > step.number
-                                    ? 'bg-success text-white border-success'
-                                    : 'bg-light text-muted border-secondary'
-                            }`}
-                            style={{
-                                width: '40px',
-                                height: '40px',
-                                border: '2px solid',
-                                cursor: currentStep >= step.number ? 'pointer' : 'default',
-                                transition: 'all 0.3s ease'
-                            }}
-                            onClick={() => handleStepClick(step.number)}
-                        >
-                            <span className="fw-bold">{step.number}</span>
+        <div className="d-flex justify-content-center mb-5" style={{ position: 'relative' }}>
+            {/* Progress line */}
+            <div style={{
+                position: 'absolute',
+                top: '20px',
+                left: '10%',
+                right: '10%',
+                height: '3px',
+                background: 'linear-gradient(90deg, #3b82f6 0%, #22c55e 100%)',
+                borderRadius: '2px',
+                opacity: 0.2,
+                zIndex: 0
+            }}></div>
+            <div style={{
+                position: 'absolute',
+                top: '20px',
+                left: '10%',
+                width: `${((currentStep - 1) / (totalSteps - 1)) * 80}%`,
+                height: '3px',
+                background: 'linear-gradient(90deg, #3b82f6 0%, #22c55e 100%)',
+                borderRadius: '2px',
+                zIndex: 1,
+                transition: 'width 0.5s ease'
+            }}></div>
+            
+            <div className="d-flex align-items-center gap-4" style={{ position: 'relative', zIndex: 2 }}>
+                {stepLabels.map((step, index) => {
+                    const isActive = currentStep === step.number;
+                    const isCompleted = currentStep > step.number;
+                    const isPending = currentStep < step.number;
+                    
+                    return (
+                        <div key={step.number} className="d-flex flex-column align-items-center">
+                            <div
+                                className="d-flex align-items-center justify-content-center rounded-circle"
+                                style={{
+                                    width: '48px',
+                                    height: '48px',
+                                    border: isActive ? '3px solid #3b82f6' : isCompleted ? '3px solid #22c55e' : '3px solid #e2e8f0',
+                                    background: isActive 
+                                        ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+                                        : isCompleted
+                                        ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                                        : 'white',
+                                    color: isPending ? '#94a3b8' : 'white',
+                                    cursor: currentStep >= step.number ? 'pointer' : 'default',
+                                    transition: 'all 0.3s ease',
+                                    boxShadow: isActive 
+                                        ? '0 8px 20px rgba(59, 130, 246, 0.3)'
+                                        : isCompleted
+                                        ? '0 4px 12px rgba(34, 197, 94, 0.2)'
+                                        : '0 2px 4px rgba(0, 0, 0, 0.05)',
+                                    transform: isActive ? 'scale(1.1)' : 'scale(1)'
+                                }}
+                                onClick={() => handleStepClick(step.number)}
+                                onMouseEnter={(e) => {
+                                    if (currentStep >= step.number) {
+                                        e.currentTarget.style.transform = 'scale(1.15)';
+                                        e.currentTarget.style.boxShadow = isActive 
+                                            ? '0 12px 28px rgba(59, 130, 246, 0.4)'
+                                            : '0 8px 20px rgba(34, 197, 94, 0.3)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = isActive ? 'scale(1.1)' : 'scale(1)';
+                                    e.currentTarget.style.boxShadow = isActive 
+                                        ? '0 8px 20px rgba(59, 130, 246, 0.3)'
+                                        : isCompleted
+                                        ? '0 4px 12px rgba(34, 197, 94, 0.2)'
+                                        : '0 2px 4px rgba(0, 0, 0, 0.05)';
+                                }}
+                            >
+                                {isCompleted ? (
+                                    <MDBIcon icon="check" size="sm" />
+                                ) : (
+                                    <span className="fw-bold" style={{ fontSize: '16px' }}>{step.number}</span>
+                                )}
+                            </div>
+                            <span
+                                className="mt-3 small fw-semibold"
+                                style={{
+                                    color: isActive 
+                                        ? '#3b82f6'
+                                        : isCompleted
+                                        ? '#22c55e'
+                                        : '#94a3b8',
+                                    fontSize: '13px',
+                                    transition: 'all 0.3s ease',
+                                    textAlign: 'center',
+                                    minWidth: '80px'
+                                }}
+                            >
+                                {step.label}
+                            </span>
                         </div>
-                        <span
-                            className={`mt-2 small fw-medium ${
-                                currentStep === step.number
-                                    ? 'text-primary'
-                                    : currentStep > step.number
-                                    ? 'text-success'
-                                    : 'text-muted'
-                            }`}
-                            style={{
-                                borderBottom: currentStep === step.number ? '2px solid #007bff' : 'none',
-                                paddingBottom: currentStep === step.number ? '2px' : '0'
-                            }}
-                        >
-                            {step.label}
-                        </span>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
 
     return (
-        <div style={{ padding: '20px', backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
-            <MDBContainer>
+        <div style={{ 
+            padding: '20px', 
+            background: 'linear-gradient(135deg, #f0f9ff 0%, #f0fdf4 50%, #ffffff 100%)',
+            minHeight: '100vh',
+            position: 'relative',
+            overflow: 'hidden'
+        }}>
+            {/* Decorative gradient circles */}
+            <div style={{
+                position: 'absolute',
+                top: '-100px',
+                right: '-100px',
+                width: '400px',
+                height: '400px',
+                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%)',
+                borderRadius: '50%',
+                pointerEvents: 'none'
+            }}></div>
+            <div style={{
+                position: 'absolute',
+                bottom: '-150px',
+                left: '-150px',
+                width: '500px',
+                height: '500px',
+                background: 'radial-gradient(circle, rgba(34, 197, 94, 0.08) 0%, transparent 70%)',
+                borderRadius: '50%',
+                pointerEvents: 'none'
+            }}></div>
+            
+            <MDBContainer style={{ position: 'relative', zIndex: 1 }}>
                 <MDBRow className="justify-content-center">
-                    <MDBCol md="8">
-                        <MDBCard className="shadow">
-                            <MDBCardBody className="p-4">
+                    <MDBCol md="10" lg="9">
+                        <MDBCard className="shadow-lg" style={{
+                            border: 'none',
+                            borderRadius: '24px',
+                            overflow: 'hidden',
+                            background: 'white',
+                            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.08)'
+                        }}>
+                            <MDBCardBody className="p-5" style={{
+                                background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)'
+                            }}>
                                 {/* Header */}
-                                <div className="d-flex justify-content-between align-items-start mb-4">
+                                <div className="d-flex justify-content-between align-items-start mb-4" style={{
+                                    padding: '24px',
+                                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(34, 197, 94, 0.05) 100%)',
+                                    borderRadius: '16px',
+                                    border: '1px solid rgba(59, 130, 246, 0.1)'
+                                }}>
                                     <div className="flex-grow-1 me-4">
-                                        <MDBCardTitle className="h4 mb-1">
+                                        <MDBCardTitle className="h4 mb-2" style={{
+                                            background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                            backgroundClip: 'text',
+                                            fontWeight: '700',
+                                            fontSize: '28px'
+                                        }}>
                                             Step {currentStep} of {totalSteps}: {stepLabels[currentStep - 1].label} Chatbot
                                         </MDBCardTitle>
-                                        <p className="text-muted mb-0" style={{ fontSize: '14px', lineHeight: '1.5' }}>
+                                        <p className="mb-0" style={{ 
+                                            fontSize: '15px', 
+                                            lineHeight: '1.6',
+                                            color: '#64748b',
+                                            marginTop: '8px'
+                                        }}>
                                             {currentStep === 1 && "Create and configure an external chatbot that can interact with your users and provide various information on other 3rd party websites."}
                                             {currentStep === 2 && "Customize your chatbot's behavior and messaging to match your brand and requirements."}
                                             {currentStep === 3 && "Train your chatbot using website URLs, PDF documents, and custom text content to improve its knowledge base."}
@@ -1012,22 +1388,25 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                         size="sm"
                                         onClick={onCancel}
                                         style={{
-                                            borderColor: '#6c757d',
-                                            color: '#6c757d',
+                                            borderColor: '#cbd5e1',
+                                            color: '#64748b',
                                             fontWeight: '500',
-                                            borderRadius: '8px',
-                                            padding: '8px 16px',
-                                            transition: 'all 0.2s ease'
+                                            borderRadius: '12px',
+                                            padding: '10px 20px',
+                                            transition: 'all 0.3s ease',
+                                            background: 'white'
                                         }}
                                         onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#6c757d';
-                                            e.currentTarget.style.color = 'white';
-                                            e.currentTarget.style.borderColor = '#6c757d';
+                                            e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                            e.currentTarget.style.borderColor = '#94a3b8';
+                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
                                         }}
                                         onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'transparent';
-                                            e.currentTarget.style.color = '#6c757d';
-                                            e.currentTarget.style.borderColor = '#6c757d';
+                                            e.currentTarget.style.backgroundColor = 'white';
+                                            e.currentTarget.style.borderColor = '#cbd5e1';
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = 'none';
                                         }}
                                     >
                                         <MDBIcon icon="times" size="sm" className="me-1" />
@@ -1049,13 +1428,35 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                 </div>
 
                                 {/* Navigation Buttons */}
-                                <div className="d-flex justify-content-between">
+                                <div className="d-flex justify-content-between align-items-center" style={{
+                                    paddingTop: '32px',
+                                    marginTop: '32px',
+                                    borderTop: '2px solid rgba(59, 130, 246, 0.1)'
+                                }}>
                                     <div>
                                         {currentStep > 1 && (
                                             <MDBBtn
                                                 color="light"
                                                 onClick={handlePrevious}
-                                                className="border"
+                                                style={{
+                                                    border: '2px solid #e2e8f0',
+                                                    borderRadius: '12px',
+                                                    padding: '12px 24px',
+                                                    fontWeight: '600',
+                                                    color: '#64748b',
+                                                    background: 'white',
+                                                    transition: 'all 0.3s ease'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)';
+                                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                                    e.currentTarget.style.transform = 'translateX(-4px)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = 'white';
+                                                    e.currentTarget.style.borderColor = '#e2e8f0';
+                                                    e.currentTarget.style.transform = 'translateX(0)';
+                                                }}
                                             >
                                                 <MDBIcon icon="chevron-left" className="me-1" />
                                                 Previous
@@ -1067,6 +1468,25 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                             <MDBBtn
                                                 color="primary"
                                                 onClick={handleNext}
+                                                style={{
+                                                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                    border: 'none',
+                                                    borderRadius: '12px',
+                                                    padding: '12px 32px',
+                                                    fontWeight: '600',
+                                                    boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)',
+                                                    transition: 'all 0.3s ease'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
+                                                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.4)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+                                                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.3)';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                }}
                                             >
                                                 Next
                                                 <MDBIcon icon="chevron-right" className="ms-1" />
@@ -1075,6 +1495,25 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                             <MDBBtn
                                                 color="success"
                                                 onClick={handleSubmit}
+                                                style={{
+                                                    background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                                                    border: 'none',
+                                                    borderRadius: '12px',
+                                                    padding: '12px 32px',
+                                                    fontWeight: '600',
+                                                    boxShadow: '0 4px 16px rgba(34, 197, 94, 0.3)',
+                                                    transition: 'all 0.3s ease'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)';
+                                                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(34, 197, 94, 0.4)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+                                                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(34, 197, 94, 0.3)';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                }}
                                             >
                                                 <MDBIcon icon="check" className="me-1" />
                                                 Create Chatbot
