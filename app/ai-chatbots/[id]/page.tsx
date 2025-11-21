@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     MDBContainer,
     MDBRow,
@@ -70,6 +70,15 @@ interface KnowledgeBaseResponse {
     };
 }
 
+interface KnowledgeBase {
+    id: string;
+    chatbotId: string;
+    knowledgeOf: string;
+    knowledgeType: string;
+    createdBy: string;
+    created: string | number; // Can be ISO string or timestamp
+}
+
 interface Chatbot {
     id: string;
     title: string;
@@ -84,13 +93,14 @@ interface Chatbot {
     addedWebsites?: string[];
     addedTexts?: string[];
     qaPairs?: QAPair[];
-    embedWidth?: number;
-    embedHeight?: number;
+    width?: number;
+    height?: number;
     enableWhatsappIntegration?: boolean;
     enableFacebookIntegration?: boolean;
     instructions?: string; // Instructions for replying user
     fallbackMessage?: string; // Fallback message for replying user
-    restrictDataSource?: boolean; // Restrict to Datasource and knowledgebase during user's reply
+    greetingMessage?: string; // Greeting message for replying user
+    restrictToDataSource?: boolean; // Restrict to Datasource and knowledgebase during user's reply
 }
 
 export default function ChatbotDetailPage() {
@@ -107,7 +117,9 @@ export default function ChatbotDetailPage() {
     const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
     const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
     const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseResponse | null>(null);
+    const [knowledgeBasesList, setKnowledgeBasesList] = useState<KnowledgeBase[]>([]);
     const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
+    const [isLoadingKnowledgeBases, setIsLoadingKnowledgeBases] = useState(false);
     const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
     const [previewWidth, setPreviewWidth] = useState<number>(400);
     const [previewHeight, setPreviewHeight] = useState<number>(500);
@@ -142,44 +154,42 @@ export default function ChatbotDetailPage() {
         priority: 'Normal',
         message: '',
     });
+    const [conversations, setConversations] = useState<Array<{
+        id: string;
+        title: string;
+        updatedAt: string;
+        preview: string;
+    }>>([]);
+    const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+    const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+    const [conversationMessages, setConversationMessages] = useState<Array<{
+        id: string;
+        role: 'user' | 'assistant';
+        content: string;
+        createdAt: Date;
+    }>>([]);
+    const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     
-    const conversationHistory = useMemo(() => [
-        {
-            id: 'CNV-' + chatbotId,
-            title: 'New Conversation',
-            messageCount: 2,
-            updatedAt: '22 hours ago',
-            preview: 'Hey there! How can I help you today?',
-        },
-        {
-            id: 'CNV-1023',
-            title: 'Onboarding Walkthrough',
-            messageCount: 5,
-            updatedAt: '1 day ago',
-            preview: 'We are deploying the chatbot this week...',
-        },
-        {
-            id: 'CNV-1022',
-            title: 'Pricing Clarification',
-            messageCount: 12,
-            updatedAt: '1 week ago',
-            preview: 'Could you explain the enterprise plan limits?',
-        },
-        {
-            id: 'CNV-1021',
-            title: 'Widget Customization',
-            messageCount: 17,
-            updatedAt: '1 week ago',
-            preview: 'Is there a way to change the header color?',
-        },
-        {
-            id: 'CNV-1020',
-            title: 'Integration Follow-up',
-            messageCount: 9,
-            updatedAt: '3 weeks ago',
-            preview: 'Thanks for sharing the API docs!',
-        },
-    ], [chatbotId]);
+    // Interface for UserChatHistory from API
+    interface UserChatHistory {
+        id: string | null;
+        email: string | null;
+        conversationid: string;
+        userMessage: string;
+        createdAt: number | string; // Can be timestamp in seconds (number) or ISO string
+        aiMessage: string;
+        mode: string;
+        isAnonymous: boolean;
+    }
+
+    // Helper function to detect if content contains HTML
+    const containsHTML = (text: string): boolean => {
+        if (!text) return false;
+        const htmlRegex = /<[a-z][\s\S]*>/i;
+        return htmlRegex.test(text);
+    };
+    
+    const conversationHistory = useMemo(() => conversations, [conversations]);
 
     const filteredConversations = useMemo(() => {
         if (!conversationSearchTerm.trim()) {
@@ -196,6 +206,127 @@ export default function ChatbotDetailPage() {
 
     const { isSignedIn } = useUser();
     const { getToken } = useAuth();
+
+    // Fetch conversation history from API
+    const fetchConversationHistory = useCallback(async () => {
+        if (!chatbotId || !isSignedIn) return;
+        
+        setIsLoadingConversations(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    } else {
+                        console.warn('Failed to get auth token');
+                        setIsLoadingConversations(false);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to get auth token:', error);
+                    setIsLoadingConversations(false);
+                    return;
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/n8n/authenticated/chatHistory/${chatbotId}`, {
+                method: 'POST',
+                headers,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data: UserChatHistory[] = await response.json();
+            
+            // Group by conversationid and create conversation list
+            const conversationMap = new Map<string, UserChatHistory[]>();
+            data.forEach((item) => {
+                const convId = item.conversationid;
+                if (!conversationMap.has(convId)) {
+                    conversationMap.set(convId, []);
+                }
+                conversationMap.get(convId)!.push(item);
+            });
+
+            // Convert to conversation list format
+            const conversationList = Array.from(conversationMap.entries()).map(([convId, items]) => {
+                // Sort items by createdAt to get the most recent first
+                items.sort((a, b) => {
+                    // Handle timestamp in seconds (multiply by 1000 to convert to milliseconds)
+                    const aTime = typeof a.createdAt === 'number' ? a.createdAt * 1000 : new Date(a.createdAt).getTime();
+                    const bTime = typeof b.createdAt === 'number' ? b.createdAt * 1000 : new Date(b.createdAt).getTime();
+                    return bTime - aTime;
+                });
+                
+                const firstItem = items[0];
+                
+                // Use createdAt from API to calculate "days ago"
+                // Handle timestamp in seconds (multiply by 1000 to convert to milliseconds)
+                const createdAtTimestamp = typeof firstItem.createdAt === 'number' 
+                    ? firstItem.createdAt * 1000 
+                    : new Date(firstItem.createdAt).getTime();
+                const createdAtDate = new Date(createdAtTimestamp);
+                const now = new Date();
+                const diffMs = now.getTime() - createdAtDate.getTime();
+                const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                const diffDays = Math.floor(diffHours / 24);
+                const diffWeeks = Math.floor(diffDays / 7);
+                
+                let updatedAtStr = '';
+                if (diffHours < 1) {
+                    updatedAtStr = 'Just now';
+                } else if (diffHours < 24) {
+                    updatedAtStr = `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+                } else if (diffDays < 7) {
+                    updatedAtStr = `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+                } else if (diffWeeks < 4) {
+                    updatedAtStr = `${diffWeeks} ${diffWeeks === 1 ? 'week' : 'weeks'} ago`;
+                } else {
+                    updatedAtStr = `${Math.floor(diffDays / 30)} ${Math.floor(diffDays / 30) === 1 ? 'month' : 'months'} ago`;
+                }
+
+                // Generate title from first user message or use conversation ID
+                const title = firstItem.userMessage?.substring(0, 50).trim() || `Conversation ${convId.substring(0, 8)}`;
+                
+                // Generate preview from first user or AI message
+                const preview = firstItem.userMessage?.substring(0, 100).trim() || 
+                              firstItem.aiMessage?.substring(0, 100).trim() || 
+                              'No preview available';
+
+                return {
+                    id: convId,
+                    title,
+                    updatedAt: updatedAtStr,
+                    preview,
+                };
+            });
+
+            // Sort by most recent first (based on latest message in each conversation)
+            // Since items are already sorted with newest first, use firstItem for comparison
+            conversationList.sort((a, b) => {
+                const aItems = conversationMap.get(a.id) || [];
+                const bItems = conversationMap.get(b.id) || [];
+                const aTime = aItems.length > 0 ? new Date(aItems[0].createdAt).getTime() : 0;
+                const bTime = bItems.length > 0 ? new Date(bItems[0].createdAt).getTime() : 0;
+                return bTime - aTime;
+            });
+
+            setConversations(conversationList);
+        } catch (error) {
+            console.error('Error fetching conversation history:', error);
+            setConversations([]); // Set empty array on error
+        } finally {
+            setIsLoadingConversations(false);
+        }
+    }, [chatbotId, isSignedIn, getToken]);
 
     const handleDrawerStateChange = (isOpen: boolean, activeItem: string, collapsed?: boolean) => {
         if (collapsed !== undefined) {
@@ -217,6 +348,110 @@ export default function ChatbotDetailPage() {
     const handleOpenConversationDrawer = (mode: 'history' | 'new') => {
         setConversationDrawerMode(mode);
         setIsConversationDrawerOpen(true);
+        // Reset selected conversation when opening drawer
+        setSelectedConversationId(null);
+        setConversationMessages([]);
+        // Fetch conversations when opening history drawer
+        if (mode === 'history') {
+            fetchConversationHistory();
+        }
+    };
+
+    // Fetch conversation messages
+    const fetchConversationMessages = useCallback(async (conversationId: string) => {
+        if (!chatbotId || !isSignedIn || !conversationId) return;
+        
+        setIsLoadingMessages(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    } else {
+                        console.warn('Failed to get auth token');
+                        setIsLoadingMessages(false);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to get auth token:', error);
+                    setIsLoadingMessages(false);
+                    return;
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/n8n/authenticated/chatHistory/${chatbotId}/${conversationId}`, {
+                method: 'POST',
+                headers,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data: UserChatHistory[] = await response.json();
+            
+            // Convert UserChatHistory to Message format
+            const messages: Array<{
+                id: string;
+                role: 'user' | 'assistant';
+                content: string;
+                createdAt: Date;
+            }> = [];
+            
+            data.forEach((item) => {
+                // Handle timestamp in seconds (multiply by 1000 to convert to milliseconds)
+                const createdAtTimestamp = typeof item.createdAt === 'number' 
+                    ? item.createdAt * 1000 
+                    : new Date(item.createdAt).getTime();
+                const createdAtDate = new Date(createdAtTimestamp);
+                
+                // Add user message
+                if (item.userMessage) {
+                    messages.push({
+                        id: `${item.id}_user`,
+                        role: 'user',
+                        content: item.userMessage,
+                        createdAt: createdAtDate,
+                    });
+                }
+                
+                // Add AI message
+                if (item.aiMessage) {
+                    messages.push({
+                        id: `${item.id}_ai`,
+                        role: 'assistant',
+                        content: item.aiMessage,
+                        createdAt: createdAtDate,
+                    });
+                }
+            });
+
+            // Sort messages by creation time
+            messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+            setConversationMessages(messages);
+        } catch (error) {
+            console.error('Error fetching conversation messages:', error);
+            setConversationMessages([]);
+        } finally {
+            setIsLoadingMessages(false);
+        }
+    }, [chatbotId, isSignedIn, getToken]);
+
+    const handleConversationClick = (conversationId: string) => {
+        setSelectedConversationId(conversationId);
+        fetchConversationMessages(conversationId);
+    };
+
+    const handleBackToConversations = () => {
+        setSelectedConversationId(null);
+        setConversationMessages([]);
     };
 
     const handleCloseConversationDrawer = () => {
@@ -425,53 +660,6 @@ export default function ChatbotDetailPage() {
         alert('Facebook channel added (frontend only).');
         setShowFacebookModal(false);
     };
-    const fetchKnowledgeBase = async () => {
-        if (!chatbotId) return;
-
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-        if (!backendUrl) {
-            setKnowledgeError('Backend URL is not configured');
-            return;
-        }
-
-        setIsLoadingKnowledge(true);
-        setKnowledgeError(null);
-
-        try {
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-            };
-
-            if (isSignedIn) {
-                try {
-                    const token = await getToken();
-                    if (token) {
-                        headers['Authorization'] = `Bearer ${token}`;
-                    }
-                } catch (error) {
-                    console.warn('Failed to get auth token for knowledge base:', error);
-                }
-            }
-
-            const response = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}/knowledge-base`, {
-                method: 'GET',
-                headers,
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch knowledge base (${response.status})`);
-            }
-
-            const result = await response.json();
-            const data: KnowledgeBaseResponse = result.data || result;
-            setKnowledgeBase(data);
-        } catch (error) {
-            console.error('Error loading knowledge base:', error);
-            setKnowledgeError(error instanceof Error ? error.message : 'Failed to load knowledge base');
-        } finally {
-            setIsLoadingKnowledge(false);
-        }
-    };
 
     const handleSave = async () => {
         if (!editedChatbot) return;
@@ -494,10 +682,17 @@ export default function ChatbotDetailPage() {
                 }
             }
 
+            // Ensure width and height are included from current preview values
+            const chatbotToSave = {
+                ...editedChatbot,
+                width: previewWidth,
+                height: previewHeight,
+            };
+
             const response = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}`, {
                 method: 'PUT',
                 headers,
-                body: JSON.stringify(editedChatbot),
+                body: JSON.stringify(chatbotToSave),
             });
 
             if (!response.ok) {
@@ -520,11 +715,60 @@ export default function ChatbotDetailPage() {
         setIsEditing(false);
     };
 
-    useEffect(() => {
-        if (showKnowledgeModal && !knowledgeBase && !isLoadingKnowledge) {
-            fetchKnowledgeBase();
+    // Fetch knowledge bases list
+    const fetchKnowledgeBasesList = useCallback(async () => {
+        if (!chatbotId) return;
+
+        setIsLoadingKnowledgeBases(true);
+        setKnowledgeError(null);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            if (!backendUrl) {
+                setKnowledgeError('Backend URL is not configured');
+                return;
+            }
+
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (isSignedIn) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get auth token for knowledge bases:', error);
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}/knowledge-bases`, {
+                method: 'GET',
+                headers,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch knowledge bases (${response.status})`);
+            }
+
+            const result = await response.json();
+            // Handle different response formats
+            const data: KnowledgeBase[] = Array.isArray(result) ? result : (result.data || result.list || []);
+            setKnowledgeBasesList(data);
+        } catch (error) {
+            console.error('Error loading knowledge bases:', error);
+            setKnowledgeError(error instanceof Error ? error.message : 'Failed to load knowledge bases');
+        } finally {
+            setIsLoadingKnowledgeBases(false);
         }
-    }, [showKnowledgeModal]);
+    }, [chatbotId, isSignedIn, getToken]);
+
+    useEffect(() => {
+        if (showKnowledgeModal) {
+            fetchKnowledgeBasesList();
+        }
+    }, [showKnowledgeModal, fetchKnowledgeBasesList]);
 
     const mergedFiles = knowledgeBase?.files || chatbot?.files || [];
     const mergedWebsites =
@@ -541,29 +785,29 @@ export default function ChatbotDetailPage() {
     const mergedQAPairs = knowledgeBase?.qaPairs || chatbot?.qaPairs || [];
 
     useEffect(() => {
-        const width = (isEditing ? editedChatbot?.embedWidth : chatbot?.embedWidth) ?? 400;
-        const height = (isEditing ? editedChatbot?.embedHeight : chatbot?.embedHeight) ?? 500;
+        const width = (isEditing ? editedChatbot?.width : chatbot?.width) ?? 400;
+        const height = (isEditing ? editedChatbot?.height : chatbot?.height) ?? 500;
         setPreviewWidth(width);
         setPreviewHeight(height);
-    }, [isEditing, editedChatbot?.embedWidth, editedChatbot?.embedHeight, chatbot?.embedWidth, chatbot?.embedHeight]);
+    }, [isEditing, editedChatbot?.width, editedChatbot?.height, chatbot?.width, chatbot?.height]);
 
     const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
     const handlePreviewWidthChange = (value: number) => {
         const clamped = clamp(Number(value) || 0, 240, 1024);
         setPreviewWidth(clamped);
-        setEditedChatbot((prev) => (prev ? { ...prev, embedWidth: clamped } : prev));
+        setEditedChatbot((prev) => (prev ? { ...prev, width: clamped } : prev));
         if (!isEditing) {
-            setChatbot((prev) => (prev ? { ...prev, embedWidth: clamped } : prev));
+            setChatbot((prev) => (prev ? { ...prev, width: clamped } : prev));
         }
     };
 
     const handlePreviewHeightChange = (value: number) => {
         const clamped = clamp(Number(value) || 0, 240, 1024);
         setPreviewHeight(clamped);
-        setEditedChatbot((prev) => (prev ? { ...prev, embedHeight: clamped } : prev));
+        setEditedChatbot((prev) => (prev ? { ...prev, height: clamped } : prev));
         if (!isEditing) {
-            setChatbot((prev) => (prev ? { ...prev, embedHeight: clamped } : prev));
+            setChatbot((prev) => (prev ? { ...prev, height: clamped } : prev));
         }
     };
 
@@ -584,227 +828,65 @@ export default function ChatbotDetailPage() {
                         <MDBBtn className='btn-close' color='none' onClick={handleKnowledgeModalClose}></MDBBtn>
                     </MDBModalHeader>
                     <MDBModalBody>
-                        {isLoadingKnowledge ? (
-                            <div className="py-4 text-center text-muted">
-                                <div className="spinner-border text-primary" role="status">
-                                    <span className="visually-hidden">Loading...</span>
+                        {/* Knowledge Bases List */}
+                        <div className="mb-4">
+                            <h5 className="mb-3 d-flex align-items-center gap-2">
+                                <MDBIcon icon="database" className="text-primary" />
+                                Knowledge Bases
+                                <MDBBadge color="primary" pill>{knowledgeBasesList.length}</MDBBadge>
+                            </h5>
+                            {isLoadingKnowledgeBases ? (
+                                <div className="py-3 text-center text-muted">
+                                    <div className="spinner-border spinner-border-sm text-primary" role="status">
+                                        <span className="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p className="mt-2 mb-0 small">Loading knowledge bases...</p>
                                 </div>
-                                <p className="mt-3 mb-0">Loading knowledge base...</p>
-                            </div>
-                        ) : knowledgeError ? (
-                            <div className="alert alert-danger mb-0" role="alert">
-                                {knowledgeError}
-                            </div>
-                        ) : (
-                            <>
-                                <div className="mb-4">
-                                    <h5 className="mb-3 d-flex align-items-center gap-2">
-                                        <MDBIcon icon="folder-open" className="text-warning" />
-                                        Training Files
-                                        <MDBBadge color="primary" pill>{mergedFiles.length}</MDBBadge>
-                                    </h5>
-                                    {mergedFiles.length === 0 ? (
-                                        <p className="text-muted mb-0">No files have been associated with this chatbot yet.</p>
-                                    ) : (
-                                        <div className="table-responsive">
-                                            <MDBTable align='middle' hover small>
-                                                <MDBTableHead>
-                                                    <tr>
-                                                        <th>File</th>
-                                                        <th>Source</th>
-                                                        <th>Size</th>
-                                                        <th>Uploaded</th>
-                                                        <th>Action</th>
+                            ) : knowledgeBasesList.length === 0 ? (
+                                <p className="text-muted mb-0">No knowledge bases found for this chatbot.</p>
+                            ) : (
+                                <div className="table-responsive">
+                                    <MDBTable align='middle' hover small>
+                                        <MDBTableHead>
+                                            <tr>
+                                                <th>Knowledge Of</th>
+                                                <th>Type</th>
+                                                <th>Created By</th>
+                                                <th>Created</th>
+                                            </tr>
+                                        </MDBTableHead>
+                                        <MDBTableBody>
+                                            {knowledgeBasesList.map((kb) => {
+                                                // Handle timestamp in seconds (multiply by 1000 to convert to milliseconds)
+                                                const createdTimestamp = typeof kb.created === 'number' 
+                                                    ? kb.created * 1000 
+                                                    : new Date(kb.created).getTime();
+                                                const createdDate = new Date(createdTimestamp);
+                                                
+                                                return (
+                                                    <tr key={kb.id}>
+                                                        <td>
+                                                            <div className="fw-semibold">{kb.knowledgeOf || 'N/A'}</div>
+                                                        </td>
+                                                        <td>
+                                                            <MDBBadge color="info" pill>
+                                                                {kb.knowledgeType || 'N/A'}
+                                                            </MDBBadge>
+                                                        </td>
+                                                        <td>
+                                                            <span className="text-muted">{kb.createdBy || '—'}</span>
+                                                        </td>
+                                                        <td>
+                                                            {createdDate.toLocaleString()}
+                                                        </td>
                                                     </tr>
-                                                </MDBTableHead>
-                                                <MDBTableBody>
-                                                    {mergedFiles.map((file) => (
-                                                        <tr key={file.id || file.name}>
-                                                            <td>
-                                                                <div className="d-flex align-items-center gap-2">
-                                                                    <MDBIcon icon="file-alt" className="text-secondary" />
-                                                                    <div>
-                                                                        <div className="fw-semibold">{file.name || 'Untitled file'}</div>
-                                                                        {file.mimeType && (
-                                                                            <small className="text-muted text-uppercase">{file.mimeType}</small>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                            <td>
-                                                                {file.sourceType ? (
-                                                                    <MDBBadge color="info" pill>{file.sourceType}</MDBBadge>
-                                                                ) : (
-                                                                    <span className="text-muted">Upload</span>
-                                                                )}
-                                                            </td>
-                                                            <td>{formatFileSize(file.size)}</td>
-                                                            <td>
-                                                                {file.uploadedAt
-                                                                    ? new Date(file.uploadedAt).toLocaleString()
-                                                                    : '—'}
-                                                            </td>
-                                                            <td>
-                                                                {file.url ? (
-                                                                    <a
-                                                                        href={file.url}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="btn btn-sm btn-outline-primary"
-                                                                    >
-                                                                        <MDBIcon icon="external-link-alt" size="sm" className="me-1" />
-                                                                        View
-                                                                    </a>
-                                                                ) : (
-                                                                    <span className="text-muted">N/A</span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </MDBTableBody>
-                                            </MDBTable>
-                                        </div>
-                                    )}
+                                                );
+                                            })}
+                                        </MDBTableBody>
+                                    </MDBTable>
                                 </div>
-
-                                <div className="mb-4">
-                                    <h5 className="mb-3 d-flex align-items-center gap-2">
-                                        <MDBIcon icon="globe" className="text-primary" />
-                                        Crawled Website Pages
-                                        <MDBBadge color="primary" pill>{mergedWebsites.length}</MDBBadge>
-                                    </h5>
-                                    {mergedWebsites.length === 0 ? (
-                                        <p className="text-muted mb-0">No website pages have been crawled for this chatbot.</p>
-                                    ) : (
-                                        <div className="table-responsive">
-                                            <MDBTable align='middle' hover small>
-                                                <MDBTableHead>
-                                                    <tr>
-                                                        <th>URL</th>
-                                                        <th>Status</th>
-                                                        <th>Last Crawled</th>
-                                                        <th>Length</th>
-                                                    </tr>
-                                                </MDBTableHead>
-                                                <MDBTableBody>
-                                                    {mergedWebsites.map((page, index) => (
-                                                        <tr key={page.id || `${page.url}-${index}`}>
-                                                            <td style={{ maxWidth: '320px' }}>
-                                                                <div className="d-flex flex-column">
-                                                                    <a href={page.url} target="_blank" rel="noopener noreferrer">
-                                                                        {page.url}
-                                                                    </a>
-                                                                    {page.title && (
-                                                                        <small className="text-muted">{page.title}</small>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                            <td>
-                                                                {page.status ? (
-                                                                    <MDBBadge
-                                                                        color={
-                                                                            page.status === 'COMPLETED'
-                                                                                ? 'success'
-                                                                                : page.status === 'FAILED'
-                                                                                    ? 'danger'
-                                                                                    : 'secondary'
-                                                                        }
-                                                                        pill
-                                                                    >
-                                                                        {page.status}
-                                                                    </MDBBadge>
-                                                                ) : (
-                                                                    <span className="text-muted">Pending</span>
-                                                                )}
-                                                            </td>
-                                                            <td>
-                                                                {page.lastCrawledAt
-                                                                    ? new Date(page.lastCrawledAt).toLocaleString()
-                                                                    : '—'}
-                                                            </td>
-                                                            <td>
-                                                                {page.contentLength
-                                                                    ? `${page.contentLength.toLocaleString()} chars`
-                                                                    : '—'}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </MDBTableBody>
-                                            </MDBTable>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="mb-4">
-                                    <h5 className="mb-3 d-flex align-items-center gap-2">
-                                        <MDBIcon icon="sticky-note" className="text-success" />
-                                        Text Snippets
-                                        <MDBBadge color="primary" pill>{mergedTexts.length}</MDBBadge>
-                                    </h5>
-                                    {mergedTexts.length === 0 ? (
-                                        <p className="text-muted mb-0">No custom text snippets have been added.</p>
-                                    ) : (
-                                        <div className="list-group">
-                                            {mergedTexts.map((text, index) => (
-                                                <div className="list-group-item" key={`text-${index}`}>
-                                                    <div className="d-flex justify-content-between align-items-center">
-                                                        <h6 className="mb-1">Snippet {index + 1}</h6>
-                                                        <small className="text-muted">{text.length} chars</small>
-                                                    </div>
-                                                    <p className="mb-0 text-muted" style={{
-                                                        whiteSpace: 'pre-wrap',
-                                                        maxHeight: '120px',
-                                                        overflow: 'auto'
-                                                    }}>
-                                                        {text}
-                                                    </p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <h5 className="mb-3 d-flex align-items-center gap-2">
-                                        <MDBIcon icon="question-circle" className="text-info" />
-                                        Q&A Pairs
-                                        <MDBBadge color="primary" pill>{mergedQAPairs.length}</MDBBadge>
-                                    </h5>
-                                    {mergedQAPairs.length === 0 ? (
-                                        <p className="text-muted mb-0">No Q&A pairs configured for this chatbot.</p>
-                                    ) : (
-                                        <div className="accordion" id="qaAccordion">
-                                            {mergedQAPairs.map((qa, index) => (
-                                                <div className="accordion-item" key={`qa-${index}`}>
-                                                    <h2 className="accordion-header" id={`qa-heading-${index}`}>
-                                                        <button
-                                                            className="accordion-button collapsed"
-                                                            type="button"
-                                                            data-bs-toggle="collapse"
-                                                            data-bs-target={`#qa-collapse-${index}`}
-                                                            aria-expanded="false"
-                                                            aria-controls={`qa-collapse-${index}`}
-                                                        >
-                                                            {qa.question}
-                                                        </button>
-                                                    </h2>
-                                                    <div
-                                                        id={`qa-collapse-${index}`}
-                                                        className="accordion-collapse collapse"
-                                                        aria-labelledby={`qa-heading-${index}`}
-                                                        data-bs-parent="#qaAccordion"
-                                                    >
-                                                        <div className="accordion-body">
-                                                            {qa.answer}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </>
-                        )}
+                            )}
+                        </div>
                     </MDBModalBody>
                     <MDBModalFooter>
                         <MDBBtn color="secondary" onClick={handleKnowledgeModalClose}>
@@ -907,7 +989,10 @@ export default function ChatbotDetailPage() {
                                     New Conversation
                                 </MDBBtn>
                     {!isEditing ? (
-                        <MDBBtn onClick={() => setIsEditing(true)} color="primary" className="d-flex align-items-center gap-2">
+                        <MDBBtn onClick={() => {
+                            setEditedChatbot(chatbot);
+                            setIsEditing(true);
+                        }} color="primary" className="d-flex align-items-center gap-2">
                             <MDBIcon icon="edit" />
                             Edit
                         </MDBBtn>
@@ -996,23 +1081,6 @@ export default function ChatbotDetailPage() {
                         </MDBCol>
 
                         <MDBCol md="12" className="mb-3">
-                            <label className="form-label">Message</label>
-                            {isEditing ? (
-                                <MDBTextArea
-                                    rows={4}
-                                    value={editedChatbot?.message || ''}
-                                    onChange={(e) =>
-                                        setEditedChatbot((prev) =>
-                                            prev ? { ...prev, message: e.target.value } : null
-                                        )
-                                    }
-                                />
-                            ) : (
-                                <p className="mb-0">{chatbot.message || 'No message'}</p>
-                            )}
-                        </MDBCol>
-
-                        <MDBCol md="12" className="mb-3">
                             <label className="form-label">Instructions for Replying User</label>
                             {isEditing ? (
                                 <MDBTextArea
@@ -1042,6 +1110,7 @@ export default function ChatbotDetailPage() {
                                         )
                                     }
                                     placeholder="Enter fallback message when the chatbot cannot find an answer..."
+                                    maxLength={1000}
                                 />
                             ) : (
                                 <p className="mb-0">{chatbot.fallbackMessage || 'No fallback message set'}</p>
@@ -1049,13 +1118,32 @@ export default function ChatbotDetailPage() {
                         </MDBCol>
 
                         <MDBCol md="12" className="mb-3">
+                            <label className="form-label">Greeting Message for Replying User</label>
+                            {isEditing ? (
+                                <MDBTextArea
+                                    rows={3}
+                                    value={editedChatbot?.greetingMessage || ''}
+                                    onChange={(e) =>
+                                        setEditedChatbot((prev) =>
+                                            prev ? { ...prev, greetingMessage: e.target.value } : null
+                                        )
+                                    }
+                                    placeholder="Enter greeting message for the chatbot..."
+                                    maxLength={1000}
+                                />
+                            ) : (
+                                <p className="mb-0">{chatbot.greetingMessage || 'No greeting message set'}</p>
+                            )}
+                        </MDBCol>
+
+                        <MDBCol md="12" className="mb-3">
                             <label className="form-label">Restrict to Datasource and Knowledgebase</label>
                             {isEditing ? (
                                 <MDBSwitch
-                                    checked={editedChatbot?.restrictDataSource || false}
+                                    checked={editedChatbot?.restrictToDataSource || false}
                                     onChange={(e) =>
                                         setEditedChatbot((prev) =>
-                                            prev ? { ...prev, restrictDataSource: e.target.checked } : null
+                                            prev ? { ...prev, restrictToDataSource: e.target.checked } : null
                                         )
                                     }
                                     label="Restrict replies to only use datasource and knowledgebase content"
@@ -1065,13 +1153,13 @@ export default function ChatbotDetailPage() {
                                     <span
                                         style={{
                                             padding: '4px 12px',
-                                            backgroundColor: chatbot.restrictDataSource ? '#d1fae5' : '#f3f4f6',
-                                            color: chatbot.restrictDataSource ? '#065f46' : '#6b7280',
+                                            backgroundColor: chatbot.restrictToDataSource ? '#d1fae5' : '#f3f4f6',
+                                            color: chatbot.restrictToDataSource ? '#065f46' : '#6b7280',
                                             borderRadius: '16px',
                                             fontWeight: '500',
                                         }}
                                     >
-                                        {chatbot.restrictDataSource ? 'Enabled' : 'Disabled'}
+                                        {chatbot.restrictToDataSource ? 'Enabled' : 'Disabled'}
                                     </span>
                                 </p>
                             )}
@@ -1207,8 +1295,8 @@ export default function ChatbotDetailPage() {
   window.initChatWidget({
     chatbotId: "${chatbotId}",
     apiUrl: "${process.env.NEXT_PUBLIC_BACKEND_URL || ''}",
-    width: ${(isEditing ? editedChatbot?.embedWidth : chatbot?.embedWidth) ?? 380},
-    height: ${(isEditing ? editedChatbot?.embedHeight : chatbot?.embedHeight) ?? 600}
+    width: ${(isEditing ? editedChatbot?.width : chatbot?.width) ?? 380},
+    height: ${(isEditing ? editedChatbot?.height : chatbot?.height) ?? 600}
   });
 </script>`}
                                             </pre>
@@ -1219,8 +1307,8 @@ export default function ChatbotDetailPage() {
                                                 style={{ top: '12px', right: '12px' }}
                                                 onClick={async () => {
                                                     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                                                    const width = (isEditing ? editedChatbot?.embedWidth : chatbot?.embedWidth) ?? 380;
-                                                    const height = (isEditing ? editedChatbot?.embedHeight : chatbot?.embedHeight) ?? 600;
+                                                    const width = (isEditing ? editedChatbot?.width : chatbot?.width) ?? 380;
+                                                    const height = (isEditing ? editedChatbot?.height : chatbot?.height) ?? 600;
                                                     const embedCode = `<script src="${origin}/widget-dist/chat-widget.iife.js"></script>
 <script>
   window.initChatWidget({
@@ -1830,35 +1918,105 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                 </div>
 
                 {conversationDrawerMode === 'history' ? (
-                    <div className="drawer-history">
-                        <div className="history-toolbar">
-                            <div className="history-search">
-                                <MDBIcon icon="search" className="me-2 text-muted" />
-                                <input
-                                    type="text"
-                                    placeholder="Search conversations..."
-                                    value={conversationSearchTerm}
-                                    onChange={(e) => handleConversationSearch(e.target.value)}
-                                />
+                    selectedConversationId ? (
+                        <div className="drawer-conversation">
+                            <div className="conversation-header">
+                                <button 
+                                    className="conversation-back-btn"
+                                    onClick={handleBackToConversations}
+                                    aria-label="Back to conversations"
+                                >
+                                    <MDBIcon icon="arrow-left" className="me-2" />
+                                    Back
+                                </button>
+                                <h5 className="conversation-title">
+                                    {conversations.find(c => c.id === selectedConversationId)?.title || 'Conversation'}
+                                </h5>
                             </div>
-                            <span className="history-count">{filteredConversations.length} results</span>
+                            <div className="conversation-messages">
+                                {isLoadingMessages ? (
+                                    <div className="text-center py-5">
+                                        <div className="spinner-border text-primary" role="status">
+                                            <span className="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p className="text-muted mt-3">Loading messages...</p>
+                                    </div>
+                                ) : conversationMessages.length === 0 ? (
+                                    <div className="text-center py-5">
+                                        <MDBIcon icon="comment-slash" className="text-muted" style={{ fontSize: '48px', opacity: 0.5 }} />
+                                        <p className="text-muted mt-3">No messages found</p>
+                                    </div>
+                                ) : (
+                                    conversationMessages.map((message) => {
+                                        const isUser = message.role === 'user';
+                                        const hasHTML = containsHTML(message.content);
+                                        return (
+                                            <div key={message.id} className={`conversation-message ${isUser ? 'message-user' : 'message-assistant'}`}>
+                                                <div 
+                                                    className={`message-content ${hasHTML ? 'message-html' : ''}`}
+                                                    {...(hasHTML ? {
+                                                        dangerouslySetInnerHTML: { __html: message.content }
+                                                    } : {})}
+                                                >
+                                                    {!hasHTML && message.content}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
-                        <div className="history-list">
-                            {filteredConversations.map((conversation) => (
-                                <div key={conversation.id} className="history-card">
-                                    <div className="history-card-id">{conversation.id}</div>
-                                    <div>
-                                        <h5>{conversation.title}</h5>
-                                        <p>{conversation.preview}</p>
-                                    </div>
-                                    <div className="history-meta">
-                                        <span>{conversation.messageCount} messages</span>
-                                        <span>{conversation.updatedAt}</span>
-                                    </div>
+                    ) : (
+                        <div className="drawer-history">
+                            <div className="history-toolbar">
+                                <div className="history-search">
+                                    <MDBIcon icon="search" className="me-2 text-muted" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search conversations..."
+                                        value={conversationSearchTerm}
+                                        onChange={(e) => handleConversationSearch(e.target.value)}
+                                    />
                                 </div>
-                            ))}
+                                <span className="history-count">{filteredConversations.length} results</span>
+                            </div>
+                            <div className="history-list">
+                                {isLoadingConversations ? (
+                                    <div className="text-center py-5">
+                                        <div className="spinner-border text-primary" role="status">
+                                            <span className="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p className="text-muted mt-3">Loading conversations...</p>
+                                    </div>
+                                ) : filteredConversations.length === 0 ? (
+                                    <div className="text-center py-5">
+                                        <MDBIcon icon="inbox" className="text-muted" style={{ fontSize: '48px', opacity: 0.5 }} />
+                                        <p className="text-muted mt-3">No conversations found</p>
+                                    </div>
+                                ) : (
+                                    filteredConversations.map((conversation) => (
+                                        <div 
+                                            key={conversation.id} 
+                                            className="history-card"
+                                            onClick={() => handleConversationClick(conversation.id)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="history-card-icon">
+                                                <MDBIcon icon="robot" className="text-primary" />
+                                            </div>
+                                            <div>
+                                                <h5>{conversation.title}</h5>
+                                                <p>{conversation.preview}</p>
+                                            </div>
+                                            <div className="history-meta">
+                                                <span>{conversation.updatedAt}</span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )
                 ) : (
                     <form className="drawer-form" onSubmit={handleCreateConversation}>
                         <label>
@@ -2077,13 +2235,21 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                     background: #ffffff;
                 }
 
-                .history-card-id {
-                    font-size: 12px;
-                    font-weight: 700;
+                .history-card-icon {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 12px;
+                    background: rgba(37, 99, 235, 0.1);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
+                    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+                }
+
+                .history-card-icon .fa-robot {
+                    font-size: 20px;
                     color: #2563eb;
-                    background: rgba(37, 99, 235, 0.12);
-                    padding: 6px 12px;
-                    border-radius: 999px;
                 }
 
                 .history-card h5 {
@@ -2106,6 +2272,114 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                     font-size: 12px;
                     color: #94a3b8;
                     font-weight: 600;
+                }
+
+                .history-card:hover {
+                    background: #f8fafc;
+                    border-color: rgba(37, 99, 235, 0.3);
+                    transform: translateY(-2px);
+                    transition: all 0.2s ease;
+                }
+
+                .drawer-conversation {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                    flex: 1;
+                    height: 100%;
+                    overflow: hidden;
+                }
+
+                .conversation-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding-bottom: 16px;
+                    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+                }
+
+                .conversation-back-btn {
+                    border: none;
+                    background: rgba(37, 99, 235, 0.1);
+                    color: #2563eb;
+                    padding: 8px 14px;
+                    border-radius: 10px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    transition: all 0.2s ease;
+                }
+
+                .conversation-back-btn:hover {
+                    background: rgba(37, 99, 235, 0.15);
+                    transform: translateX(-2px);
+                }
+
+                .conversation-title {
+                    margin: 0;
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: #0f172a;
+                    flex: 1;
+                }
+
+                .conversation-messages {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                    overflow-y: auto;
+                    flex: 1;
+                    padding-right: 4px;
+                }
+
+                .conversation-message {
+                    display: flex;
+                    justify-content: flex-start;
+                    animation: fadeIn 0.3s ease;
+                }
+
+                .conversation-message.message-user {
+                    justify-content: flex-end;
+                }
+
+                .message-content {
+                    max-width: 75%;
+                    padding: 12px 16px;
+                    border-radius: 18px;
+                    font-size: 14px;
+                    line-height: 1.5;
+                    word-wrap: break-word;
+                    white-space: pre-wrap;
+                }
+
+                .message-content.message-html {
+                    white-space: normal;
+                }
+
+                .message-user .message-content {
+                    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+                    color: #ffffff;
+                    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.25);
+                }
+
+                .message-assistant .message-content {
+                    background: #f1f3f5;
+                    color: #1f2937;
+                    box-shadow: 0 8px 18px rgba(148, 163, 184, 0.18);
+                    border: 1px solid rgba(226, 232, 240, 0.8);
+                }
+
+                @keyframes fadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
 
                 .drawer-form {
@@ -2264,7 +2538,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                     <div
                         style={{
                             padding: '12px 16px',
-                            background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)',
+                            background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 50%, #10B981 100%)',
                             color: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
@@ -2289,31 +2563,25 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                             >
                                 {chatbot.name?.charAt(0).toUpperCase() ?? 'C'}
                             </div>
-                            <div>
-                                <div style={{ fontWeight: 600, fontSize: '16px' }}>{chatbot.name || 'Chatbot'}</div>
-                                <div style={{ fontSize: '12px', opacity: 0.8 }}>Live widget preview</div>
-                            </div>
+                            <div style={{ fontWeight: 600, fontSize: '16px' }}>{chatbot.name || 'Chatbot'}</div>
                         </div>
-                        <MDBBadge color="success" pill style={{ backgroundColor: 'rgba(16, 185, 129, 0.9)', fontWeight: 600 }}>
-                            online
-                        </MDBBadge>
+                        <button
+                            style={{
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                color: 'white',
+                                fontSize: '20px',
+                                cursor: 'pointer',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                lineHeight: '1',
+                            }}
+                            aria-label="Close"
+                        >
+                            ×
+                        </button>
                     </div>
                     <div style={{ flex: 1, padding: '18px', overflow: 'auto', backgroundColor: 'rgba(255,255,255,0.85)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div
-                            style={{
-                                backgroundColor: '#0f172a',
-                                borderRadius: '18px',
-                                padding: '16px 18px',
-                                boxShadow: '0 18px 40px rgba(15, 23, 42, 0.25)',
-                                color: '#E2E8F0',
-                                fontSize: '14px',
-                                lineHeight: 1.7,
-                            }}
-                        >
-                            <strong style={{ color: '#60a5fa' }}>Hello!</strong> This is a live size preview of your chatbot widget.
-                            <br />
-                            Adjust the width and height values above to instantly update this preview. The widget will use these dimensions when embedded on your site.
-                        </div>
                         <div
                             style={{
                                 alignSelf: 'flex-start',

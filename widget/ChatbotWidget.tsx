@@ -11,11 +11,11 @@ interface Message {
 }
 
 interface UserChatHistory {
-  id: string;
-  email: string;
+  id: string | null;
+  email: string | null;
   conversationid: string;
   userMessage: string;
-  createdAt: string; // ISO string from Instant
+  createdAt: number | string; // Can be timestamp in seconds (number) or ISO string
   aiMessage: string;
   mode: string;
   isAnonymous: boolean;
@@ -47,7 +47,13 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(!(startOpen ?? false));
+  const [chatbotName, setChatbotName] = useState<string>('Chat Support');
+  const [greetingMessage, setGreetingMessage] = useState<string>('');
+  const [chatbotWidth, setChatbotWidth] = useState<number | undefined>(config.width);
+  const [chatbotHeight, setChatbotHeight] = useState<number | undefined>(config.height);
+  const [isLoadingChatbot, setIsLoadingChatbot] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const getSessionId = (): string => {
     try {
       let sessionId = localStorage.getItem(`chatbot_session_${config.chatbotId}`);
@@ -68,40 +74,6 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Function to get conversation list (first chat from every conversation)
-  const getConversationList = async (): Promise<UserChatHistory[]> => {
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      // Determine endpoint based on whether token is provided
-      const endpoint = config.authToken 
-        ? `/v1/api/n8n/authenticated/chatHistory/${config.chatbotId}`
-        : `/v1/api/n8n/anonymous/chatHistory/${config.chatbotId}`;
-
-      // Add bearer token if provided
-      if (config.authToken) {
-        headers['Authorization'] = `Bearer ${config.authToken}`;
-      }
-
-      const response = await fetch(`${config.apiUrl}${endpoint}`, {
-        method: 'POST',
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data: UserChatHistory[] = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching conversation list:', error);
-      throw error;
-    }
-  };
-
   // Function to get chat history for a specific conversation
   const getChatHistory = async (conversationId: string): Promise<UserChatHistory[]> => {
     try {
@@ -109,18 +81,16 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         'Content-Type': 'application/json',
       };
 
-      // Determine endpoint based on whether token is provided
-      const endpoint = config.authToken 
-        ? `/v1/api/n8n/authenticated/chatHistory/${config.chatbotId}/${conversationId}`
-        : `/v1/api/n8n/anonymous/chatHistory/${config.chatbotId}/${conversationId}`;
+      // Use public endpoint for chat history
+      const endpoint = `/v1/api/public/chatHistory/${config.chatbotId}/${conversationId}`;
 
-      // Add bearer token if provided
+      // Add bearer token if provided (optional for public endpoint)
       if (config.authToken) {
         headers['Authorization'] = `Bearer ${config.authToken}`;
       }
 
       const response = await fetch(`${config.apiUrl}${endpoint}`, {
-        method: 'POST',
+        method: 'GET',
         headers,
       });
 
@@ -145,13 +115,19 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       const loadedMessages: Message[] = [];
       
       history.forEach((item) => {
+        // Handle timestamp in seconds (multiply by 1000 to convert to milliseconds)
+        const createdAtTimestamp = typeof item.createdAt === 'number' 
+          ? item.createdAt * 1000 
+          : new Date(item.createdAt).getTime();
+        const createdAtDate = new Date(createdAtTimestamp);
+        
         // Add user message
         if (item.userMessage) {
           loadedMessages.push({
             id: `${item.id}_user`,
             content: item.userMessage,
             role: 'user',
-            createdAt: new Date(item.createdAt),
+            createdAt: createdAtDate,
             sessionId: item.conversationid,
             chatbotId: config.chatbotId,
           });
@@ -163,7 +139,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             id: `${item.id}_ai`,
             content: item.aiMessage,
             role: 'assistant',
-            createdAt: new Date(item.createdAt),
+            createdAt: createdAtDate,
             sessionId: item.conversationid,
             chatbotId: config.chatbotId,
           });
@@ -179,11 +155,107 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     }
   };
 
+  // Fetch chatbot details from server
+  useEffect(() => {
+    const fetchChatbotDetails = async () => {
+      if (!config.chatbotId || !config.apiUrl) {
+        setIsLoadingChatbot(false);
+        return;
+      }
+
+      setIsLoadingChatbot(true);
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        // Public endpoint doesn't require authentication, but include token if provided
+        if (config.authToken) {
+          headers['Authorization'] = `Bearer ${config.authToken}`;
+        }
+
+        const response = await fetch(`${config.apiUrl}/v1/api/public/chatbot/${config.chatbotId}`, {
+          method: 'GET',
+          headers,
+        });
+
+        if (!response.ok) {
+          // If 404 or other error, keep default values
+          if (response.status === 404) {
+            console.warn(`Chatbot ${config.chatbotId} not found, using default values`);
+          } else {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return;
+        }
+
+        const result = await response.json();
+        // Handle different response formats: { data: {...} } or direct object
+        const chatbotData = result.data || result;
+        
+        // Use name or title field for chatbot name
+        if (chatbotData.name) {
+          setChatbotName(chatbotData.name);
+        } else if (chatbotData.title) {
+          setChatbotName(chatbotData.title);
+        }
+        
+        // Set greeting message if available
+        if (chatbotData.greetingMessage) {
+          setGreetingMessage(chatbotData.greetingMessage);
+        }
+        
+        // Set width and height if available (use config as fallback)
+        if (chatbotData.width !== undefined && chatbotData.width !== null) {
+          setChatbotWidth(chatbotData.width);
+        }
+        if (chatbotData.height !== undefined && chatbotData.height !== null) {
+          setChatbotHeight(chatbotData.height);
+        }
+      } catch (error) {
+        console.error('Error fetching chatbot details:', error);
+        // Keep default values on error - widget will still work with defaults
+      } finally {
+        setIsLoadingChatbot(false);
+      }
+    };
+
+    fetchChatbotDetails();
+  }, [config.chatbotId, config.apiUrl, config.authToken]);
+
   useEffect(() => {
     setIsMinimized(!(startOpen ?? false));
     setMessages([]);
     setInputValue('');
   }, [startOpen, config.chatbotId]);
+
+  // Load chat history for current session on mount
+  useEffect(() => {
+    const loadSessionHistory = async () => {
+      if (!config.chatbotId || !config.apiUrl || isLoadingChatbot) {
+        return;
+      }
+
+      try {
+        // Use the current sessionId from ref (which is stored in localStorage)
+        const currentSessionId = sessionIdRef.current;
+        
+        // Load history for the current session
+        if (currentSessionId) {
+          await loadChatHistory(currentSessionId);
+        }
+      } catch (error) {
+        console.error('Error loading session history:', error);
+        // Don't show error to user, just continue with empty messages
+        // If there's no history, the API might return 404 or empty array, which is fine
+      }
+    };
+
+    // Load history after chatbot details are loaded
+    if (!isLoadingChatbot) {
+      loadSessionHistory();
+    }
+  }, [config.chatbotId, config.apiUrl, isLoadingChatbot]);
 
   useEffect(() => {
     scrollToBottom();
@@ -333,7 +405,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         <button
           onClick={() => setIsMinimized(false)}
           style={{
-            background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)',
+            background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 50%, #10B981 100%)',
             color: '#ffffff',
             border: 'none',
             borderRadius: '999px',
@@ -363,7 +435,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           }}>
             💬
           </div>
-          <span>Chat with us</span>
+          <span>{chatbotName}</span>
         </button>
       </div>
     );
@@ -433,47 +505,44 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         position: 'fixed',
         bottom: '20px',
         right: '20px',
-        width: `${config.width || 380}px`,
-        height: `${config.height || 600}px`,
+        width: `${chatbotWidth || config.width || 380}px`,
+        height: `${chatbotHeight || config.height || 600}px`,
         background: 'linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%)',
         borderRadius: '22px',
-        boxShadow: '0 32px 60px rgba(15, 23, 42, 0.25)',
+        boxShadow: '0 24px 60px rgba(15, 23, 42, 0.25)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 9999,
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        overflow: 'hidden',
         border: '1px solid rgba(148, 163, 184, 0.35)',
       }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)',
+        background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 50%, #10B981 100%)',
         color: 'white',
-        padding: '16px 20px',
-        borderRadius: '22px 22px 0 0',
+        padding: '12px 16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        borderRadius: '22px 22px 0 0',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
-            width: '24px',
-            height: '24px',
-            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+            width: '32px',
+            height: '32px',
             borderRadius: '12px',
+            background: 'rgba(255, 255, 255, 0.2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'white',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            flexShrink: 0,
+            color: '#ffffff',
+            fontSize: '16px',
+            fontWeight: 600,
           }}>
-            💬
+            {chatbotName?.charAt(0).toUpperCase() ?? 'C'}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: '600', fontSize: '16px' }}>Chat Support</span>
-            <span style={{ fontSize: '12px', opacity: 0.85 }}>Live widget</span>
-          </div>
+          <div style={{ fontWeight: 600, fontSize: '16px' }}>{chatbotName}</div>
         </div>
         <button
           onClick={handleClose}
@@ -487,7 +556,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             borderRadius: '4px',
             lineHeight: '1',
           }}
-          aria-label="Minimize"
+          aria-label="Close"
         >
           ×
         </button>
@@ -497,23 +566,53 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '22px',
+        padding: '18px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '14px',
+        gap: '12px',
         backgroundColor: 'rgba(255,255,255,0.85)',
       }}>
-        {messages.length === 0 && (
+        {messages.length === 0 && !isLoadingChatbot && (
           <div style={{
-            backgroundColor: '#0f172a',
-            color: '#e2e8f0',
+            backgroundColor: '#e0f2fe',
+            color: '#0f172a',
             borderRadius: '18px',
-            padding: '18px',
-            boxShadow: '0 18px 40px rgba(15, 23, 42, 0.25)',
+            padding: '12px 16px',
+            maxWidth: '80%',
+            boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
             fontSize: '14px',
-            lineHeight: 1.7,
+            lineHeight: 1.6,
+            alignSelf: 'flex-start',
           }}>
-            <strong style={{ color: '#60a5fa' }}>Hello!</strong> Ask anything about your automation. Adjust the widget size to preview how it will appear on your site.
+            {greetingMessage ? (
+              <div className={containsHTML(greetingMessage) ? 'chatbot-html-content' : ''}
+                {...(containsHTML(greetingMessage) ? {
+                  dangerouslySetInnerHTML: { __html: greetingMessage }
+                } : {})}
+              >
+                {!containsHTML(greetingMessage) && greetingMessage}
+              </div>
+            ) : (
+              <>
+                <strong style={{ color: '#60a5fa' }}>Hello!</strong> Ask anything about your automation. Adjust the widget size to preview how it will appear on your site.
+              </>
+            )}
+          </div>
+        )}
+        {messages.length === 0 && isLoadingChatbot && (
+          <div style={{
+            backgroundColor: '#e0f2fe',
+            color: '#0f172a',
+            borderRadius: '18px',
+            padding: '12px 16px',
+            maxWidth: '80%',
+            boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
+            fontSize: '14px',
+            lineHeight: 1.6,
+            textAlign: 'center',
+            alignSelf: 'flex-start',
+          }}>
+            Loading...
           </div>
         )}
         {messages.map((message) => (
@@ -532,15 +631,15 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                 borderRadius: '18px',
                 background: message.role === 'user'
                   ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
-                  : '#f1f3f5',
-                color: message.role === 'user' ? '#ffffff' : '#1f2937',
+                  : '#e0f2fe',
+                color: message.role === 'user' ? '#ffffff' : '#0f172a',
                 fontSize: '14px',
                 lineHeight: '1.5',
                 wordWrap: 'break-word',
                 whiteSpace: containsHTML(message.content) ? 'normal' : 'pre-wrap',
                 boxShadow: message.role === 'user'
-                  ? '0 14px 28px rgba(37, 99, 235, 0.25)'
-                  : '0 8px 18px rgba(148, 163, 184, 0.18)',
+                  ? '0 12px 24px rgba(37, 99, 235, 0.22)'
+                  : '0 8px 20px rgba(14, 116, 144, 0.18)',
               }}
               {...(containsHTML(message.content) ? {
                 dangerouslySetInnerHTML: { __html: message.content }
@@ -558,23 +657,23 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             <div style={{
               padding: '12px 16px',
               borderRadius: '18px',
-              backgroundColor: '#f1f3f5',
+              backgroundColor: '#e0f2fe',
               display: 'flex',
-              gap: '4px',
-              boxShadow: '0 8px 18px rgba(148, 163, 184, 0.18)',
+              gap: '6px',
+              boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
             }}>
               <span style={{
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: '#6c757d',
+                backgroundColor: '#0ea5e9',
                 animation: 'bounce 1.4s infinite ease-in-out both',
               }}></span>
               <span style={{
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: '#6c757d',
+                backgroundColor: '#0ea5e9',
                 animation: 'bounce 1.4s infinite ease-in-out both',
                 animationDelay: '0.2s',
               }}></span>
@@ -582,7 +681,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: '#6c757d',
+                backgroundColor: '#0ea5e9',
                 animation: 'bounce 1.4s infinite ease-in-out both',
                 animationDelay: '0.4s',
               }}></span>
@@ -594,49 +693,57 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
 
       {/* Input */}
       <form onSubmit={sendMessage} style={{
-        padding: '16px',
-        borderTop: '1px solid rgba(148, 163, 184, 0.3)',
-        display: 'flex',
-        gap: '12px',
-        alignItems: 'center',
-        backgroundColor: '#ffffff',
+        padding: '14px 18px',
+        borderTop: '1px solid rgba(148, 163, 184, 0.25)',
+        backgroundColor: '#f1f5f9',
       }}>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Type your message..."
-          disabled={isLoading}
+        <div
           style={{
-            flex: 1,
-            padding: '12px 16px',
-            border: '1px solid rgba(148, 163, 184, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            backgroundColor: '#ffffff',
             borderRadius: '24px',
-            fontSize: '14px',
-            outline: 'none',
-            backgroundColor: '#f8fafc',
-            color: '#0f172a',
-          }}
-        />
-        <button
-          type="submit"
-          disabled={isLoading || !inputValue.trim()}
-          style={{
-            background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '24px',
-            padding: '12px 24px',
-            cursor: isLoading || !inputValue.trim() ? 'not-allowed' : 'pointer',
-            opacity: isLoading || !inputValue.trim() ? 0.5 : 1,
-            fontSize: '14px',
-            fontWeight: '500',
-            boxShadow: '0 14px 28px rgba(37, 99, 235, 0.28)',
-            transition: 'transform 0.2s ease',
+            padding: '8px 14px',
+            boxShadow: 'inset 0 0 0 1px rgba(148, 163, 184, 0.2)',
           }}
         >
-          Send
-        </button>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Type your message..."
+            disabled={isLoading}
+            style={{
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              fontSize: '14px',
+              backgroundColor: 'transparent',
+              color: '#0f172a',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !inputValue.trim()}
+            style={{
+              background: isLoading || !inputValue.trim() 
+                ? 'transparent' 
+                : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '8px 16px',
+              cursor: isLoading || !inputValue.trim() ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              opacity: isLoading || !inputValue.trim() ? 0.5 : 1,
+              transition: 'opacity 0.2s ease',
+            }}
+          >
+            Send
+          </button>
+        </div>
       </form>
 
       <style>{`
