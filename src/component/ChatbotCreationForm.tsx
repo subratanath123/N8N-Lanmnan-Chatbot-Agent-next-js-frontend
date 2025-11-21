@@ -70,6 +70,16 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     });
 
     const [errors, setErrors] = useState<Partial<ChatbotFormData>>({});
+    const [showTooltip, setShowTooltip] = useState(false);
+    const [tooltipMessage, setTooltipMessage] = useState('');
+
+    const showTooltipNotification = (message: string) => {
+        setTooltipMessage(message);
+        setShowTooltip(true);
+        setTimeout(() => {
+            setShowTooltip(false);
+        }, 3000);
+    };
 
     const validateStep = (step: number): boolean => {
         const newErrors: Partial<ChatbotFormData> = {};
@@ -247,11 +257,11 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 const isValidSize = file.size <= 30 * 1024 * 1024; // 30MB
                 
                 if (!isValidType) {
-                    alert(`${file.name} is not a PDF file. Please select only PDF files.`);
+                    showTooltipNotification(`${file.name} is not a PDF file. Please select only PDF files.`);
                     return false;
                 }
                 if (!isValidSize) {
-                    alert(`${file.name} is too large. Please select files smaller than 30MB.`);
+                    showTooltipNotification(`${file.name} is too large. Please select files smaller than 30MB.`);
                     return false;
                 }
                 return true;
@@ -260,7 +270,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             // Check total file count
             const currentCount = uploadedFiles.length;
             if (currentCount + newFiles.length > 10) {
-                alert('Maximum 10 files allowed. Some files were not added.');
+                showTooltipNotification('Maximum 10 files allowed. Some files were not added.');
                 newFiles.splice(10 - currentCount);
             }
 
@@ -295,18 +305,19 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                     );
                 } catch (error) {
                     console.error(`Failed to upload ${file.name}:`, error);
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                     setUploadedFiles(prev =>
                         prev.map(f =>
                             f.id === fileInfoId
                                 ? {
                                       ...f,
                                       isUploading: false,
-                                      uploadError: error instanceof Error ? error.message : 'Upload failed',
+                                      uploadError: errorMessage,
                                   }
                                 : f
                         )
                     );
-                    alert(`Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    showTooltipNotification(`Failed to upload ${file.name}: ${errorMessage}`);
                 }
             });
         }
@@ -345,7 +356,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 setErrors(prev => ({ ...prev, instructions: undefined }));
             }
         } else {
-            alert('Please enter a valid website URL');
+            showTooltipNotification('Please enter a valid website URL');
         }
     };
 
@@ -358,7 +369,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 setErrors(prev => ({ ...prev, instructions: undefined }));
             }
         } else {
-            alert('Please enter some text content');
+            showTooltipNotification('Please enter some text content');
         }
     };
 
@@ -717,21 +728,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                             )}
                             <MDBIcon icon="question-circle" size="2x" style={{ color: '#f59e0b', marginBottom: '12px' }} />
                             <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>Q&A</h6>
-                        </div>
-                    </div>
-                    <div className="col-md-4">
-                        <div 
-                            className="rounded text-center border-secondary"
-                            style={{ 
-                                padding: '24px',
-                                border: '2px solid #e2e8f0',
-                                background: 'white',
-                                opacity: 0.6
-                            }}
-                        >
-                            <MDBIcon icon="play-circle" size="2x" style={{ color: '#ef4444', marginBottom: '12px' }} />
-                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>YouTube</h6>
-                            <small style={{ color: '#94a3b8' }}>Coming Soon</small>
                         </div>
                     </div>
                 </div>
@@ -1309,35 +1305,9 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
 
     return (
         <div style={{ 
-            padding: '20px', 
-            background: 'linear-gradient(135deg, #f0f9ff 0%, #f0fdf4 50%, #ffffff 100%)',
-            minHeight: '100vh',
-            position: 'relative',
-            overflow: 'hidden'
+            backgroundColor: '#ffffff'
         }}>
-            {/* Decorative gradient circles */}
-            <div style={{
-                position: 'absolute',
-                top: '-100px',
-                right: '-100px',
-                width: '400px',
-                height: '400px',
-                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%)',
-                borderRadius: '50%',
-                pointerEvents: 'none'
-            }}></div>
-            <div style={{
-                position: 'absolute',
-                bottom: '-150px',
-                left: '-150px',
-                width: '500px',
-                height: '500px',
-                background: 'radial-gradient(circle, rgba(34, 197, 94, 0.08) 0%, transparent 70%)',
-                borderRadius: '50%',
-                pointerEvents: 'none'
-            }}></div>
-            
-            <MDBContainer style={{ position: 'relative', zIndex: 1 }}>
+            <MDBContainer>
                 <MDBRow className="justify-content-center">
                     <MDBCol md="10" lg="9">
                         <MDBCard className="shadow-lg" style={{
@@ -1347,9 +1317,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                             background: 'white',
                             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.08)'
                         }}>
-                            <MDBCardBody className="p-5" style={{
-                                background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)'
-                            }}>
+                            <MDBCardBody className="p-5">
                                 {/* Header */}
                                 <div className="d-flex justify-content-between align-items-start mb-4" style={{
                                     padding: '24px',
@@ -1526,6 +1494,33 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                     </MDBCol>
                 </MDBRow>
             </MDBContainer>
+            
+            {/* Tooltip Notification */}
+            {showTooltip && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        backgroundColor: '#ef4444',
+                        color: 'white',
+                        padding: '12px 20px',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        opacity: showTooltip ? 1 : 0,
+                        transform: showTooltip ? 'translateY(0)' : 'translateY(-10px)',
+                        transition: 'opacity 0.3s ease-in, transform 0.3s ease-in',
+                        maxWidth: '400px'
+                    }}
+                >
+                    <MDBIcon icon="exclamation-circle" className="me-2" />
+                    <span>{tooltipMessage}</span>
+                </div>
+            )}
         </div>
     );
 }
