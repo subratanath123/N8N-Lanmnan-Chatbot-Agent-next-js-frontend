@@ -9,18 +9,6 @@
 
 Create a `.env.local` file in your project root with the following variables:
 
-```env
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
-CLERK_SECRET_KEY=sk_test_your_secret_key_here
-
-# Clerk Webhook
-CLERK_WEBHOOK_SECRET=whsec_your_webhook_secret_here
-
-# N8N Configuration
-N8N_WEBHOOK_URL=http://localhost:5678/webhook/your_webhook_id
-N8N_WORKFLOW_ID=your_workflow_id
-```
 
 ## Getting Your Clerk Keys
 

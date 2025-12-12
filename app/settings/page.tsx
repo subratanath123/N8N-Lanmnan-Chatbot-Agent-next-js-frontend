@@ -10,7 +10,6 @@ import {
     MDBCard,
     MDBCardBody,
     MDBCardTitle,
-    MDBForm,
     MDBInput,
     MDBBtn,
     MDBIcon
@@ -100,7 +99,7 @@ export default function SettingsPage() {
                   <MDBIcon icon="user" className="me-2" />
                   Profile Information
                 </MDBCardTitle>
-                <MDBForm>
+                <form>
                   <MDBRow>
                     <MDBCol md="6">
                       <MDBInput 
@@ -129,7 +128,7 @@ export default function SettingsPage() {
                     <MDBIcon icon="edit" className="me-2" />
                     Edit Profile
                   </MDBBtn>
-                </MDBForm>
+                </form>
               </MDBCardBody>
             </MDBCard>
 
@@ -139,7 +138,7 @@ export default function SettingsPage() {
                   <MDBIcon icon="cog" className="me-2" />
                   AI Preferences
                 </MDBCardTitle>
-                <MDBForm>
+                <form>
                   <MDBInput 
                     label="Default Model" 
                     value="GPT-4" 
@@ -157,7 +156,6 @@ export default function SettingsPage() {
                   <MDBInput 
                     label="System Prompt" 
                     type="textarea" 
-                    rows="3"
                     value="You are a helpful AI assistant."
                     className="mb-3"
                   />
@@ -165,7 +163,7 @@ export default function SettingsPage() {
                     <MDBIcon icon="save" className="me-2" />
                     Save Settings
                   </MDBBtn>
-                </MDBForm>
+                </form>
               </MDBCardBody>
             </MDBCard>
           </MDBCol>
@@ -178,11 +176,11 @@ export default function SettingsPage() {
                   Security
                 </MDBCardTitle>
                 <div className="d-grid gap-2">
-                  <MDBBtn color="outline-secondary">
+                  <MDBBtn color="secondary" outline>
                     <MDBIcon icon="key" className="me-2" />
                     Change Password
                   </MDBBtn>
-                  <MDBBtn color="outline-secondary">
+                  <MDBBtn color="secondary" outline>
                     <MDBIcon icon="mobile-alt" className="me-2" />
                     Two-Factor Auth
                   </MDBBtn>

@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
-import AIChatbotsContent from '@/component/AIChatbotsContent';
+import dynamic from 'next/dynamic';
+
+// Dynamically import AIChatbotsContent to avoid SSR issues
+const AIChatbotsContent = dynamic(() => import('@/component/AIChatbotsContent'), {
+  ssr: false,
+});
 
 export default function AIChatbotsPage() {
     const router = useRouter();
@@ -26,7 +31,7 @@ export default function AIChatbotsPage() {
     };
 
     const embedOrigin = useMemo(() => {
-        if (typeof window === 'undefined') {
+        if (typeof window === 'undefined' || typeof document === 'undefined') {
             return '';
         }
         return window.location.origin;

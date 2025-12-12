@@ -223,7 +223,7 @@ export default function ProjectsPage() {
                     <MDBIcon icon="code" className="me-1" />
                     Embed Code
                   </MDBBtn>
-                  <MDBBtn color="outline-secondary" size="sm">
+                  <MDBBtn color="secondary" outline size="sm">
                     <MDBIcon icon="cog" />
                   </MDBBtn>
                 </div>
@@ -271,11 +271,11 @@ export default function ProjectsPage() {
                 </div>
 
                 <div className="d-flex gap-2">
-                  <MDBBtn color="outline-primary" size="sm" className="flex-fill" disabled>
+                  <MDBBtn color="primary" outline size="sm" className="flex-fill" disabled>
                     <MDBIcon icon="clock" className="me-1" />
                     Training...
                   </MDBBtn>
-                  <MDBBtn color="outline-secondary" size="sm">
+                  <MDBBtn color="secondary" outline size="sm">
                     <MDBIcon icon="cog" />
                   </MDBBtn>
                 </div>
@@ -327,7 +327,7 @@ export default function ProjectsPage() {
                     <MDBIcon icon="code" className="me-1" />
                     Embed Code
                   </MDBBtn>
-                  <MDBBtn color="outline-secondary" size="sm">
+                  <MDBBtn color="secondary" outline size="sm">
                     <MDBIcon icon="cog" />
                   </MDBBtn>
                 </div>
@@ -475,7 +475,7 @@ export default function ProjectsPage() {
 
             <MDBTextArea
               label="Description (Optional)"
-              rows="2"
+              rows={2}
               className="mb-3"
               placeholder="Brief description of your AI assistant's purpose..."
             />
