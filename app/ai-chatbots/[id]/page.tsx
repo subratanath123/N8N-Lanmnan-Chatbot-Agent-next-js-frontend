@@ -129,13 +129,34 @@ export default function ChatbotDetailPage() {
     const [activeChannelTab, setActiveChannelTab] = useState<'whatsapp' | 'slack' | 'custom'>('whatsapp');
     const [whatsappForm, setWhatsappForm] = useState({
         name: '',
+        businessAccountId: '',
+        appId: '',
+        appSecret: '',
         phoneNumberId: '',
+        phoneNumber: '',
         accessToken: '',
+        webhookUrl: '',
         webhookVerifyToken: '',
     });
     const [whatsappErrors, setWhatsappErrors] = useState<Record<string, string>>({});
     const [isTestingWhatsapp, setIsTestingWhatsapp] = useState(false);
     const [whatsappTestResult, setWhatsappTestResult] = useState<'success' | 'error' | null>(null);
+    const [isSavingWhatsapp, setIsSavingWhatsapp] = useState(false);
+    const [whatsappIntegration, setWhatsappIntegration] = useState<{
+        id?: string;
+        chatbotId?: string;
+        name?: string;
+        businessAccountId?: string;
+        appId?: string;
+        appSecret?: string;
+        phoneNumberId?: string;
+        phoneNumber?: string;
+        accessToken?: string;
+        webhookUrl?: string;
+        webhookVerifyToken?: string;
+        enabled?: boolean;
+    } | null>(null);
+    const [isLoadingWhatsappIntegration, setIsLoadingWhatsappIntegration] = useState(false);
     const [facebookForm, setFacebookForm] = useState({
         pageName: '',
         pageId: '',
@@ -145,6 +166,17 @@ export default function ChatbotDetailPage() {
     const [facebookErrors, setFacebookErrors] = useState<Record<string, string>>({});
     const [isTestingFacebook, setIsTestingFacebook] = useState(false);
     const [facebookTestResult, setFacebookTestResult] = useState<'success' | 'error' | null>(null);
+    const [isSavingFacebook, setIsSavingFacebook] = useState(false);
+    const [messengerIntegration, setMessengerIntegration] = useState<{
+        id?: string;
+        chatbotId?: string;
+        pageName?: string;
+        pageId?: string;
+        accessToken?: string;
+        verifyToken?: string;
+        enabled?: boolean;
+    } | null>(null);
+    const [isLoadingMessengerIntegration, setIsLoadingMessengerIntegration] = useState(false);
     const [isConversationDrawerOpen, setIsConversationDrawerOpen] = useState(false);
     const [conversationDrawerMode, setConversationDrawerMode] = useState<'history' | 'new'>('history');
     const [conversationSearchTerm, setConversationSearchTerm] = useState('');
@@ -567,6 +599,10 @@ export default function ChatbotDetailPage() {
             const chatbotData = result.data || result;
             setChatbot(chatbotData);
             setEditedChatbot(chatbotData);
+            
+            // Fetch messenger and WhatsApp integrations after chatbot is loaded
+            await fetchMessengerIntegration();
+            await fetchWhatsappIntegration();
         } catch (error) {
             console.error('Error fetching chatbot details:', error);
             // alert('Failed to load chatbot details');
@@ -575,7 +611,164 @@ export default function ChatbotDetailPage() {
         }
     };
 
+    const fetchMessengerIntegration = async () => {
+        if (!chatbotId || !isSignedIn) return;
+        
+        setIsLoadingMessengerIntegration(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    } else {
+                        console.warn('Failed to get auth token for messenger integration');
+                        setIsLoadingMessengerIntegration(false);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to get auth token:', error);
+                    setIsLoadingMessengerIntegration(false);
+                    return;
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/messenger/${chatbotId}`, {
+                method: 'GET',
+                headers,
+            });
+
+            if (response.status === 404) {
+                // No integration found, which is fine
+                setMessengerIntegration(null);
+                setChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: false } : prev);
+                setEditedChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: false } : prev);
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch messenger integration');
+            }
+
+            const integration = await response.json();
+            setMessengerIntegration(integration);
+            
+            // Update chatbot enabled status
+            const isEnabled = integration.enabled !== false; // Default to true if not specified
+            setChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: isEnabled } : prev);
+            setEditedChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: isEnabled } : prev);
+            
+            // Pre-fill the form with existing integration data
+            if (integration) {
+                setFacebookForm({
+                    pageName: integration.pageName || '',
+                    pageId: integration.pageId || '',
+                    accessToken: integration.accessToken || '',
+                    verifyToken: integration.verifyToken || '',
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching messenger integration:', error);
+            // Don't show alert, just log the error
+        } finally {
+            setIsLoadingMessengerIntegration(false);
+        }
+    };
+
+    const fetchWhatsappIntegration = async () => {
+        if (!chatbotId || !isSignedIn) return;
+        
+        setIsLoadingWhatsappIntegration(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    } else {
+                        console.warn('Failed to get auth token for WhatsApp integration');
+                        setIsLoadingWhatsappIntegration(false);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to get auth token:', error);
+                    setIsLoadingWhatsappIntegration(false);
+                    return;
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/whatsapp/${chatbotId}`, {
+                method: 'GET',
+                headers,
+            });
+
+            if (response.status === 404) {
+                // No integration found, which is fine
+                setWhatsappIntegration(null);
+                setChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: false } : prev);
+                setEditedChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: false } : prev);
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch WhatsApp integration');
+            }
+
+            const integration = await response.json();
+            setWhatsappIntegration(integration);
+            
+            // Update chatbot enabled status
+            const isEnabled = integration.enabled !== false; // Default to true if not specified
+            setChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: isEnabled } : prev);
+            setEditedChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: isEnabled } : prev);
+            
+            // Pre-fill the form with existing integration data
+            if (integration) {
+                setWhatsappForm({
+                    name: integration.name || '',
+                    businessAccountId: integration.businessAccountId || '',
+                    appId: integration.appId || '',
+                    appSecret: integration.appSecret || '',
+                    phoneNumberId: integration.phoneNumberId || '',
+                    phoneNumber: integration.phoneNumber || '',
+                    accessToken: integration.accessToken || '',
+                    webhookUrl: integration.webhookUrl || '',
+                    webhookVerifyToken: integration.webhookVerifyToken || '',
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching WhatsApp integration:', error);
+            // Don't show alert, just log the error
+        } finally {
+            setIsLoadingWhatsappIntegration(false);
+        }
+    };
+
     const handleOpenWhatsappModal = () => {
+        // Pre-fill form if integration exists
+        if (whatsappIntegration) {
+            setWhatsappForm({
+                name: whatsappIntegration.name || '',
+                businessAccountId: whatsappIntegration.businessAccountId || '',
+                appId: whatsappIntegration.appId || '',
+                appSecret: whatsappIntegration.appSecret || '',
+                phoneNumberId: whatsappIntegration.phoneNumberId || '',
+                phoneNumber: whatsappIntegration.phoneNumber || '',
+                accessToken: whatsappIntegration.accessToken || '',
+                webhookUrl: whatsappIntegration.webhookUrl || '',
+                webhookVerifyToken: whatsappIntegration.webhookVerifyToken || '',
+            });
+        }
         setShowWhatsappModal(true);
         setWhatsappTestResult(null);
     };
@@ -585,6 +778,15 @@ export default function ChatbotDetailPage() {
     };
 
     const handleOpenFacebookModal = () => {
+        // Pre-fill form if integration exists
+        if (messengerIntegration) {
+            setFacebookForm({
+                pageName: messengerIntegration.pageName || '',
+                pageId: messengerIntegration.pageId || '',
+                accessToken: messengerIntegration.accessToken || '',
+                verifyToken: messengerIntegration.verifyToken || '',
+            });
+        }
         setShowFacebookModal(true);
         setFacebookTestResult(null);
     };
@@ -605,10 +807,19 @@ export default function ChatbotDetailPage() {
         if (!whatsappForm.name.trim()) {
             errors.name = 'WhatsApp name is required';
         }
+        if (!whatsappForm.businessAccountId.trim()) {
+            errors.businessAccountId = 'Business Account ID is required';
+        }
+        if (!whatsappForm.appId.trim()) {
+            errors.appId = 'App ID is required';
+        }
         if (!whatsappForm.phoneNumberId.trim()) {
             errors.phoneNumberId = 'Phone Number ID is required';
         } else if (!/^\d+$/.test(whatsappForm.phoneNumberId.trim())) {
             errors.phoneNumberId = 'Phone Number ID should contain only digits';
+        }
+        if (!whatsappForm.phoneNumber.trim()) {
+            errors.phoneNumber = 'Phone Number is required';
         }
         if (!whatsappForm.accessToken.trim()) {
             errors.accessToken = 'Access token is required';
@@ -641,14 +852,89 @@ export default function ChatbotDetailPage() {
         }
     };
 
-    const handleSaveWhatsappConfiguration = () => {
+    const handleSaveWhatsappConfiguration = async () => {
         if (!validateWhatsappForm()) {
             return;
         }
 
-        console.log('WhatsApp configuration saved:', whatsappForm);
-        alert('WhatsApp channel added (frontend only).');
-        setShowWhatsappModal(false);
+        if (!chatbotId) {
+            alert('Chatbot ID is missing. Please refresh the page and try again.');
+            return;
+        }
+
+        setIsSavingWhatsapp(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            // Get auth token
+            if (getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    } else {
+                        console.warn('Failed to get auth token');
+                        alert('Authentication failed. Please try again.');
+                        setIsSavingWhatsapp(false);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to get auth token:', error);
+                    alert('Authentication failed. Please try again.');
+                    setIsSavingWhatsapp(false);
+                    return;
+                }
+            }
+
+            // Prepare request payload
+            const payload = {
+                chatbotId: chatbotId,
+                name: whatsappForm.name,
+                businessAccountId: whatsappForm.businessAccountId,
+                appId: whatsappForm.appId,
+                appSecret: whatsappForm.appSecret,
+                phoneNumberId: whatsappForm.phoneNumberId,
+                phoneNumber: whatsappForm.phoneNumber,
+                accessToken: whatsappForm.accessToken,
+                webhookUrl: whatsappForm.webhookUrl,
+                webhookVerifyToken: whatsappForm.webhookVerifyToken,
+            };
+
+            // Call backend API
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/whatsapp/setup`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.errorMessage || errorData.message || `Failed to save WhatsApp integration: ${response.status}`;
+                alert(errorMessage);
+                setIsSavingWhatsapp(false);
+                return;
+            }
+
+            const result = await response.json();
+            console.log('WhatsApp configuration saved successfully:', result);
+            alert('WhatsApp integration saved successfully!');
+            setShowWhatsappModal(false);
+            
+            // Refresh WhatsApp integration data
+            await fetchWhatsappIntegration();
+            
+            // Don't reset form - keep the saved values in case user wants to edit again
+            setWhatsappErrors({});
+            setWhatsappTestResult(null);
+        } catch (error) {
+            console.error('Error saving WhatsApp configuration:', error);
+            alert('An error occurred while saving the WhatsApp integration. Please try again.');
+        } finally {
+            setIsSavingWhatsapp(false);
+        }
     };
 
     const validateFacebookForm = () => {
@@ -689,14 +975,84 @@ export default function ChatbotDetailPage() {
         }
     };
 
-    const handleSaveFacebookConfiguration = () => {
+    const handleSaveFacebookConfiguration = async () => {
         if (!validateFacebookForm()) {
             return;
         }
 
-        console.log('Facebook configuration saved:', facebookForm);
-        alert('Facebook channel added (frontend only).');
-        setShowFacebookModal(false);
+        if (!chatbotId) {
+            alert('Chatbot ID is missing. Please refresh the page and try again.');
+            return;
+        }
+
+        setIsSavingFacebook(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            // Get auth token
+            if (getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    } else {
+                        console.warn('Failed to get auth token');
+                        alert('Authentication failed. Please try again.');
+                        setIsSavingFacebook(false);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to get auth token:', error);
+                    alert('Authentication failed. Please try again.');
+                    setIsSavingFacebook(false);
+                    return;
+                }
+            }
+
+            // Prepare request payload
+            const payload = {
+                chatbotId: chatbotId,
+                pageName: facebookForm.pageName,
+                pageId: facebookForm.pageId,
+                accessToken: facebookForm.accessToken,
+                verifyToken: facebookForm.verifyToken,
+            };
+
+            // Call backend API
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/messenger/setup`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.errorMessage || errorData.message || `Failed to save Facebook integration: ${response.status}`;
+                alert(errorMessage);
+                setIsSavingFacebook(false);
+                return;
+            }
+
+            const result = await response.json();
+            console.log('Facebook configuration saved successfully:', result);
+            alert('Facebook Messenger integration saved successfully!');
+            setShowFacebookModal(false);
+            
+            // Refresh messenger integration data
+            await fetchMessengerIntegration();
+            
+            // Don't reset form - keep the saved values in case user wants to edit again
+            setFacebookErrors({});
+            setFacebookTestResult(null);
+        } catch (error) {
+            console.error('Error saving Facebook configuration:', error);
+            alert('An error occurred while saving the Facebook integration. Please try again.');
+        } finally {
+            setIsSavingFacebook(false);
+        }
     };
 
     const handleSave = async () => {
@@ -2170,12 +2526,65 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                         id="whatsapp" 
                                         label=""
                                         checked={!!chatbot?.enableWhatsappIntegration}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                             const enabled = e.target.checked;
+                                            
+                                            // If enabling and no integration exists, open the modal first
+                                            if (enabled && !whatsappIntegration) {
+                                                setTimeout(() => setShowWhatsappModal(true), 120);
+                                                // Don't toggle until integration is set up
+                                                return;
+                                            }
+                                            
+                                            // Optimistically update UI
                                             setEditedChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: enabled } : prev);
                                             setChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: enabled } : prev);
-                                            if (enabled) {
-                                                setTimeout(() => setShowWhatsappModal(true), 120);
+                                            
+                                            // Call backend API to toggle integration
+                                            try {
+                                                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+                                                const headers: Record<string, string> = {
+                                                    'Content-Type': 'application/json',
+                                                };
+
+                                                if (getToken) {
+                                                    try {
+                                                        const token = await getToken();
+                                                        if (token) {
+                                                            headers['Authorization'] = `Bearer ${token}`;
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Failed to get auth token:', error);
+                                                    }
+                                                }
+
+                                                const response = await fetch(`${backendUrl}/v1/api/chatbot/whatsapp/${chatbotId}/toggle?enabled=${enabled}`, {
+                                                    method: 'PUT',
+                                                    headers,
+                                                });
+
+                                                if (!response.ok) {
+                                                    // Revert on error
+                                                    setEditedChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: !enabled } : prev);
+                                                    setChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: !enabled } : prev);
+                                                    
+                                                    const errorData = await response.json().catch(() => ({}));
+                                                    const errorMessage = errorData.message || errorData.errorMessage || 'Failed to toggle WhatsApp integration';
+                                                    alert(errorMessage);
+                                                    return;
+                                                }
+
+                                                const result = await response.json();
+                                                console.log('WhatsApp integration toggled:', result);
+                                                
+                                                // Refresh integration data to get updated enabled status
+                                                await fetchWhatsappIntegration();
+                                            } catch (error) {
+                                                console.error('Error toggling WhatsApp integration:', error);
+                                                // Revert on error
+                                                setEditedChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: !enabled } : prev);
+                                                setChatbot((prev) => prev ? { ...prev, enableWhatsappIntegration: !enabled } : prev);
+                                                alert('An error occurred while toggling the WhatsApp integration. Please try again.');
                                             }
                                         }}
                                     />
@@ -2239,12 +2648,65 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                         id="facebook" 
                                         label=""
                                         checked={!!chatbot?.enableFacebookIntegration}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                             const enabled = e.target.checked;
+                                            
+                                            // If enabling and no integration exists, open the modal first
+                                            if (enabled && !messengerIntegration) {
+                                                setTimeout(() => setShowFacebookModal(true), 120);
+                                                // Don't toggle until integration is set up
+                                                return;
+                                            }
+                                            
+                                            // Optimistically update UI
                                             setEditedChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: enabled } : prev);
                                             setChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: enabled } : prev);
-                                            if (enabled) {
-                                                setTimeout(() => setShowFacebookModal(true), 120);
+                                            
+                                            // Call backend API to toggle integration
+                                            try {
+                                                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+                                                const headers: Record<string, string> = {
+                                                    'Content-Type': 'application/json',
+                                                };
+
+                                                if (getToken) {
+                                                    try {
+                                                        const token = await getToken();
+                                                        if (token) {
+                                                            headers['Authorization'] = `Bearer ${token}`;
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Failed to get auth token:', error);
+                                                    }
+                                                }
+
+                                                const response = await fetch(`${backendUrl}/v1/api/chatbot/messenger/${chatbotId}/toggle?enabled=${enabled}`, {
+                                                    method: 'PUT',
+                                                    headers,
+                                                });
+
+                                                if (!response.ok) {
+                                                    // Revert on error
+                                                    setEditedChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: !enabled } : prev);
+                                                    setChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: !enabled } : prev);
+                                                    
+                                                    const errorData = await response.json().catch(() => ({}));
+                                                    const errorMessage = errorData.message || errorData.errorMessage || 'Failed to toggle Facebook integration';
+                                                    alert(errorMessage);
+                                                    return;
+                                                }
+
+                                                const result = await response.json();
+                                                console.log('Facebook integration toggled:', result);
+                                                
+                                                // Refresh integration data to get updated enabled status
+                                                await fetchMessengerIntegration();
+                                            } catch (error) {
+                                                console.error('Error toggling Facebook integration:', error);
+                                                // Revert on error
+                                                setEditedChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: !enabled } : prev);
+                                                setChatbot((prev) => prev ? { ...prev, enableFacebookIntegration: !enabled } : prev);
+                                                alert('An error occurred while toggling the Facebook integration. Please try again.');
                                             }
                                         }}
                                     />
@@ -2304,40 +2766,8 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                             </div>
                             <MDBBtn className="btn-close" color="none" onClick={handleCloseWhatsappModal}></MDBBtn>
                         </MDBModalHeader>
-                        <MDBModalBody className="pt-2">
-                            <MDBTabs pills>
-                                <MDBTabsItem>
-                                    <MDBTabsLink
-                                        onClick={() => setActiveChannelTab('whatsapp')}
-                                        active={activeChannelTab === 'whatsapp'}
-                                    >
-                                        <MDBIcon icon="whatsapp" className="me-2 text-success" />
-                                        WhatsApp
-                                    </MDBTabsLink>
-                                </MDBTabsItem>
-                                <MDBTabsItem>
-                                    <MDBTabsLink
-                                        onClick={() => setActiveChannelTab('slack')}
-                                        active={activeChannelTab === 'slack'}
-                                    >
-                                        <MDBIcon icon="slack" className="me-2 text-info" />
-                                        Slack <span className="text-muted">(coming soon)</span>
-                                    </MDBTabsLink>
-                                </MDBTabsItem>
-                                <MDBTabsItem>
-                                    <MDBTabsLink
-                                        onClick={() => setActiveChannelTab('custom')}
-                                        active={activeChannelTab === 'custom'}
-                                    >
-                                        <MDBIcon icon="plug" className="me-2 text-primary" />
-                                        Custom Webhook <span className="text-muted">(coming soon)</span>
-                                    </MDBTabsLink>
-                                </MDBTabsItem>
-                            </MDBTabs>
-
-                            <MDBTabsContent className="mt-4">
-                                <MDBTabsPane show={activeChannelTab === 'whatsapp'}>
-                                    <MDBRow className="g-4">
+                        <MDBModalBody className="pt-2" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                            <MDBRow className="g-4">
                                         <MDBCol md="6">
                                             <label className="form-label fw-semibold">
                                                 WhatsApp Name <span className="text-danger">*</span>
@@ -2357,6 +2787,58 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                         </MDBCol>
                                         <MDBCol md="6">
                                             <label className="form-label fw-semibold">
+                                                Business Account ID <span className="text-danger">*</span>
+                                            </label>
+                                            <MDBInput
+                                                placeholder="Enter Business Account ID..."
+                                                value={whatsappForm.businessAccountId}
+                                                onChange={(e) => handleWhatsappInputChange('businessAccountId', e.target.value)}
+                                                className={whatsappErrors.businessAccountId ? 'is-invalid' : ''}
+                                            />
+                                            <small className="text-muted">
+                                                Your WhatsApp Business Account ID from Meta Business Suite.
+                                            </small>
+                                            {whatsappErrors.businessAccountId && (
+                                                <div className="invalid-feedback d-block">{whatsappErrors.businessAccountId}</div>
+                                            )}
+                                        </MDBCol>
+                                        <MDBCol md="6">
+                                            <label className="form-label fw-semibold">
+                                                App ID <span className="text-danger">*</span>
+                                            </label>
+                                            <MDBInput
+                                                placeholder="Enter App ID..."
+                                                value={whatsappForm.appId}
+                                                onChange={(e) => handleWhatsappInputChange('appId', e.target.value)}
+                                                className={whatsappErrors.appId ? 'is-invalid' : ''}
+                                            />
+                                            <small className="text-muted">
+                                                Your WhatsApp App ID from Meta Developer Console.
+                                            </small>
+                                            {whatsappErrors.appId && (
+                                                <div className="invalid-feedback d-block">{whatsappErrors.appId}</div>
+                                            )}
+                                        </MDBCol>
+                                        <MDBCol md="6">
+                                            <label className="form-label fw-semibold">
+                                                App Secret
+                                            </label>
+                                            <MDBInput
+                                                type="password"
+                                                placeholder="Enter App Secret (optional)..."
+                                                value={whatsappForm.appSecret}
+                                                onChange={(e) => handleWhatsappInputChange('appSecret', e.target.value)}
+                                                className={whatsappErrors.appSecret ? 'is-invalid' : ''}
+                                            />
+                                            <small className="text-muted">
+                                                Your WhatsApp App Secret for additional security (optional).
+                                            </small>
+                                            {whatsappErrors.appSecret && (
+                                                <div className="invalid-feedback d-block">{whatsappErrors.appSecret}</div>
+                                            )}
+                                        </MDBCol>
+                                        <MDBCol md="6">
+                                            <label className="form-label fw-semibold">
                                                 Phone Number ID <span className="text-danger">*</span>
                                             </label>
                                             <MDBInput
@@ -2370,6 +2852,23 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                             </small>
                                             {whatsappErrors.phoneNumberId && (
                                                 <div className="invalid-feedback d-block">{whatsappErrors.phoneNumberId}</div>
+                                            )}
+                                        </MDBCol>
+                                        <MDBCol md="6">
+                                            <label className="form-label fw-semibold">
+                                                Phone Number <span className="text-danger">*</span>
+                                            </label>
+                                            <MDBInput
+                                                placeholder="e.g., +1234567890"
+                                                value={whatsappForm.phoneNumber}
+                                                onChange={(e) => handleWhatsappInputChange('phoneNumber', e.target.value)}
+                                                className={whatsappErrors.phoneNumber ? 'is-invalid' : ''}
+                                            />
+                                            <small className="text-muted">
+                                                The actual WhatsApp phone number in international format.
+                                            </small>
+                                            {whatsappErrors.phoneNumber && (
+                                                <div className="invalid-feedback d-block">{whatsappErrors.phoneNumber}</div>
                                             )}
                                         </MDBCol>
                                         <MDBCol md="12">
@@ -2392,6 +2891,23 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                         </MDBCol>
                                         <MDBCol md="12">
                                             <label className="form-label fw-semibold">
+                                                Webhook URL
+                                            </label>
+                                            <MDBInput
+                                                placeholder="https://your-domain.com/webhook/whatsapp"
+                                                value={whatsappForm.webhookUrl}
+                                                onChange={(e) => handleWhatsappInputChange('webhookUrl', e.target.value)}
+                                                className={whatsappErrors.webhookUrl ? 'is-invalid' : ''}
+                                            />
+                                            <small className="text-muted">
+                                                The URL where WhatsApp will send incoming messages (optional, can be configured later).
+                                            </small>
+                                            {whatsappErrors.webhookUrl && (
+                                                <div className="invalid-feedback d-block">{whatsappErrors.webhookUrl}</div>
+                                            )}
+                                        </MDBCol>
+                                        <MDBCol md="12">
+                                            <label className="form-label fw-semibold">
                                                 Webhook Verify Token <span className="text-danger">*</span>
                                             </label>
                                             <MDBInput
@@ -2401,7 +2917,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                                 className={whatsappErrors.webhookVerifyToken ? 'is-invalid' : ''}
                                             />
                                             <small className="text-muted">
-                                                A secure token for webhook verification.
+                                                A secure token for webhook verification. This must match the token configured in Meta Developer Console.
                                             </small>
                                             {whatsappErrors.webhookVerifyToken && (
                                                 <div className="invalid-feedback d-block">
@@ -2458,22 +2974,6 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                             )}
                                         </div>
                                     </div>
-                                </MDBTabsPane>
-                                <MDBTabsPane show={activeChannelTab === 'slack'}>
-                                    <div className="text-center text-muted py-5">
-                                        <MDBIcon icon="slack" size="3x" className="mb-3 text-info" />
-                                        <h5>Slack integration coming soon</h5>
-                                        <p>We are working on Slack support. Stay tuned!</p>
-                                    </div>
-                                </MDBTabsPane>
-                                <MDBTabsPane show={activeChannelTab === 'custom'}>
-                                    <div className="text-center text-muted py-5">
-                                        <MDBIcon icon="plug" size="3x" className="mb-3 text-primary" />
-                                        <h5>Custom webhook integration coming soon</h5>
-                                        <p>Bring your own channel by registering a custom webhook.</p>
-                                    </div>
-                                </MDBTabsPane>
-                            </MDBTabsContent>
                         </MDBModalBody>
                         <MDBModalFooter className="border-0">
                             <MDBBtn color="secondary" outline onClick={handleCloseWhatsappModal}>
@@ -2483,9 +2983,19 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                 color="primary"
                                 style={{ minWidth: '160px' }}
                                 onClick={handleSaveWhatsappConfiguration}
+                                disabled={isSavingWhatsapp}
                             >
-                                <MDBIcon icon="plus" className="me-2" />
-                                Add Channel
+                                {isSavingWhatsapp ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <MDBIcon icon="plus" className="me-2" />
+                                        Add Channel
+                                    </>
+                                )}
                             </MDBBtn>
                         </MDBModalFooter>
                     </MDBModalContent>
@@ -2640,9 +3150,19 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                 color="primary"
                                 style={{ minWidth: '160px' }}
                                 onClick={handleSaveFacebookConfiguration}
+                                disabled={isSavingFacebook}
                             >
-                                <MDBIcon icon="plus" className="me-2" />
-                                Add Channel
+                                {isSavingFacebook ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <MDBIcon icon="plus" className="me-2" />
+                                        Add Channel
+                                    </>
+                                )}
                             </MDBBtn>
                         </MDBModalFooter>
                     </MDBModalContent>

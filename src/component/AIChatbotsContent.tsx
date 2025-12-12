@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     MDBRow,
     MDBCol,
@@ -180,7 +180,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
     };
 
     // Fetch chatbots from API
-    const fetchChatbots = async () => {
+    const fetchChatbots = useCallback(async () => {
         setIsLoadingChatbots(true);
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -234,14 +234,13 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
         } finally {
             setIsLoadingChatbots(false);
         }
-    };
+    }, [isSignedIn, getToken]);
 
     // Fetch chatbots on component mount and when activeItem changes
     useEffect(() => {
-        if (activeItem === 'dashboard' || activeItem === 'chatbots') {
-            fetchChatbots();
-        }
-    }, [activeItem]);
+        // Always fetch chatbots when component mounts or activeItem is dashboard/chatbots
+        fetchChatbots();
+    }, [activeItem, fetchChatbots]);
 
     useEffect(() => {
         if (externalOrigin) {
