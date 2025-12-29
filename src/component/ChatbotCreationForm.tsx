@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     MDBContainer,
     MDBRow,
@@ -33,6 +33,22 @@ interface ChatbotFormData {
     greetingMessage: string;
 }
 
+interface ChatbotType {
+    id: string;
+    name: string;
+    role?: string;
+    persona?: string;
+    constraints?: string;
+}
+
+interface ChatbotTypeDetails {
+    id: string;
+    name: string;
+    role?: string;
+    persona?: string;
+    constraints?: string;
+}
+
 interface UploadedFileInfo {
     id: string;
     name: string;
@@ -47,7 +63,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const { getToken } = useAuth();
     
     const [currentStep, setCurrentStep] = useState(1);
-    const totalSteps = 5;
+    const totalSteps = 3;
     const [selectedDataSource, setSelectedDataSource] = useState<string>('');
     const [qaPairs, setQaPairs] = useState<Array<{id: string, question: string, answer: string}>>([]);
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -62,7 +78,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         title: 'JadeAIBot',
         name: 'JadeAIBot',
         hideName: false,
-        instructions: 'You are a helpful AI assistant that can provide information and assistance to users. You should be friendly, professional, and helpful in all interactions.',
+        instructions: '', // Will be populated from chatbot type
         restrictToDataSource: false,
         customFallbackMessage: false,
         fallbackMessage: 'I apologize, but I don\'t have enough information to answer that question. Please try rephrasing your question or contact support for assistance.',
@@ -72,6 +88,10 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const [errors, setErrors] = useState<Partial<ChatbotFormData>>({});
     const [showTooltip, setShowTooltip] = useState(false);
     const [tooltipMessage, setTooltipMessage] = useState('');
+    const [chatbotTypes, setChatbotTypes] = useState<ChatbotType[]>([]);
+    const [selectedChatbotTypeId, setSelectedChatbotTypeId] = useState<string>('');
+    const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+    const [isLoadingTypeDetails, setIsLoadingTypeDetails] = useState(false);
 
     const showTooltipNotification = (message: string) => {
         setTooltipMessage(message);
@@ -79,6 +99,124 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         setTimeout(() => {
             setShowTooltip(false);
         }, 3000);
+    };
+
+    // Fetch chatbot types on component mount
+    useEffect(() => {
+        const fetchChatbotTypes = async () => {
+            setIsLoadingTypes(true);
+            try {
+                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+
+                if (isSignedIn && getToken) {
+                    try {
+                        const token = await getToken();
+                        if (token) {
+                            headers['Authorization'] = `Bearer ${token}`;
+                        }
+                    } catch (error) {
+                        console.warn('Failed to get auth token for chatbot types:', error);
+                    }
+                }
+
+                const response = await fetch(`${backendUrl}/v1/api/chatbot/types`, {
+                    method: 'GET',
+                    headers,
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch chatbot types');
+                }
+
+                const types = await response.json();
+                // API returns array directly
+                const typesList = Array.isArray(types) ? types : [];
+                setChatbotTypes(typesList);
+            } catch (error) {
+                console.error('Error fetching chatbot types:', error);
+                showTooltipNotification('Failed to load chatbot types. Please try again.');
+            } finally {
+                setIsLoadingTypes(false);
+            }
+        };
+
+        fetchChatbotTypes();
+    }, [isSignedIn, getToken]);
+
+    // Fetch chatbot type details when a type is selected
+    const handleChatbotTypeChange = async (typeId: string) => {
+        setSelectedChatbotTypeId(typeId);
+        
+        if (!typeId) {
+            // Reset instructions if no type selected
+            setFormData((prev) => ({ ...prev, instructions: '' }));
+            return;
+        }
+
+        setIsLoadingTypeDetails(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (isSignedIn && getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                } catch (error) {
+                    console.warn('Failed to get auth token for type details:', error);
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/types/${typeId}`, {
+                method: 'GET',
+                headers,
+            });
+
+            if (response.status === 404) {
+                showTooltipNotification('Chatbot type not found. Please select another type.');
+                setSelectedChatbotTypeId('');
+                setFormData((prev) => ({ ...prev, instructions: '' }));
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch chatbot type details');
+            }
+
+            const typeDetails: ChatbotTypeDetails = await response.json();
+            
+            // Build instructions from role, persona, and constraints
+            let instructions = '';
+            
+            if (typeDetails.role) {
+                instructions += `Role: ${typeDetails.role}\n\n`;
+            }
+            
+            if (typeDetails.persona) {
+                instructions += `Persona: ${typeDetails.persona}\n\n`;
+            }
+            
+            if (typeDetails.constraints) {
+                instructions += `Constraints: ${typeDetails.constraints}`;
+            }
+
+            // Trim and set instructions
+            setFormData((prev) => ({ ...prev, instructions: instructions.trim() }));
+        } catch (error) {
+            console.error('Error fetching chatbot type details:', error);
+            showTooltipNotification('Failed to load chatbot type details. Please try again.');
+            setSelectedChatbotTypeId('');
+            setFormData((prev) => ({ ...prev, instructions: '' }));
+        } finally {
+            setIsLoadingTypeDetails(false);
+        }
     };
 
     const validateStep = (step: number): boolean => {
@@ -90,6 +228,9 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             }
             if (!formData.name.trim()) {
                 newErrors.name = 'Chatbot name is required';
+            }
+            if (!selectedChatbotTypeId) {
+                newErrors.instructions = 'Please select a chatbot type';
             }
             if (!formData.instructions.trim()) {
                 newErrors.instructions = 'Chatbot instructions are required';
@@ -129,8 +270,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             }
         }
 
-        // Step 4 - Embed configuration (optional for now)  
-        // Step 5 - Channels configuration (optional for now)
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -440,21 +579,73 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 </div>
             </div>
 
-            {/* Chatbot Instructions */}
+            {/* Chatbot Type Selection */}
             <div className="mb-4">
-                <label className="form-label">Chatbot Instructions</label>
-                <MDBTextArea
-                    value={formData.instructions}
-                    onChange={(e) => handleInputChange('instructions', e.target.value)}
-                    className={errors.instructions ? 'is-invalid' : ''}
-                    rows={6}
+                <label className="form-label">
+                    Chatbot Type <span className="text-danger">*</span>
+                </label>
+                <select
+                    className={`form-select ${errors.instructions && !selectedChatbotTypeId ? 'is-invalid' : ''}`}
+                    value={selectedChatbotTypeId}
+                    onChange={(e) => handleChatbotTypeChange(e.target.value)}
+                    disabled={isLoadingTypes}
                     required
-                />
-                {errors.instructions && <div className="invalid-feedback">{errors.instructions}</div>}
-                <small className="text-muted">
-                    It allows you to make your chatbot specific to your data and use case
-                </small>
+                    style={{
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: '1px solid #ced4da',
+                        fontSize: '16px',
+                        width: '100%',
+                        backgroundColor: isLoadingTypes ? '#f8f9fa' : '#fff'
+                    }}
+                >
+                    <option value="">{isLoadingTypes ? 'Loading types...' : 'Select a chatbot type'}</option>
+                    {chatbotTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                            {type.name}
+                        </option>
+                    ))}
+                </select>
+                {errors.instructions && !selectedChatbotTypeId && (
+                    <div className="invalid-feedback d-block" style={{ marginTop: '4px', marginBottom: '4px' }}>
+                        {errors.instructions}
+                    </div>
+                )}
+                {(!errors.instructions || selectedChatbotTypeId) && (
+                    <small className="text-muted d-block" style={{ marginTop: '4px' }}>
+                        Select a chatbot type to auto-populate instructions based on role, persona, and constraints
+                    </small>
+                )}
             </div>
+
+            {/* Chatbot Instructions - Editable after type selection */}
+            {selectedChatbotTypeId && (
+                <div className="mb-4">
+                    <label className="form-label">
+                        Chatbot Instructions <span className="text-danger">*</span>
+                        {isLoadingTypeDetails && (
+                            <span className="ms-2 text-muted">
+                                <MDBIcon icon="spinner" spin className="me-1" />
+                                Loading...
+                            </span>
+                        )}
+                    </label>
+                    <MDBTextArea
+                        value={formData.instructions}
+                        onChange={(e) => handleInputChange('instructions', e.target.value)}
+                        className={errors.instructions ? 'is-invalid' : ''}
+                        rows={8}
+                        required
+                        disabled={isLoadingTypeDetails}
+                    />
+                    {errors.instructions && selectedChatbotTypeId && (
+                        <div className="invalid-feedback">{errors.instructions}</div>
+                    )}
+                    <small className="text-muted">
+                        Instructions are auto-populated from the selected type. You can edit them to customize your chatbot's behavior.
+                    </small>
+                </div>
+            )}
         </div>
     );
 
@@ -1081,113 +1272,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         </div>
     );
 
-    const renderStep4 = () => (
-        <div style={{
-            padding: '24px',
-            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
-            borderRadius: '16px',
-            border: '1px solid rgba(59, 130, 246, 0.1)'
-        }}>
-            <h4 className="mb-4" style={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                fontWeight: '700',
-                fontSize: '24px'
-            }}>Embed Configuration</h4>
-            
-            <div className="mb-4">
-                <h6>Embedding Options</h6>
-                <div className="bg-light p-3 rounded">
-                    <p className="text-muted">Choose how you want to embed your chatbot on websites and applications.</p>
-                </div>
-            </div>
-
-            <div className="row">
-                <div className="col-md-6">
-                    <div className="border rounded p-3 mb-3">
-                        <h6>Website Widget</h6>
-                        <p className="text-muted small">Embed as a chat widget on your website</p>
-                        <MDBBtn color="primary" outline size="sm">Get Embed Code</MDBBtn>
-                    </div>
-                </div>
-                <div className="col-md-6">
-                    <div className="border rounded p-3 mb-3">
-                        <h6>API Integration</h6>
-                        <p className="text-muted small">Use our API to integrate with your applications</p>
-                        <MDBBtn color="primary" outline size="sm">Get API Key</MDBBtn>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderStep5 = () => (
-        <div style={{
-            padding: '24px',
-            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
-            borderRadius: '16px',
-            border: '1px solid rgba(59, 130, 246, 0.1)'
-        }}>
-            <h4 className="mb-4" style={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                fontWeight: '700',
-                fontSize: '24px'
-            }}>Channels & Deployment</h4>
-            
-            <div className="mb-4">
-                <h6>Communication Channels</h6>
-                <div className="row">
-                    <div className="col-md-4">
-                        <div className="border rounded p-3 text-center">
-                            <MDBIcon icon="globe" size="2x" className="text-primary mb-2" />
-                            <h6>Website</h6>
-                            <p className="text-muted small">Deploy on your website</p>
-                            <MDBSwitch id="website" label="Enable" />
-                        </div>
-                    </div>
-                    <div className="col-md-4">
-                        <div className="border rounded p-3 text-center">
-                            <MDBIcon icon="facebook" size="2x" className="text-primary mb-2" />
-                            <h6>Facebook Messenger</h6>
-                            <p className="text-muted small">Connect to Facebook</p>
-                            <MDBSwitch id="facebook" label="Enable" />
-                        </div>
-                    </div>
-                    <div className="col-md-4">
-                        <div className="border rounded p-3 text-center">
-                            <MDBIcon icon="whatsapp" size="2x" className="text-success mb-2" />
-                            <h6>WhatsApp</h6>
-                            <p className="text-muted small">Connect to WhatsApp</p>
-                            <MDBSwitch id="whatsapp" label="Enable" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="mb-4">
-                <h6>Configuration Summary</h6>
-                <div className="bg-light p-3 rounded">
-                    <div className="row">
-                        <div className="col-md-6">
-                            <p><strong>Title:</strong> {formData.title}</p>
-                            <p><strong>Name:</strong> {formData.hideName ? 'Hidden' : formData.name}</p>
-                            <p><strong>Greeting:</strong> {formData.greetingMessage}</p>
-                        </div>
-                        <div className="col-md-6">
-                            <p><strong>Restricted to Data:</strong> {formData.restrictToDataSource ? 'Yes' : 'No'}</p>
-                            <p><strong>Custom Fallback:</strong> {formData.customFallbackMessage ? 'Yes' : 'No'}</p>
-                            <p><strong>Status:</strong> Ready to Deploy</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 
     const getProgressPercentage = () => {
         return (currentStep / totalSteps) * 100;
@@ -1196,9 +1280,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const stepLabels = [
         { number: 1, label: 'Configure' },
         { number: 2, label: 'Customize' },
-        { number: 3, label: 'Train' },
-        { number: 4, label: 'Embed' },
-        { number: 5, label: 'Channels' }
+        { number: 3, label: 'Train' }
     ];
 
     const renderStepNavigation = () => (
@@ -1345,8 +1427,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                             {currentStep === 1 && "Create and configure an external chatbot that can interact with your users and provide various information on other 3rd party websites."}
                                             {currentStep === 2 && "Customize your chatbot's behavior and messaging to match your brand and requirements."}
                                             {currentStep === 3 && "Train your chatbot using website URLs, PDF documents, and custom text content to improve its knowledge base."}
-                                            {currentStep === 4 && "Set up embedding options for integrating your chatbot into websites and applications."}
-                                            {currentStep === 5 && "Configure communication channels and deploy your chatbot across multiple platforms."}
                                         </p>
                                     </div>
                                     <div className="flex-shrink-0">
@@ -1391,8 +1471,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                     {currentStep === 1 && renderStep1()}
                                     {currentStep === 2 && renderStep2()}
                                     {currentStep === 3 && renderStep3()}
-                                    {currentStep === 4 && renderStep4()}
-                                    {currentStep === 5 && renderStep5()}
                                 </div>
 
                                 {/* Navigation Buttons */}
