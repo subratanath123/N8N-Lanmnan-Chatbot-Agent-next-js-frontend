@@ -17,6 +17,7 @@
     "@mui/icons-material": "^5.15.11",
     "@vitejs/plugin-react": "^4.7.0",
     "axios": "^1.6.7",
+    "dompurify": "^3.3.1",
     "linkify-react": "^4.3.1",
     "lodash": "^4.17.21",
     "mdb-react-ui-kit": "^7.2.0",
@@ -29,15 +30,18 @@
     "react-stomp": "^5.1.0",
     "react-stomp-hooks": "^2.2.1",
     "react-top-loading-bar": "^3.0.2",
+    "sanitize-html": "^2.17.0",
     "sockjs": "^0.3.24",
     "svix": "^1.71.0",
     "websocket": "^1.0.34",
     "ws": "^8.16.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/sanitize-html": "^2.16.0",
     "eslint": "^8",
     "eslint-config-next": "14.1.1",
     "typescript": "^5"

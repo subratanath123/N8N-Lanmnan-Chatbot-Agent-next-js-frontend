@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
+import React, {useEffect, useRef, useState} from 'react';
+import sanitizeHtml from "sanitize-html";
 
 interface Message {
   id: string;
@@ -441,6 +442,41 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     );
   }
 
+  const MessageContent = ({ content }: { content: string }) => {
+    const hasHTML = /<\/?[a-z][\s\S]*>/i.test(content);
+
+    if (hasHTML) {
+      const clean = sanitizeHtml(content, {
+        allowedTags: [
+          "p", "br", "strong", "em", "code", "pre",
+          "ul", "ol", "li",
+          "h1", "h2", "h3",
+          "blockquote", "table", "thead", "tbody", "tr", "th", "td",
+          "a"
+        ],
+        allowedAttributes: {
+          a: ["href", "target", "rel"],
+        },
+        allowedSchemes: ["http", "https", "mailto"],
+        transformTags: {
+          a: sanitizeHtml.simpleTransform("a", {
+            target: "_blank",
+            rel: "noopener noreferrer",
+          }),
+        },
+      });
+
+      return (
+          <div
+              className="chatbot-html-content"
+              dangerouslySetInnerHTML={{ __html: clean }}
+          />
+      );
+    }
+
+    return <span className="chatbot-text">{content}</span>;
+  };
+
   return (
     <>
       <style>{`
@@ -615,40 +651,36 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             Loading...
           </div>
         )}
+
         {messages.map((message) => (
-          <div
-            key={message.id}
-            style={{
-              display: 'flex',
-              justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-            }}
-          >
-            <div 
-              className={containsHTML(message.content) ? 'chatbot-html-content' : ''}
-              style={{
-                maxWidth: '80%',
-                padding: '12px 16px',
-                borderRadius: '18px',
-                background: message.role === 'user'
-                  ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
-                  : '#e0f2fe',
-                color: message.role === 'user' ? '#ffffff' : '#0f172a',
-                fontSize: '14px',
-                lineHeight: '1.5',
-                wordWrap: 'break-word',
-                whiteSpace: containsHTML(message.content) ? 'normal' : 'pre-wrap',
-                boxShadow: message.role === 'user'
-                  ? '0 12px 24px rgba(37, 99, 235, 0.22)'
-                  : '0 8px 20px rgba(14, 116, 144, 0.18)',
-              }}
-              {...(containsHTML(message.content) ? {
-                dangerouslySetInnerHTML: { __html: message.content }
-              } : {})}
+            <div
+                key={message.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                }}
             >
-              {!containsHTML(message.content) && message.content}
+              <div
+                  style={{
+                    maxWidth: '80%',
+                    padding: '12px 16px',
+                    borderRadius: 18,
+                    background:
+                        message.role === 'user'
+                            ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
+                            : '#e0f2fe',
+                    color: message.role === 'user' ? '#fff' : '#0f172a',
+                    boxShadow:
+                        message.role === 'user'
+                            ? '0 12px 24px rgba(37,99,235,0.22)'
+                            : '0 8px 20px rgba(14,116,144,0.18)',
+                  }}
+              >
+                <MessageContent content={message.content} />
+              </div>
             </div>
-          </div>
         ))}
+
         {isLoading && (
           <div style={{
             display: 'flex',

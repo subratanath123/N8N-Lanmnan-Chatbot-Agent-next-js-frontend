@@ -20,14 +20,11 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, "index.tsx"),
-      name: "ChatWidget",
+      name: "ChatbotWidget",
       fileName: "chat-widget",
       formats: ["iife"],
     },
     outDir: resolve(__dirname, "../public/widget-dist"),
-    rollupOptions: {
-      external: [],
-    },
     emptyOutDir: true,
   },
   plugins: [react()],
