@@ -274,7 +274,7 @@ export default function ChatbotDetailPage() {
         );
     }, [conversationHistory, conversationSearchTerm]);
 
-    const { isSignedIn } = useUser();
+    const { isSignedIn, isLoaded } = useUser();
     const { getToken } = useAuth();
 
     // Google Calendar integration states
@@ -708,10 +708,10 @@ export default function ChatbotDetailPage() {
     };
 
     useEffect(() => {
-        if (chatbotId) {
+        if (chatbotId && isLoaded) {
             fetchChatbotDetails();
         }
-    }, [chatbotId]);
+    }, [chatbotId, isLoaded]);
 
     const fetchChatbotDetails = async () => {
         setIsLoading(true);
@@ -1739,7 +1739,8 @@ export default function ChatbotDetailPage() {
         </MDBModal>
     );
 
-    if (isLoading) {
+    // Show loading while Clerk is initializing or fetching chatbot
+    if (!isLoaded || isLoading) {
         return (
             <div className="full-height-layout">
                 <LeftSidebar 
