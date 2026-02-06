@@ -37,7 +37,6 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
 
     const sidebarItems = [
         { name: 'Dashboard', icon: '🏠', href: '/dashboard', active: false },
-        { name: 'Documents', icon: '📄', href: '#', hasArrow: true },
         { name: 'AI Article wizard', icon: '✍️', href: '#', hasArrow: true },
         { name: 'AI Chat', icon: '💬', href: '/chat' },
         { name: 'AI Writer', icon: '✏️', href: '#' },
@@ -53,7 +52,6 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             title: 'AI PANEL',
             items: [
                 { name: 'Dashboard', icon: 'home', href: '/dashboard' },
-                { name: 'Documents', icon: 'file-text', href: '/documents' },
                 { name: 'AI Chatbots', icon: 'robot', href: '/ai-chatbots' },
             ]
         },
