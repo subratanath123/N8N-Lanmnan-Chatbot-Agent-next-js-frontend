@@ -34,10 +34,10 @@ export default function Footer() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <img 
                                             src="/favicon.png" 
-                                            alt="Lanmnan" 
+                                            alt="JadeAIBot" 
                                             style={{ width: '20px', height: '20px' }}
                                         />
-                                        <span>Lanmnan</span>
+                                        <span>JadeAIBot</span>
                                     </div>
                                 </h6>
                                 <p>
@@ -75,7 +75,7 @@ export default function Footer() {
                 <div className='text-center p-4' style={{backgroundColor: 'rgba(0, 0, 0, 0.05)'}}>
                     © {new Date().getFullYear()} Copyright:
                     <a className='text-reset fw-bold' href='https://yourwebsite.com/'>
-                        Lanmnan AI
+                        JadeAIBot AI
                     </a>
                 </div>
             </MDBFooter>

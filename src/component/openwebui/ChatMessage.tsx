@@ -57,7 +57,7 @@ export default function ChatMessage({ message, index, copyToClipboard }: ChatMes
             {/*</div>*/}
             <img 
               src="/favicon.png" 
-              alt="Lanmnan" 
+              alt="JadeAIBot" 
               style={{ 
                 width: '20px', 
                 height: '20px',

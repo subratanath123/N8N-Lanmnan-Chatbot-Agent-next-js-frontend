@@ -46,7 +46,7 @@ export default function HomePage() {
         }}>
           <img 
             src="/favicon.png" 
-            alt="Lanmnan" 
+            alt="JadeAIBot" 
             style={{
               width: '48px',
               height: '48px',
@@ -59,7 +59,7 @@ export default function HomePage() {
             fontWeight: 'bold',
             color: '#0f172a',
           }}>
-            Lanmnan
+            JadeAIBot
           </span>
         </div>
 

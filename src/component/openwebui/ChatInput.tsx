@@ -182,7 +182,7 @@ export default function ChatInput({
           <textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask anything to Lanmnan"
+            placeholder="Ask anything to JadeAIBot"
             style={{
               width: '100%',
               padding: '14px 18px',

@@ -106,7 +106,7 @@ const ChatUserList: React.FC<ChatUserListProps> = ({
                         }}>
                             <img 
                                 src="/favicon.png" 
-                                alt="Lanmnan" 
+                                alt="JadeAIBot" 
                                 style={{ width: '20px', height: '20px' }}
                             />
                             <span>Chat Users</span>

@@ -86,7 +86,7 @@ export default function N8NSettings({
           }}>
             <img 
               src="/favicon.png" 
-              alt="Lanmnan" 
+              alt="JadeAIBot" 
               style={{ width: '24px', height: '24px' }}
             />
             <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '600', color: '#333' }}>

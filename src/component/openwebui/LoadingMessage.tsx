@@ -24,7 +24,7 @@ export default function LoadingMessage() {
         }}>
           <img 
             src="/favicon.png" 
-            alt="Lanmnan" 
+            alt="JadeAIBot" 
             style={{ 
               width: '24px', 
               height: '24px',

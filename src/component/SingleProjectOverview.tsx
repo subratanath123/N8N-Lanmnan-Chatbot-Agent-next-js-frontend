@@ -23,7 +23,7 @@ export default function SingleProjectOverview({overview}: { overview: ProjectOve
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <img 
                             src="/favicon.png" 
-                            alt="Lanmnan" 
+                            alt="JadeAIBot" 
                             style={{ width: '20px', height: '20px' }}
                         />
                         <MDBIcon fas icon='project-diagram' className='me-2'/>

@@ -41,10 +41,10 @@ export default function DashboardNav() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <img 
                                 src="/favicon.png" 
-                                alt="Lanmnan" 
+                                alt="JadeAIBot" 
                                 style={{ width: '24px', height: '24px' }}
                             />
-                            <span>Lanmnan AI</span>
+                            <span>JadeAIBot AI</span>
                         </div>
                     </MDBNavbarBrand>
                     <div style={{ padding: '8px 16px', color: '#6c757d' }}>

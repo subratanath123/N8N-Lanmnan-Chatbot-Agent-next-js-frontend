@@ -61,7 +61,7 @@ export default function SettingsModal({
           }}>
             <img 
               src="/favicon.png" 
-              alt="Lanmnan" 
+              alt="JadeAIBot" 
               style={{ width: '20px', height: '20px' }}
             />
             <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Settings</h3>

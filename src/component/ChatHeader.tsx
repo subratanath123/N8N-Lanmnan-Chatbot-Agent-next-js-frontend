@@ -28,7 +28,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             <div className="d-flex align-items-center">
                 <img 
                     src="/favicon.png" 
-                    alt="Lanmnan" 
+                    alt="JadeAIBot" 
                     style={{ width: '20px', height: '20px', marginRight: '8px' }}
                 />
                 <p className="mb-0 fw-bold">{title}</p>

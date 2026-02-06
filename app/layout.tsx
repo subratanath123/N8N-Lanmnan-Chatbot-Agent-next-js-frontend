@@ -8,8 +8,8 @@ import {MDBCol, MDBContainer, MDBFooter, MDBIcon, MDBRow} from "mdb-react-ui-kit
 const roboto = Roboto({weight: "400", subsets: ["latin"]});
 
 export const metadata = {
-    title: "Lanmnan AI",
-    description: "Lanmnan AI",
+    title: "JadeAIBot AI",
+    description: "JadeAIBot AI",
     icons: {
         icon: [
             { url: '/favicon.png', type: 'image/svg+xml' },
