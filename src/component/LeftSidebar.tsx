@@ -78,10 +78,10 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             className="dashboard-sidebar"
             style={{ 
                 width: '280px',
-                backgroundColor: '#2654C4',
+                backgroundColor: '#0a0e27',
                 color: '#ffffff',
                 border: 'none',
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)'
             }}
         >
             <div className="dashboard-sidebar-header">
