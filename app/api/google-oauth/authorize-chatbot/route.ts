@@ -65,6 +65,9 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    // Remove trailing slash to prevent double slashes in redirect URI
+    frontendUrl = frontendUrl.replace(/\/+$/, '');
+    
     const redirectUri = `${frontendUrl}/api/google-oauth/callback-chatbot`;
     
     console.log('[authorize-chatbot] Using redirect URI:', redirectUri);

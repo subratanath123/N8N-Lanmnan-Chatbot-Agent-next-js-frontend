@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    // Remove trailing slash to prevent double slashes in URLs
+    frontendUrl = frontendUrl.replace(/\/+$/, '');
+    
     // Handle OAuth errors
     if (error) {
       console.error('[callback-chatbot] OAuth error from Google:', error);
@@ -147,7 +150,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[callback-chatbot] Unexpected error:', error);
     
-    let frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+    let frontendUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
     return NextResponse.redirect(`${frontendUrl}/oauth-success-chatbot?error=true&message=${encodeURIComponent('Unexpected error occurred')}`);
   }
 }
