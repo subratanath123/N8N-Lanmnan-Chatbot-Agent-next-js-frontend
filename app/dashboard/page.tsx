@@ -326,25 +326,25 @@ export default function DashboardPage() {
         { 
           label: 'Total Chatbots', 
           value: formatNumber(overallStats.totalChatBots), 
-          accent: '#00d9ff',
+          accent: '#10b981',
           loading: loadingStates.overallStats
         },
         { 
           label: 'Total Conversations', 
           value: formatNumber(overallStats.totalConversations), 
-          accent: '#00d9ff',
+          accent: '#2563eb',
           loading: loadingStates.overallStats
         },
         { 
           label: 'Total Messages', 
           value: formatNumber(overallStats.totalMessages), 
-          accent: '#00d9ff',
+          accent: '#0ea5e9',
           loading: loadingStates.overallStats
         },
         { 
           label: 'Total Users', 
           value: formatNumber(overallStats.totalUsers), 
-          accent: '#00d9ff',
+          accent: '#10b981',
           loading: loadingStates.overallStats
         },
       ];
@@ -397,25 +397,25 @@ export default function DashboardPage() {
       { 
         title: 'View Chatbots', 
         description: `${formatNumber(overallStats?.totalChatBots || 0)} chatbots available`, 
-        theme: '#00d9ff',
+        theme: '#10b981',
         href: '/ai-chatbots'
       },
       { 
         title: 'View Conversations', 
         description: `${formatNumber(conversationStats?.conversationsToday || 0)} conversations today`, 
-        theme: '#00d9ff',
+        theme: '#2563eb',
         href: '/history'
       },
       { 
         title: 'Create Chatbot', 
         description: 'Build a new AI chatbot for your needs.', 
-        theme: '#00d9ff',
+        theme: '#0ea5e9',
         href: '/ai-chatbots'
       },
       { 
         title: 'Analytics', 
         description: 'View detailed analytics and insights.', 
-        theme: '#00d9ff',
+        theme: '#10b981',
         href: '/support-chat/analytics'
       },
     ],
@@ -849,14 +849,14 @@ export default function DashboardPage() {
         .dashboard-shell {
           display: flex;
           min-height: 100vh;
-          background: #0a0e27;
+          background: #f0f7ff;
         }
 
         .dashboard-main {
           flex: 1;
           margin-left: 280px;
           padding: 2rem;
-          background: #0f1419;
+          background: #ffffff;
           transition: margin-left 0.3s ease;
         }
 
@@ -897,12 +897,12 @@ export default function DashboardPage() {
         }
 
         .plan-card {
-          background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
+          background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
           color: #fff;
           border-radius: 24px;
           padding: 24px;
-          box-shadow: 0 24px 40px rgba(0, 0, 0, 0.4);
-          border: 1px solid #2a3340;
+          box-shadow: 0 24px 40px rgba(37, 99, 235, 0.15);
+          border: none;
         }
 
         .plan-header {
@@ -981,34 +981,34 @@ export default function DashboardPage() {
         }
 
         .quick-card {
-          background: #1a1f2e;
+          background: #ffffff;
           border-radius: 20px;
           padding: 18px 20px;
           display: grid;
           grid-template-columns: auto 1fr auto;
           gap: 16px;
           align-items: center;
-          border: 1px solid #2a3340;
-          box-shadow: 0 14px 28px rgba(0, 0, 0, 0.3);
+          border: 1px solid #e0f2fe;
+          box-shadow: 0 14px 28px rgba(37, 99, 235, 0.05);
         }
 
         .quick-card h3 {
           margin: 0 0 6px;
           font-size: 15px;
           font-weight: 600;
-          color: #ffffff;
+          color: #0f172a;
         }
 
         .quick-card p {
           margin: 0;
           font-size: 13px;
-          color: #a0aac0;
+          color: #64748b;
         }
 
         .quick-button {
           border: none;
-          background: rgba(0, 217, 255, 0.1);
-          color: #00d9ff;
+          background: rgba(16, 185, 129, 0.1);
+          color: #10b981;
           font-size: 13px;
           padding: 8px 14px;
           border-radius: 12px;
@@ -1030,10 +1030,10 @@ export default function DashboardPage() {
           align-items: center;
           gap: 24px;
           padding: 26px;
-          background: #1a1f2e;
-          border: 1px solid #2a3340;
+          background: #ffffff;
+          border: 1px solid #e0f2fe;
           border-radius: 24px;
-          box-shadow: 0 18px 32px rgba(0, 0, 0, 0.3);
+          box-shadow: 0 18px 32px rgba(37, 99, 235, 0.06);
           margin-bottom: 24px;
         }
 
@@ -1041,12 +1041,12 @@ export default function DashboardPage() {
           margin: 0 0 10px;
           font-size: 24px;
           font-weight: 700;
-          color: #ffffff;
+          color: #0f172a;
         }
 
         .search-left p {
           margin: 0 0 20px;
-          color: #a0aac0;
+          color: #64748b;
           font-size: 14px;
         }
 
@@ -1054,10 +1054,10 @@ export default function DashboardPage() {
           display: flex;
           align-items: center;
           gap: 12px;
-          background: #0f1419;
+          background: #f0f7ff;
           border-radius: 999px;
           padding: 12px 18px;
-          border: 1px solid #2a3340;
+          border: 1px solid #bfdbfe;
         }
 
         .search-input input {
@@ -1066,34 +1066,34 @@ export default function DashboardPage() {
           background: transparent;
           font-size: 14px;
           outline: none;
-          color: #ffffff;
+          color: #0f172a;
         }
 
         .search-input input::placeholder {
-          color: #a0aac0;
+          color: #94a3b8;
         }
 
         .search-voice {
           border: none;
-          background: #1a1f2e;
+          background: #ffffff;
           border-radius: 50%;
           width: 36px;
           height: 36px;
           display: grid;
           place-items: center;
           cursor: pointer;
-          box-shadow: 0 10px 18px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 10px 18px rgba(37, 99, 235, 0.08);
         }
 
         .new-doc-btn {
           border: none;
-          background: #00d9ff;
-          color: #000;
+          background: #10b981;
+          color: #ffffff;
           padding: 14px 20px;
           border-radius: 16px;
           font-size: 14px;
           font-weight: 600;
-          box-shadow: 0 20px 30px rgba(0, 217, 255, 0.25);
+          box-shadow: 0 20px 30px rgba(16, 185, 129, 0.25);
           cursor: pointer;
           white-space: nowrap;
           text-decoration: none;
@@ -1108,11 +1108,11 @@ export default function DashboardPage() {
         }
 
         .metric-card {
-          background: #1a1f2e;
+          background: #ffffff;
           border-radius: 20px;
           padding: 18px;
-          border: 1px solid #2a3340;
-          box-shadow: 0 16px 28px rgba(0, 0, 0, 0.3);
+          border: 1px solid #e0f2fe;
+          box-shadow: 0 16px 28px rgba(37, 99, 235, 0.05);
           display: flex;
           flex-direction: column;
           gap: 6px;
@@ -1120,7 +1120,7 @@ export default function DashboardPage() {
 
         .metric-label {
           font-size: 13px;
-          color: #a0aac0;
+          color: #64748b;
           font-weight: 500;
         }
 
@@ -1128,7 +1128,7 @@ export default function DashboardPage() {
           font-size: 26px;
           font-weight: 700;
           letter-spacing: -0.02em;
-          color: #00d9ff;
+          color: #10b981;
         }
 
         .metric-link {
@@ -1165,24 +1165,24 @@ export default function DashboardPage() {
           display: flex;
           gap: 16px;
           font-size: 13px;
-          color: #a0aac0;
+          color: #64748b;
         }
 
         .usage-bar {
           width: 100%;
           height: 14px;
           border-radius: 999px;
-          background: #0f1419;
+          background: #e0f2fe;
           margin-bottom: 18px;
           position: relative;
           overflow: hidden;
-          border: 1px solid #2a3340;
+          border: none;
         }
 
         .usage-bar-fill {
           position: absolute;
           inset: 0;
-          background: linear-gradient(90deg, #00d9ff 0%, #0099cc 100%);
+          background: linear-gradient(90deg, #10b981 0%, #059669 100%);
           transition: width 0.3s ease;
         }
 
@@ -1251,8 +1251,8 @@ export default function DashboardPage() {
 
         .section-link {
           border: none;
-          background: rgba(0, 217, 255, 0.1);
-          color: #00d9ff;
+          background: rgba(16, 185, 129, 0.1);
+          color: #10b981;
           padding: 8px 16px;
           border-radius: 999px;
           font-size: 13px;
@@ -1302,7 +1302,7 @@ export default function DashboardPage() {
           padding: 6px 12px;
           border-radius: 999px;
           color: #ffffff;
-          background: #00d9ff;
+          background: #10b981;
         }
 
         .assistant-card h3 {
@@ -1321,14 +1321,14 @@ export default function DashboardPage() {
         .assistant-cta {
           align-self: flex-start;
           border: none;
-          background: #00d9ff;
-          color: #000;
+          background: #10b981;
+          color: #ffffff;
           padding: 10px 16px;
           border-radius: 12px;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
-          box-shadow: 0 14px 24px rgba(0, 217, 255, 0.25);
+          box-shadow: 0 14px 24px rgba(16, 185, 129, 0.25);
           text-decoration: none;
           display: inline-block;
         }
@@ -1340,37 +1340,37 @@ export default function DashboardPage() {
         }
 
         .template-item {
-          background: #0f1419;
+          background: #f0f7ff;
           border-radius: 16px;
           padding: 16px;
           display: flex;
           justify-content: space-between;
           align-items: center;
           gap: 16px;
-          border: 1px solid #2a3340;
+          border: 1px solid #e0f2fe;
         }
 
         .template-item h3 {
           margin: 0 0 6px;
           font-size: 15px;
-          color: #ffffff;
+          color: #0f172a;
         }
 
         .template-item p {
           margin: 0;
           font-size: 13px;
-          color: #a0aac0;
+          color: #64748b;
         }
 
         .user-badge {
-          background: #1a1f2e;
+          background: #ffffff;
           border-radius: 12px;
           padding: 8px 14px;
           font-size: 13px;
           font-weight: 600;
-          color: #00d9ff;
-          box-shadow: 0 12px 20px rgba(0, 217, 255, 0.18);
-          border: 1px solid #2a3340;
+          color: #10b981;
+          box-shadow: 0 12px 20px rgba(16, 185, 129, 0.18);
+          border: 1px solid #e0f2fe;
         }
 
         .empty-state {
@@ -1433,11 +1433,11 @@ export default function DashboardPage() {
         }
 
         .chart-card {
-          background: #1a1f2e;
+          background: #ffffff;
           border-radius: 24px;
           padding: 22px;
-          border: 1px solid #2a3340;
-          box-shadow: 0 18px 32px rgba(0, 0, 0, 0.3);
+          border: 1px solid #e0f2fe;
+          box-shadow: 0 18px 32px rgba(37, 99, 235, 0.06);
         }
 
         .chart-legend {
@@ -1450,7 +1450,7 @@ export default function DashboardPage() {
           display: flex;
           align-items: center;
           gap: 6px;
-          color: #a0aac0;
+          color: #64748b;
         }
 
         .chart-container {
