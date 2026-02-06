@@ -3,12 +3,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
-import dynamic from 'next/dynamic';
-
-// Dynamically import AIChatbotsContent to avoid SSR issues
-const AIChatbotsContent = dynamic(() => import('@/component/AIChatbotsContent'), {
-  ssr: false,
-});
+import AIChatbotsContent from './AIChatbotsContentLoader';
 
 export default function AIChatbotsPage() {
     const router = useRouter();

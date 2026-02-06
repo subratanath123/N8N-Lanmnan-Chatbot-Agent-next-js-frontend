@@ -7,16 +7,33 @@ export default authMiddleware({
     "/openwebui",
     "/api/chat",
     "/api/n8n",
-    "/api/test",  // Add test API for debugging
+    "/api/test",
+    "/api/google-oauth",  // Google OAuth endpoints - must be public
+    "/api/google-oauth/authorize",
+    "/api/google-oauth/authorize-chatbot",
+    "/api/google-oauth/callback",
+    "/api/google-oauth/callback-chatbot",
+    "/api/google-oauth/get-tokens",
+    "/api/google-oauth/refresh-token",
+    "/oauth-success",
+    "/oauth-success-chatbot", // Chatbot owner OAuth success page
+    "/oauth-error",
     "/projects/list",
     "/projects/new",
     "/train",
-    "/widget-dist"  // Allow widget files to be accessed publicly
+    "/widget-dist"
   ],
   
-  // Routes that can be accessed while signed out, but also show user info when signed in
+  // Routes that completely bypass Clerk (no auth check at all)
   ignoredRoutes: [
-    "/api/webhook/clerk"
+    "/api/webhook/clerk",
+    "/api/google-oauth",  // This ensures OAuth routes bypass Clerk completely
+    "/api/google-oauth/authorize",
+    "/api/google-oauth/authorize-chatbot",
+    "/api/google-oauth/callback",
+    "/api/google-oauth/callback-chatbot",
+    "/api/google-oauth/get-tokens",
+    "/api/google-oauth/refresh-token"
   ]
 });
 

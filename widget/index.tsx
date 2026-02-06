@@ -6,6 +6,7 @@ interface ChatbotWidgetConfig {
   chatbotId: string;
   apiUrl: string;
   authToken?: string;
+  frontendUrl?: string; // Optional frontend URL for OAuth endpoints (defaults to auto-detect from script source)
   width?: number; // Optional widget width in pixels (default: 380)
   height?: number; // Optional widget height in pixels (default: 600)
 }

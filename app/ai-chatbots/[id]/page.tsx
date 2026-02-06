@@ -277,6 +277,153 @@ export default function ChatbotDetailPage() {
     const { isSignedIn } = useUser();
     const { getToken } = useAuth();
 
+    // Google Calendar integration states
+    const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
+    const [isCheckingGoogleCalendar, setIsCheckingGoogleCalendar] = useState(false);
+    const [isConnectingGoogleCalendar, setIsConnectingGoogleCalendar] = useState(false);
+
+    // Check Google Calendar connection status
+    const checkGoogleCalendarConnection = useCallback(async () => {
+        if (!chatbotId || !isSignedIn) return;
+        
+        setIsCheckingGoogleCalendar(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (getToken) {
+                const token = await getToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/google-calendar/${chatbotId}`, {
+                method: 'GET',
+                headers,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setGoogleCalendarConnected(!!data?.connected || !!data?.accessToken);
+            } else {
+                setGoogleCalendarConnected(false);
+            }
+        } catch (error) {
+            console.error('Failed to check Google Calendar connection:', error);
+            setGoogleCalendarConnected(false);
+        } finally {
+            setIsCheckingGoogleCalendar(false);
+        }
+    }, [chatbotId, isSignedIn, getToken]);
+
+    // Initiate Google Calendar OAuth for chatbot owner
+    const initiateGoogleCalendarAuth = useCallback(async () => {
+        if (!chatbotId) return;
+        
+        setIsConnectingGoogleCalendar(true);
+        try {
+            let clerkToken = '';
+            if (getToken) {
+                const token = await getToken();
+                if (token) {
+                    clerkToken = token;
+                }
+            }
+
+            // Build the authorize URL
+            const authUrl = new URL('/api/google-oauth/authorize-chatbot', window.location.origin);
+            authUrl.searchParams.set('chatbotId', chatbotId);
+            if (clerkToken) {
+                authUrl.searchParams.set('clerkToken', clerkToken);
+            }
+
+            // Fetch the Google OAuth URL
+            const response = await fetch(authUrl.toString());
+            const data = await response.json();
+
+            if (data.authUrl) {
+                // Open popup for OAuth
+                const popup = window.open(
+                    data.authUrl,
+                    'Google Calendar Authorization',
+                    'width=600,height=700,scrollbars=yes'
+                );
+
+                // Listen for OAuth completion message
+                const handleMessage = (event: MessageEvent) => {
+                    if (event.data?.type === 'GOOGLE_CALENDAR_OAUTH_SUCCESS') {
+                        window.removeEventListener('message', handleMessage);
+                        setIsConnectingGoogleCalendar(false);
+                        if (event.data.success) {
+                            setGoogleCalendarConnected(true);
+                        } else {
+                            console.error('Google Calendar OAuth failed:', event.data.error);
+                        }
+                    }
+                };
+
+                window.addEventListener('message', handleMessage);
+
+                // Also check if popup was closed without completing
+                const checkPopup = setInterval(() => {
+                    if (popup?.closed) {
+                        clearInterval(checkPopup);
+                        window.removeEventListener('message', handleMessage);
+                        setIsConnectingGoogleCalendar(false);
+                        // Re-check connection status
+                        checkGoogleCalendarConnection();
+                    }
+                }, 1000);
+            } else {
+                console.error('Failed to get OAuth URL:', data.error);
+                setIsConnectingGoogleCalendar(false);
+            }
+        } catch (error) {
+            console.error('Failed to initiate Google Calendar auth:', error);
+            setIsConnectingGoogleCalendar(false);
+        }
+    }, [chatbotId, getToken, checkGoogleCalendarConnection]);
+
+    // Disconnect Google Calendar
+    const disconnectGoogleCalendar = useCallback(async () => {
+        if (!chatbotId) return;
+        
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (getToken) {
+                const token = await getToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+            }
+
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/google-calendar/${chatbotId}`, {
+                method: 'DELETE',
+                headers,
+            });
+
+            if (response.ok) {
+                setGoogleCalendarConnected(false);
+            }
+        } catch (error) {
+            console.error('Failed to disconnect Google Calendar:', error);
+        }
+    }, [chatbotId, getToken]);
+
+    // Check Google Calendar connection on mount
+    useEffect(() => {
+        if (chatbotId && isSignedIn) {
+            checkGoogleCalendarConnection();
+        }
+    }, [chatbotId, isSignedIn, checkGoogleCalendarConnection]);
+
     // Fetch conversation history from API
     const fetchConversationHistory = useCallback(async () => {
         if (!chatbotId || !isSignedIn) return;
@@ -2487,6 +2634,55 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                     <MDBIcon icon="key" className="me-2" />
                                     Get API Info
                                 </MDBBtn>
+                                
+                                {/* Google Calendar Integration */}
+                                <div className="mt-4 pt-4 border-top">
+                                    <div className="d-flex align-items-center mb-2">
+                                        <MDBIcon icon="calendar-alt" className="text-primary me-2" />
+                                        <h6 className="mb-0">Google Calendar</h6>
+                                        {isCheckingGoogleCalendar && (
+                                            <span className="ms-2 spinner-border spinner-border-sm text-muted" />
+                                        )}
+                                    </div>
+                                    <p className="text-muted small mb-3">
+                                        Connect your Google Calendar to allow the chatbot to schedule meetings with consumers.
+                                    </p>
+                                    {googleCalendarConnected ? (
+                                        <div className="d-flex align-items-center gap-2">
+                                            <MDBBadge color="success" className="d-flex align-items-center">
+                                                <MDBIcon icon="check-circle" className="me-1" />
+                                                Connected
+                                            </MDBBadge>
+                                            <MDBBtn
+                                                color="danger"
+                                                size="sm"
+                                                outline
+                                                onClick={disconnectGoogleCalendar}
+                                            >
+                                                Disconnect
+                                            </MDBBtn>
+                                        </div>
+                                    ) : (
+                                        <MDBBtn
+                                            color="primary"
+                                            outline
+                                            onClick={initiateGoogleCalendarAuth}
+                                            disabled={isConnectingGoogleCalendar}
+                                        >
+                                            {isConnectingGoogleCalendar ? (
+                                                <>
+                                                    <span className="spinner-border spinner-border-sm me-2" />
+                                                    Connecting...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <MDBIcon icon="calendar-plus" className="me-2" />
+                                                    Connect Google Calendar
+                                                </>
+                                            )}
+                                        </MDBBtn>
+                                    )}
+                                </div>
                             </div>
                         </MDBCol>
 

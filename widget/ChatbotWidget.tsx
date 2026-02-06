@@ -26,6 +26,7 @@ interface ChatbotWidgetConfig {
   chatbotId: string;
   apiUrl: string;
   authToken?: string; // Optional bearer token for authenticated requests
+  frontendUrl?: string; // Optional frontend URL for OAuth endpoints (defaults to window.location.origin)
   width?: number; // Optional widget width in pixels (default: 380)
   height?: number; // Optional widget height in pixels (default: 600)
 }
@@ -43,6 +44,12 @@ const containsHTML = (text: string): boolean => {
   return htmlRegex.test(text);
 };
 
+interface GoogleTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
+
 const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpen }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -53,6 +60,9 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   const [chatbotWidth, setChatbotWidth] = useState<number | undefined>(config.width);
   const [chatbotHeight, setChatbotHeight] = useState<number | undefined>(config.height);
   const [isLoadingChatbot, setIsLoadingChatbot] = useState(true);
+  const [googleTokens, setGoogleTokens] = useState<GoogleTokens | null>(null);
+  const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
+  const [isAuthenticatingGoogle, setIsAuthenticatingGoogle] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const getSessionId = (): string => {
@@ -74,6 +84,193 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Get frontend URL for OAuth endpoints
+  const getFrontendUrl = () => {
+    if (config.frontendUrl) {
+      return config.frontendUrl;
+    }
+    // Try to detect from script source
+    const scripts = document.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+      const src = scripts[i].src;
+      if (src && src.includes('chat-widget.iife.js')) {
+        try {
+          const url = new URL(src);
+          return url.origin;
+        } catch (e) {
+          // Invalid URL, continue
+        }
+      }
+    }
+    // Fallback to current origin
+    return typeof window !== 'undefined' ? window.location.origin : '';
+  };
+
+  // Check for existing Google OAuth tokens
+  const checkGoogleAuth = async () => {
+    setIsCheckingGoogleAuth(true);
+    try {
+      const frontendUrl = getFrontendUrl();
+      const response = await fetch(
+        `${frontendUrl}/api/google-oauth/get-tokens?sessionId=${encodeURIComponent(sessionIdRef.current)}&chatbotId=${encodeURIComponent(config.chatbotId)}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.hasTokens) {
+          // Check if token is expired
+          const expiresAt = data.expiresAt || (data.expiresIn ? Date.now() + data.expiresIn * 1000 : null);
+          if (expiresAt && Date.now() < expiresAt) {
+            setGoogleTokens({
+              accessToken: data.accessToken,
+              refreshToken: data.refreshToken,
+              expiresAt: expiresAt,
+            });
+          } else if (data.refreshToken) {
+            // Token expired, try to refresh
+            await refreshGoogleToken(data.refreshToken);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking Google auth:', error);
+    } finally {
+      setIsCheckingGoogleAuth(false);
+    }
+  };
+
+  // Refresh Google access token
+  const refreshGoogleToken = async (refreshToken: string) => {
+    try {
+      const frontendUrl = getFrontendUrl();
+      const response = await fetch(`${frontendUrl}/api/google-oauth/refresh-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          chatbotId: config.chatbotId,
+          refreshToken,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setGoogleTokens({
+            accessToken: data.accessToken,
+            refreshToken: refreshToken,
+            expiresAt: Date.now() + (data.expiresIn || 3600) * 1000,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing Google token:', error);
+      setGoogleTokens(null);
+    }
+  };
+
+  // Get Google OAuth URL (for direct link)
+  const [googleAuthUrl, setGoogleAuthUrl] = useState<string | null>(null);
+
+  // Fetch auth URL on mount if not authenticated
+  useEffect(() => {
+    if (!googleTokens && !isCheckingGoogleAuth) {
+      const fetchAuthUrl = async () => {
+        try {
+          const frontendUrl = getFrontendUrl();
+          const response = await fetch(
+            `${frontendUrl}/api/google-oauth/authorize?sessionId=${encodeURIComponent(sessionIdRef.current)}&chatbotId=${encodeURIComponent(config.chatbotId)}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.authUrl) {
+              setGoogleAuthUrl(data.authUrl);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching auth URL:', error);
+        }
+      };
+      fetchAuthUrl();
+    }
+  }, [googleTokens, isCheckingGoogleAuth, config.chatbotId]);
+
+  // Initiate Google OAuth flow
+  const initiateGoogleAuth = async () => {
+    setIsAuthenticatingGoogle(true);
+    try {
+      const frontendUrl = getFrontendUrl();
+      const response = await fetch(
+        `${frontendUrl}/api/google-oauth/authorize?sessionId=${encodeURIComponent(sessionIdRef.current)}&chatbotId=${encodeURIComponent(config.chatbotId)}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.authUrl) {
+          // Open OAuth in popup window
+          const popup = window.open(
+            data.authUrl,
+            'Google OAuth',
+            'width=500,height=600,scrollbars=yes,resizable=yes'
+          );
+
+          // Listen for OAuth success
+          const checkPopup = setInterval(() => {
+            if (popup?.closed) {
+              clearInterval(checkPopup);
+              setIsAuthenticatingGoogle(false);
+              // Check for tokens after popup closes
+              setTimeout(() => {
+                checkGoogleAuth();
+              }, 1000);
+            }
+          }, 500);
+
+          // Also listen for message from popup (if using postMessage)
+          const messageHandler = (event: MessageEvent) => {
+            if (event.data?.type === 'GOOGLE_OAUTH_SUCCESS') {
+              clearInterval(checkPopup);
+              window.removeEventListener('message', messageHandler);
+              setIsAuthenticatingGoogle(false);
+              checkGoogleAuth();
+            }
+          };
+          window.addEventListener('message', messageHandler);
+        }
+      }
+    } catch (error) {
+      console.error('Error initiating Google auth:', error);
+      setIsAuthenticatingGoogle(false);
+    }
+  };
+
+  // Check for OAuth success on mount and URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthSuccess = urlParams.get('oauth-success');
+    const sessionIdParam = urlParams.get('sessionId');
+    const chatbotIdParam = urlParams.get('chatbotId');
+
+    if (oauthSuccess === 'true' && sessionIdParam === sessionIdRef.current && chatbotIdParam === config.chatbotId) {
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+      // Check for tokens
+      checkGoogleAuth();
+    } else {
+      // Check for existing tokens on mount
+      checkGoogleAuth();
+    }
+
+    // Timeout to ensure button shows even if check takes too long or fails
+    const timeout = setTimeout(() => {
+      setIsCheckingGoogleAuth(false);
+    }, 3000); // 3 second timeout
+
+    return () => clearTimeout(timeout);
+  }, [config.chatbotId]);
 
   // Function to get chat history for a specific conversation
   const getChatHistory = async (conversationId: string): Promise<UserChatHistory[]> => {
@@ -287,6 +484,11 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         attachments: [],
         sessionId: sessionIdRef.current,
         chatbotId: config.chatbotId,
+        // Include Google OAuth tokens if available
+        googleTokens: googleTokens ? {
+          accessToken: googleTokens.accessToken,
+          refreshToken: googleTokens.refreshToken,
+        } : undefined,
       };
 
       // Determine endpoint and headers based on whether token is provided
@@ -301,6 +503,11 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       // Add bearer token if provided
       if (config.authToken) {
         headers['Authorization'] = `Bearer ${config.authToken}`;
+      }
+
+      // Add Google OAuth token header if available
+      if (googleTokens?.accessToken) {
+        headers['X-Google-Access-Token'] = googleTokens.accessToken;
       }
 
       const response = await fetch(`${config.apiUrl}${endpoint}`, {
@@ -722,6 +929,98 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Google OAuth Status */}
+      {!googleTokens && !isCheckingGoogleAuth && (
+        <div style={{
+          padding: '10px 18px',
+          borderTop: '1px solid rgba(148, 163, 184, 0.25)',
+          backgroundColor: '#fff7ed',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}>
+          <div style={{ fontSize: '12px', color: '#9a3412', flex: 1 }}>
+            Connect Google Calendar to create events
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={initiateGoogleAuth}
+              disabled={isAuthenticatingGoogle}
+              style={{
+                background: isAuthenticatingGoogle 
+                  ? '#cbd5e1' 
+                  : 'linear-gradient(135deg, #ea4335, #c5221f)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '16px',
+                padding: '6px 12px',
+                cursor: isAuthenticatingGoogle ? 'not-allowed' : 'pointer',
+                fontSize: '12px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                opacity: isAuthenticatingGoogle ? 0.6 : 1,
+              }}
+            >
+              {isAuthenticatingGoogle ? 'Connecting...' : '🔗 Connect Google'}
+            </button>
+            {googleAuthUrl && (
+              <a
+                href={googleAuthUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  // Also check for tokens after redirect
+                  setTimeout(() => {
+                    checkGoogleAuth();
+                  }, 2000);
+                }}
+                style={{
+                  fontSize: '11px',
+                  color: '#ea4335',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                }}
+              >
+                Or open link directly
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {googleTokens && (
+        <div style={{
+          padding: '8px 18px',
+          borderTop: '1px solid rgba(148, 163, 184, 0.25)',
+          backgroundColor: '#f0fdf4',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+        }}>
+          <div style={{ fontSize: '11px', color: '#166534', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            ✓ Google Calendar connected
+          </div>
+          <button
+            onClick={() => setGoogleTokens(null)}
+            style={{
+              background: 'transparent',
+              color: '#166534',
+              border: '1px solid #166534',
+              borderRadius: '12px',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: '500',
+            }}
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
 
       {/* Input */}
       <form onSubmit={sendMessage} style={{
