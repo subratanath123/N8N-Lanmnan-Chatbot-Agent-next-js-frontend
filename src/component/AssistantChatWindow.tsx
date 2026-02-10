@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { getAttachmentService, AttachmentUploadResult } from '@/services/attachmentService';
 
 type MessageRole = 'user' | 'assistant';
 
@@ -9,6 +10,14 @@ interface Message {
   role: MessageRole;
   content: string;
   createdAt: Date;
+}
+
+interface FileAttachment {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  downloadUrl: string;
 }
 
 interface UserChatHistory {
@@ -78,8 +87,13 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [uploadedFileAttachments, setUploadedFileAttachments] = useState<FileAttachment[]>([]);
+  const [isProcessingAttachments, setIsProcessingAttachments] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadHistoryRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const sessionKey = useMemo(() => `chatbot_session_${chatbotId}`, [chatbotId]);
 
   const getSessionId = (): string => {
@@ -241,26 +255,115 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Get file icon based on file type
+  const getFileIcon = (file: File): string => {
+    const type = file.type.toLowerCase();
+    if (type.startsWith('image/')) return '🖼️';
+    if (type.startsWith('video/')) return '🎥';
+    if (type.startsWith('audio/')) return '🎵';
+    if (type === 'application/pdf') return '📄';
+    if (type.includes('word') || type.includes('document')) return '📝';
+    if (type.includes('sheet') || type.includes('excel')) return '📊';
+    if (type.includes('presentation') || type.includes('powerpoint')) return '📽️';
+    if (type.includes('text')) return '📄';
+    return '📎';
+  };
+
+  // Handle file upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setAttachments([files[0]]); // Take only the first file
+      setShowAttachments(true);
+    }
+    // Clear the input so the same file can be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove attachment
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    if (attachments.length === 1) {
+      setShowAttachments(false);
+    }
+  };
+
+  // Upload files to the File Attachment API
+  const uploadFiles = async (): Promise<FileAttachment[]> => {
+    if (attachments.length === 0) return [];
+
+    setIsProcessingAttachments(true);
+    const uploadedFiles: FileAttachment[] = [];
+
+    try {
+      const attachmentService = getAttachmentService(
+        process.env.NEXT_PUBLIC_ATTACHMENT_API_URL || '/api/attachments',
+        chatbotId
+      );
+
+      for (const file of attachments) {
+        try {
+          const result = await attachmentService.uploadFile(file, sessionIdRef.current);
+          uploadedFiles.push({
+            fileId: result.fileId,
+            fileName: result.fileName,
+            mimeType: result.mimeType,
+            fileSize: result.fileSize,
+            downloadUrl: result.downloadUrl,
+          });
+        } catch (error) {
+          console.error(`Failed to upload file ${file.name}:`, error);
+        }
+      }
+
+      if (uploadedFiles.length > 0) {
+        setUploadedFileAttachments(uploadedFiles);
+        setAttachments([]); // Clear the local attachments after upload
+        setShowAttachments(false);
+      }
+
+      return uploadedFiles;
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      return [];
+    } finally {
+      setIsProcessingAttachments(false);
+    }
+  };
+
   const handleSendMessage = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+    if ((!inputValue.trim() && uploadedFileAttachments.length === 0) || isLoading) return;
 
+    // Upload files if there are any pending attachments
+    let filesToInclude = uploadedFileAttachments;
+    if (attachments.length > 0) {
+      const uploaded = await uploadFiles();
+      filesToInclude = uploaded;
+    }
+
+    const messageContent = inputValue.trim() || (filesToInclude.length > 0 ? `Shared ${filesToInclude.length} file(s)` : '');
+    
     const userMessage: Message = {
       id: `${Date.now()}`,
       role: 'user',
-      content: inputValue.trim(),
+      content: messageContent,
       createdAt: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
+    setUploadedFileAttachments([]); // Clear uploaded files after sending
     setIsLoading(true);
 
     try {
       const payload = {
         role: 'user' as const,
-        message: userMessage.content,
+        message: messageContent,
         attachments: [],
+        fileAttachments: filesToInclude, // Include file attachments with fileIds
         sessionId: sessionIdRef.current,
         chatbotId,
       };
@@ -572,64 +675,221 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
       </div>
     </div>
 
-      <form
-        onSubmit={handleSendMessage}
-        style={{
-        padding: '22px 30px',
+      <div style={{
+        borderTop: '1px solid rgba(148, 163, 184, 0.18)',
         background: '#ffffff',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          borderTop: '1px solid rgba(148, 163, 184, 0.18)',
-        }}
-      >
-        <div
+      }}>
+        {/* Uploaded Attachments Display */}
+        {uploadedFileAttachments && uploadedFileAttachments.length > 0 && (
+          <div style={{
+            padding: '12px 30px',
+            backgroundColor: '#ecfdf5',
+            borderBottom: '1px solid #d1fae5',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}>
+            <div style={{
+              width: '100%',
+              marginBottom: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: '#059669',
+            }}>
+              ✅ Attached Files
+            </div>
+            {uploadedFileAttachments.map((file) => (
+              <div key={file.fileId} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 10px',
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #d1fae5',
+                fontSize: '12px',
+              }}>
+                <span>📎</span>
+                <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {file.fileName}
+                </span>
+                <a 
+                  href={file.downloadUrl} 
+                  download
+                  style={{
+                    color: '#007bff',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                  }}
+                  title="Download file"
+                >
+                  ⬇️
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Processing Attachments Display */}
+        {showAttachments && attachments.length > 0 && (
+          <div style={{
+            padding: '12px 30px',
+            backgroundColor: '#f3f4f6',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}>
+            <div style={{
+              width: '100%',
+              marginBottom: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              📎 Uploading Attachment
+              {isProcessingAttachments && (
+                <span style={{
+                  display: 'inline-block',
+                  width: '10px',
+                  height: '10px',
+                  border: '2px solid #2563eb',
+                  borderTop: '2px solid transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+              )}
+            </div>
+            {attachments.map((file, index) => (
+              <div key={index} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 10px',
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #d1d5db',
+                fontSize: '12px',
+              }}>
+                <span>{getFileIcon(file)}</span>
+                <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {file.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(index)}
+                  disabled={isProcessingAttachments}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: isProcessingAttachments ? 'not-allowed' : 'pointer',
+                    color: '#dc3545',
+                    fontSize: '12px',
+                    padding: '2px',
+                    opacity: isProcessingAttachments ? 0.5 : 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form
+          onSubmit={handleSendMessage}
           style={{
-            flex: 1,
-            background: '#f8fafc',
-            borderRadius: '999px',
-            padding: '12px 20px',
+            padding: '22px 30px',
+            background: '#ffffff',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            border: '1px solid rgba(226, 232, 240, 0.8)',
+            gap: '16px',
           }}
         >
+          {/* Hidden file input */}
           <input
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            placeholder="Type your message…"
-            disabled={isLoading}
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+
+          {/* File attachment button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isProcessingAttachments || isLoading}
+            style={{
+              padding: '12px',
+              backgroundColor: '#ffffff',
+              border: '1px solid rgba(226, 232, 240, 0.8)',
+              borderRadius: '999px',
+              cursor: isProcessingAttachments || isLoading ? 'not-allowed' : 'pointer',
+              fontSize: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '44px',
+              height: '44px',
+              opacity: isProcessingAttachments || isLoading ? 0.5 : 1,
+            }}
+            title="Attach file"
+          >
+            📎
+          </button>
+
+          <div
             style={{
               flex: 1,
-              background: 'transparent',
-              border: 'none',
-              color: '#1f2937',
-              fontSize: '15px',
-              outline: 'none',
+              background: '#f8fafc',
+              borderRadius: '999px',
+              padding: '12px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              border: '1px solid rgba(226, 232, 240, 0.8)',
             }}
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isLoading || !inputValue.trim()}
-          style={{
-          background: isLoading || !inputValue.trim() ? 'rgba(59, 130, 246, 0.28)' : `linear-gradient(135deg, ${accentColor}, #2563eb)`,
-            color: '#f8fafc',
-            border: 'none',
-            borderRadius: '999px',
-            padding: '12px 28px',
-            fontSize: '15px',
-            fontWeight: 600,
-            cursor: isLoading || !inputValue.trim() ? 'not-allowed' : 'pointer',
-            boxShadow: isLoading || !inputValue.trim() ? 'none' : '0 16px 30px rgba(37, 99, 235, 0.18)',
-            transition: 'transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease',
-            opacity: isLoading || !inputValue.trim() ? 0.6 : 1,
-          }}
-        >
-          Send
-        </button>
-      </form>
+          >
+            <input
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+              placeholder="Type your message…"
+              disabled={isLoading || isProcessingAttachments}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                color: '#1f2937',
+                fontSize: '15px',
+                outline: 'none',
+              }}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isLoading || isProcessingAttachments || (!inputValue.trim() && uploadedFileAttachments.length === 0)}
+            style={{
+              background: isLoading || isProcessingAttachments || (!inputValue.trim() && uploadedFileAttachments.length === 0) ? 'rgba(59, 130, 246, 0.28)' : `linear-gradient(135deg, ${accentColor}, #2563eb)`,
+              color: '#f8fafc',
+              border: 'none',
+              borderRadius: '999px',
+              padding: '12px 28px',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: isLoading || isProcessingAttachments || (!inputValue.trim() && uploadedFileAttachments.length === 0) ? 'not-allowed' : 'pointer',
+              boxShadow: isLoading || isProcessingAttachments || (!inputValue.trim() && uploadedFileAttachments.length === 0) ? 'none' : '0 16px 30px rgba(37, 99, 235, 0.18)',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease',
+              opacity: isLoading || isProcessingAttachments || (!inputValue.trim() && uploadedFileAttachments.length === 0) ? 0.6 : 1,
+            }}
+          >
+            Send
+          </button>
+        </form>
+      </div>
 
       <style jsx>{`
         .chatbot-html-content h1, .chatbot-html-content h2, .chatbot-html-content h3 {

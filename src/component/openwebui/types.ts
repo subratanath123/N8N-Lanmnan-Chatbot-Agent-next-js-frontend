@@ -12,6 +12,15 @@ export interface Attachment {
   base64: string;
 }
 
+export interface FileAttachment {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedAt: number;
+  downloadUrl: string;
+}
+
 export interface Model {
   id: string;
   name: string;
@@ -44,6 +53,7 @@ export interface N8NRequest {
   };
   attachments?: Attachment[];
   fileReferences?: string[]; // New field for file references after upload
+  fileAttachments?: FileAttachment[]; // Multimodal: file attachments with fileId
 }
 
 export interface N8NResponse {

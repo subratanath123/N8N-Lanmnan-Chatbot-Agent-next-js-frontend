@@ -63,7 +63,12 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   const [googleTokens, setGoogleTokens] = useState<GoogleTokens | null>(null);
   const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
   const [isAuthenticatingGoogle, setIsAuthenticatingGoogle] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [isProcessingAttachments, setIsProcessingAttachments] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const getSessionId = (): string => {
     try {
@@ -82,7 +87,176 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   const sessionIdRef = useRef<string>(getSessionId());
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use setTimeout to ensure DOM has updated
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 0);
+  };
+
+  // Get file icon based on file type - handles both File objects and metadata objects
+  const getFileIcon = (file: any): string => {
+    // Handle both File objects (with .type) and metadata objects (with .mimeType)
+    const mimeType = file.type || file.mimeType || '';
+    if (!mimeType) return '📎'; // Fallback if no type info
+    
+    const type = mimeType.toLowerCase();
+    if (type.startsWith('image/')) return '🖼️';
+    if (type.startsWith('video/')) return '🎥';
+    if (type.startsWith('audio/')) return '🎵';
+    if (type === 'application/pdf') return '📄';
+    if (type.includes('word') || type.includes('document')) return '📝';
+    if (type.includes('sheet') || type.includes('excel')) return '📊';
+    if (type.includes('presentation') || type.includes('powerpoint')) return '📽️';
+    if (type.includes('text')) return '📄';
+    return '📎';
+  };
+
+  // Convert file to base64 (kept for backward compatibility if needed)
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Extract base64 part after comma
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+    });
+  };
+
+  // Handle file upload - immediately upload and show spinner
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      const file = files[0];
+      setAttachments([file]);
+      setShowAttachments(true);
+      setIsProcessingAttachments(true); // Show spinner immediately
+
+      // Upload file immediately
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('chatbotId', config.chatbotId);
+        formData.append('sessionId', sessionIdRef.current);
+
+        // Use backend File Attachment API directly (port 8080)
+        const attachmentApiUrl = config.apiUrl || 'http://localhost:8080';
+        const response = await fetch(`${attachmentApiUrl}/api/attachments/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to upload file ${file.name}:`, response.status);
+          setIsProcessingAttachments(false);
+          setAttachments([]);
+          setShowAttachments(false);
+          return;
+        }
+
+        const result = await response.json();
+        
+        // Store uploaded file metadata for later use in sendMessage
+        const uploadedFile = {
+          fileId: result.fileId,
+          fileName: result.fileName,
+          mimeType: result.mimeType,
+          fileSize: result.fileSize,
+          downloadUrl: result.downloadUrl,
+        };
+
+        // Store in a ref or state so sendMessage can use it
+        setAttachments([uploadedFile] as any);
+        setIsProcessingAttachments(false); // Hide spinner when done
+      } catch (error) {
+        console.error(`Error uploading file ${file.name}:`, error);
+        setIsProcessingAttachments(false);
+        setAttachments([]);
+        setShowAttachments(false);
+      }
+    }
+    // Clear the input so the same file can be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove attachment
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    if (attachments.length === 1) {
+      setShowAttachments(false);
+    }
+  };
+
+  // Upload files to File Attachment API
+  const uploadFiles = async (): Promise<Array<{
+    fileId: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    downloadUrl: string;
+  }>> => {
+    if (attachments.length === 0) return [];
+
+    setIsProcessingAttachments(true);
+    const uploadedFiles: Array<{
+      fileId: string;
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+      downloadUrl: string;
+    }> = [];
+
+    try {
+      // Get frontend URL for API proxy
+      const frontendUrl = getFrontendUrl();
+      
+      for (const file of attachments) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('chatbotId', config.chatbotId);
+          formData.append('sessionId', sessionIdRef.current);
+
+          const response = await fetch(`${frontendUrl}/api/attachments/upload`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            console.error(`Failed to upload file ${file.name}:`, response.status);
+            continue;
+          }
+
+          const result = await response.json();
+          uploadedFiles.push({
+            fileId: result.fileId,
+            fileName: result.fileName,
+            mimeType: result.mimeType,
+            fileSize: result.fileSize,
+            downloadUrl: result.downloadUrl,
+          });
+        } catch (error) {
+          console.error(`Failed to upload file ${file.name}:`, error);
+        }
+      }
+
+      if (uploadedFiles.length > 0) {
+        setAttachments([]); // Clear local attachments after upload
+        setShowAttachments(false);
+      }
+
+      return uploadedFiles;
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      return [];
+    } finally {
+      setIsProcessingAttachments(false);
+    }
   };
 
   // Get frontend URL for OAuth endpoints
@@ -459,14 +633,28 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     scrollToBottom();
   }, [messages]);
 
+  // Don't lose focus on input when messages update
+  useEffect(() => {
+    if (inputRef.current && !isLoading) {
+      // Optionally re-focus after sending to allow quick follow-up messages
+      // inputRef.current.focus();
+    }
+  }, [isLoading]);
+
   const sendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     
-    if (!inputValue.trim() || isLoading) return;
+    // Check if we have attachments (already uploaded) or input
+    const hasAttachments = attachments.length > 0 && 
+                          attachments[0] && 
+                          typeof attachments[0] === 'object' && 
+                          'fileId' in attachments[0];
+    
+    if ((!inputValue.trim() && !hasAttachments) || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputValue.trim(),
+      content: inputValue.trim() || (hasAttachments ? `Shared ${attachments.length} file(s)` : ''),
       role: 'user',
       createdAt: new Date(),
       sessionId: sessionIdRef.current,
@@ -478,20 +666,27 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     setIsLoading(true);
 
     try {
+      // Use already-uploaded files (they have fileId property)
+      const fileAttachments = attachments.filter(f => f && 'fileId' in f) as any[];
+
+      // Build JSON payload with fileAttachments
       const payload = {
         role: 'user',
         message: userMessage.content,
-        attachments: [],
-        sessionId: sessionIdRef.current,
         chatbotId: config.chatbotId,
-        // Include Google OAuth tokens if available
-        googleTokens: googleTokens ? {
-          accessToken: googleTokens.accessToken,
-          refreshToken: googleTokens.refreshToken,
-        } : undefined,
+        sessionId: sessionIdRef.current,
+        fileAttachments: fileAttachments, // Use pre-uploaded files
       };
 
-      // Determine endpoint and headers based on whether token is provided
+      // Add Google OAuth tokens if available
+      if (googleTokens?.accessToken) {
+        (payload as any).googleAccessToken = googleTokens.accessToken;
+      }
+      if (googleTokens?.refreshToken) {
+        (payload as any).googleRefreshToken = googleTokens.refreshToken;
+      }
+
+      // Determine endpoint based on authentication
       const endpoint = config.authToken 
         ? `/v1/api/n8n/authenticated/chat`
         : `/v1/api/n8n/anonymous/chat`;
@@ -500,14 +695,9 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         'Content-Type': 'application/json',
       };
 
-      // Add bearer token if provided
+      // Add bearer token if provided (for authenticated endpoint)
       if (config.authToken) {
         headers['Authorization'] = `Bearer ${config.authToken}`;
-      }
-
-      // Add Google OAuth token header if available
-      if (googleTokens?.accessToken) {
-        headers['X-Google-Access-Token'] = googleTokens.accessToken;
       }
 
       const response = await fetch(`${config.apiUrl}${endpoint}`, {
@@ -530,44 +720,44 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         data = responseText;
       }
       
-      // The response has nested JSON strings - need to parse twice
-      // Response structure: { "output": "{\"output\":\"message\"}", "data": "{\"output\":\"message\"}", ... }
       let assistantReply: string = '';
       
-      // Try to extract from various fields that might contain the JSON string
-      const jsonString = 
-        (typeof data.output === 'string' ? data.output : '') ||
-        (typeof data.data === 'string' ? data.data : '') ||
-        (typeof data.message === 'string' ? data.message : '') ||
-        (typeof data.responseContent === 'string' ? data.responseContent : '') ||
-        (typeof data.result === 'string' ? data.result : '') ||
-        '';
+      // Check if response has success flag
+      if (data.success === false) {
+        throw new Error(data.errorMessage || data.message || 'API request failed');
+      }
       
-      // If we found a JSON string, parse it to get the actual message
-      if (jsonString && jsonString.trim().startsWith('{')) {
+      // Extract result from response structure
+      if (data.result && typeof data.result === 'object' && typeof data.result.response === 'string') {
+        assistantReply = data.result.response;
+      } else if (data.result && typeof data.result === 'string') {
+        assistantReply = data.result;
+      } else if (typeof data.output === 'string') {
+        assistantReply = data.output;
+      } else if (typeof data.message === 'string') {
+        assistantReply = data.message;
+      } else if (typeof data.response === 'string') {
+        assistantReply = data.response;
+      } else if (typeof data.answer === 'string') {
+        assistantReply = data.answer;
+      } else if (typeof data.responseContent === 'string') {
+        assistantReply = data.responseContent;
+      }
+      
+      // Parse nested JSON if result is a string containing JSON
+      if (assistantReply && assistantReply.trim().startsWith('{')) {
         try {
-          const innerData = JSON.parse(jsonString);
+          const innerData = JSON.parse(assistantReply);
           assistantReply = 
+            (typeof innerData.result === 'string' ? innerData.result : '') ||
             (typeof innerData.output === 'string' ? innerData.output : '') ||
             (typeof innerData.response === 'string' ? innerData.response : '') ||
             (typeof innerData.message === 'string' ? innerData.message : '') ||
             (typeof innerData.answer === 'string' ? innerData.answer : '') ||
             '';
         } catch (e) {
-          console.error('Failed to parse inner JSON:', e);
+          console.error('Failed to parse nested JSON:', e);
         }
-      }
-      
-      // Fallback: try direct extraction if the structure is different
-      if (!assistantReply && typeof data === 'object' && data !== null) {
-        // Check if output/data/message are already the final strings (not JSON)
-        assistantReply = 
-          (typeof data.output === 'string' && !data.output.trim().startsWith('{') ? data.output : '') ||
-          (typeof data.data === 'string' && !data.data.trim().startsWith('{') ? data.data : '') ||
-          (typeof data.message === 'string' && !data.message.trim().startsWith('{') ? data.message : '') ||
-          (typeof data.response === 'string' ? data.response : '') ||
-          (typeof data.answer === 'string' ? data.answer : '') ||
-          '';
       }
 
       // Ensure we have a valid string
@@ -594,6 +784,9 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      setIsProcessingAttachments(false);
+      setAttachments([]);
+      setShowAttachments(false);
     }
   };
 
@@ -625,7 +818,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             gap: '8px',
             fontSize: '16px',
             fontWeight: '500',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            fontFamily: '"Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
           }}
         >
           <div style={{
@@ -640,10 +833,11 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             fontSize: '14px',
             fontWeight: 'bold',
             flexShrink: 0,
+            fontFamily: '"Poppins", sans-serif',
           }}>
             💬
           </div>
-          <span>{chatbotName}</span>
+          <span style={{ fontFamily: '"Poppins", sans-serif' }}>{chatbotName}</span>
         </button>
       </div>
     );
@@ -687,10 +881,17 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        
+        * {
+          font-family: "Poppins", sans-serif;
+        }
+        
         .chatbot-html-content h1, .chatbot-html-content h2, .chatbot-html-content h3 {
           margin: 0.5em 0;
           font-weight: 600;
           line-height: 1.3;
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content h1 { font-size: 1.5em; }
         .chatbot-html-content h2 { font-size: 1.3em; }
@@ -698,24 +899,29 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         .chatbot-html-content ul, .chatbot-html-content ol {
           margin: 0.5em 0;
           padding-left: 1.5em;
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content li {
           margin: 0.3em 0;
           line-height: 1.5;
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content p {
           margin: 0.5em 0;
           line-height: 1.6;
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content a {
           color: inherit;
           text-decoration: underline;
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content code {
           background: rgba(0, 0, 0, 0.1);
           padding: 0.2em 0.4em;
           border-radius: 3px;
           font-size: 0.9em;
+          font-family: "Poppins", monospace;
         }
         .chatbot-html-content pre {
           background: rgba(0, 0, 0, 0.05);
@@ -723,25 +929,30 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           border-radius: 6px;
           overflow-x: auto;
           margin: 0.5em 0;
+          font-family: "Poppins", monospace;
         }
         .chatbot-html-content blockquote {
           border-left: 3px solid rgba(0, 0, 0, 0.2);
           padding-left: 1em;
           margin: 0.5em 0;
           font-style: italic;
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content table {
           width: 100%;
           border-collapse: collapse;
           margin: 0.5em 0;
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content th, .chatbot-html-content td {
           padding: 0.5em;
           border: 1px solid rgba(0, 0, 0, 0.1);
+          font-family: "Poppins", sans-serif;
         }
         .chatbot-html-content th {
           background: rgba(0, 0, 0, 0.05);
           font-weight: 600;
+          font-family: "Poppins", sans-serif;
         }
       `}</style>
       <div style={{
@@ -756,7 +967,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         display: 'flex',
         flexDirection: 'column',
         zIndex: 9999,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        fontFamily: '"Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
         overflow: 'hidden',
         border: '1px solid rgba(148, 163, 184, 0.35)',
       }}>
@@ -785,7 +996,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           }}>
             {chatbotName?.charAt(0).toUpperCase() ?? 'C'}
           </div>
-          <div style={{ fontWeight: 600, fontSize: '16px' }}>{chatbotName}</div>
+          <div style={{ fontWeight: 600, fontSize: '16px', fontFamily: '"Poppins", sans-serif' }}>{chatbotName}</div>
         </div>
         <button
           onClick={handleClose}
@@ -826,6 +1037,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             fontSize: '14px',
             lineHeight: 1.6,
             alignSelf: 'flex-start',
+            fontFamily: '"Poppins", sans-serif',
           }}>
             {greetingMessage ? (
               <div className={containsHTML(greetingMessage) ? 'chatbot-html-content' : ''}
@@ -854,6 +1066,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             lineHeight: 1.6,
             textAlign: 'center',
             alignSelf: 'flex-start',
+            fontFamily: '"Poppins", sans-serif',
           }}>
             Loading...
           </div>
@@ -881,6 +1094,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                         message.role === 'user'
                             ? '0 12px 24px rgba(37,99,235,0.22)'
                             : '0 8px 20px rgba(14,116,144,0.18)',
+                    fontFamily: '"Poppins", sans-serif',
                   }}
               >
                 <MessageContent content={message.content} />
@@ -900,6 +1114,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
               display: 'flex',
               gap: '6px',
               boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
+              fontFamily: '"Poppins", sans-serif',
             }}>
               <span style={{
                 width: '8px',
@@ -931,151 +1146,191 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       </div>
 
       {/* Google OAuth Status */}
-      {!googleTokens && !isCheckingGoogleAuth && (
-        <div style={{
-          padding: '10px 18px',
-          borderTop: '1px solid rgba(148, 163, 184, 0.25)',
-          backgroundColor: '#fff7ed',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-        }}>
-          <div style={{ fontSize: '12px', color: '#9a3412', flex: 1 }}>
-            Connect Google Calendar to create events
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              onClick={initiateGoogleAuth}
-              disabled={isAuthenticatingGoogle}
-              style={{
-                background: isAuthenticatingGoogle 
-                  ? '#cbd5e1' 
-                  : 'linear-gradient(135deg, #ea4335, #c5221f)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '16px',
-                padding: '6px 12px',
-                cursor: isAuthenticatingGoogle ? 'not-allowed' : 'pointer',
-                fontSize: '12px',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                opacity: isAuthenticatingGoogle ? 0.6 : 1,
-              }}
-            >
-              {isAuthenticatingGoogle ? 'Connecting...' : '🔗 Connect Google'}
-            </button>
-            {googleAuthUrl && (
-              <a
-                href={googleAuthUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  // Also check for tokens after redirect
-                  setTimeout(() => {
-                    checkGoogleAuth();
-                  }, 2000);
-                }}
-                style={{
-                  fontSize: '11px',
-                  color: '#ea4335',
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                }}
-              >
-                Or open link directly
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {googleTokens && (
-        <div style={{
-          padding: '8px 18px',
-          borderTop: '1px solid rgba(148, 163, 184, 0.25)',
-          backgroundColor: '#f0fdf4',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-        }}>
-          <div style={{ fontSize: '11px', color: '#166534', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            ✓ Google Calendar connected
-          </div>
-          <button
-            onClick={() => setGoogleTokens(null)}
-            style={{
-              background: 'transparent',
-              color: '#166534',
-              border: '1px solid #166534',
-              borderRadius: '12px',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              fontWeight: '500',
-            }}
-          >
-            Disconnect
-          </button>
-        </div>
-      )}
-
-      {/* Input */}
-      <form onSubmit={sendMessage} style={{
+      
+      <div style={{
         padding: '14px 18px',
         borderTop: '1px solid rgba(148, 163, 184, 0.25)',
         backgroundColor: '#f1f5f9',
       }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            backgroundColor: '#ffffff',
-            borderRadius: '24px',
-            padding: '8px 14px',
-            boxShadow: 'inset 0 0 0 1px rgba(148, 163, 184, 0.2)',
-          }}
-        >
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type your message..."
-            disabled={isLoading}
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileUpload}
+          style={{ display: 'none' }}
+        />
+
+        {/* Attachments Preview */}
+        {showAttachments && attachments.length > 0 && (
+          <div style={{
+            marginBottom: '12px',
+            padding: '12px',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '12px',
+            border: '1px solid #e9ecef'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '8px',
               fontSize: '14px',
-              backgroundColor: 'transparent',
-              color: '#0f172a',
+              fontWeight: '500',
+              color: '#333',
+              fontFamily: '"Poppins", sans-serif',
+            }}>
+              📎 Attachment
+              {isProcessingAttachments && (
+                <span style={{ 
+                  fontSize: '12px', 
+                  color: '#2563eb', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '4px' 
+                }}>
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: '12px', 
+                    height: '12px', 
+                    border: '2px solid #2563eb', 
+                    borderTop: '2px solid transparent', 
+                    borderRadius: '50%', 
+                    animation: 'spin 1s linear infinite' 
+                  }}></span>
+                  Converting...
+                </span>
+              )}
+            </div>
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px'
+            }}>
+              {attachments.map((file, index) => (
+                <div key={index} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 10px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '12px',
+                  fontFamily: '"Poppins", sans-serif',
+                }}>
+                  <span>{getFileIcon(file)}</span>
+                  <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {file.name || file.fileName}
+                  </span>
+                  <button
+                    onClick={() => removeAttachment(index)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#dc3545',
+                      fontSize: '12px',
+                      padding: '2px'
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={sendMessage} style={{
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'flex-end'
+        }}>
+          {/* Attachment Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              padding: '12px',
+              backgroundColor: 'white',
+              border: '1px solid #e9ecef',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              color: '#6c757d',
+              fontSize: '16px',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '44px',
+              height: '44px'
             }}
-          />
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f8f9fa';
+              e.currentTarget.style.borderColor = '#dee2e6';
+              e.currentTarget.style.color = '#333';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'white';
+              e.currentTarget.style.borderColor = '#e9ecef';
+              e.currentTarget.style.color = '#6c757d';
+            }}
+          >
+            📎
+          </button>
+
+          <div style={{ flex: 1, position: 'relative' }}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage(e as any);
+                }
+              }}
+              placeholder="Type your message..."
+              disabled={isLoading}
+              autoComplete="off"
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                border: '1px solid #e9ecef',
+                borderRadius: '16px',
+                fontSize: '14px',
+                backgroundColor: 'white',
+                outline: 'none',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                transition: 'all 0.2s ease',
+                fontFamily: '"Poppins", sans-serif',
+              }}
+            />
+          </div>
+
           <button
             type="submit"
-            disabled={isLoading || !inputValue.trim()}
+            disabled={isLoading || (!inputValue.trim() && attachments.length === 0)}
             style={{
-              background: isLoading || !inputValue.trim() 
+              background: isLoading || (!inputValue.trim() && attachments.length === 0)
                 ? 'transparent' 
                 : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
               color: 'white',
               border: 'none',
-              borderRadius: '20px',
-              padding: '8px 16px',
-              cursor: isLoading || !inputValue.trim() ? 'not-allowed' : 'pointer',
+              borderRadius: '16px',
+              padding: '12px 18px',
+              cursor: isLoading || (!inputValue.trim() && attachments.length === 0) ? 'not-allowed' : 'pointer',
               fontSize: '14px',
               fontWeight: '600',
-              opacity: isLoading || !inputValue.trim() ? 0.5 : 1,
+              opacity: isLoading || (!inputValue.trim() && attachments.length === 0) ? 0.5 : 1,
               transition: 'opacity 0.2s ease',
             }}
           >
-            Send
+            ➤
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
 
       <style>{`
         @keyframes bounce {
@@ -1084,6 +1339,14 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           }
           40% {
             transform: translateY(-6px);
+          }
+        }
+        @keyframes spin {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
           }
         }
       `}</style>

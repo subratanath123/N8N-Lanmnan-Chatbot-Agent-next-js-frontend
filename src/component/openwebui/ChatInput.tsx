@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { FileAttachment } from './types';
 
 interface ChatInputProps {
   inputValue: string;
@@ -12,6 +13,8 @@ interface ChatInputProps {
   getFileIcon: (file: File) => string;
   removeAttachment: (index: number) => void;
   isProcessingAttachments?: boolean;
+  uploadedFileAttachments?: FileAttachment[];
+  onFileUploadComplete?: (fileAttachment: FileAttachment) => void;
 }
 
 export default function ChatInput({
@@ -25,7 +28,9 @@ export default function ChatInput({
   setShowAttachments,
   getFileIcon,
   removeAttachment,
-  isProcessingAttachments = false
+  isProcessingAttachments = false,
+  uploadedFileAttachments = [],
+  onFileUploadComplete
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,8 +66,70 @@ export default function ChatInput({
         style={{ display: 'none' }}
       />
       
-      {/* Attachments Preview - Hidden */}
-      {/* {showAttachments && attachments.length > 0 && (
+      {/* Attachments Preview - Uploaded Files */}
+      {uploadedFileAttachments && uploadedFileAttachments.length > 0 && (
+        <div style={{
+          marginBottom: '12px',
+          padding: '12px',
+          backgroundColor: '#d4edda',
+          borderRadius: '12px',
+          border: '1px solid #c3e6cb'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '8px',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#155724'
+          }}>
+            ✅ Attached Files
+          </div>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px'
+          }}>
+            {uploadedFileAttachments.map((file) => (
+              <div key={file.fileId} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 10px',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #c3e6cb',
+                fontSize: '12px'
+              }}>
+                <span>📎</span>
+                <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {file.fileName}
+                </span>
+                <a 
+                  href={file.downloadUrl} 
+                  download
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#007bff',
+                    fontSize: '12px',
+                    padding: '2px',
+                    textDecoration: 'none'
+                  }}
+                  title="Download file"
+                >
+                  ⬇️
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Attachments Preview - Files Being Processed */}
+      {showAttachments && attachments.length > 0 && (
         <div style={{
           marginBottom: '12px',
           padding: '12px',
@@ -79,7 +146,7 @@ export default function ChatInput({
             fontWeight: '500',
             color: '#333'
           }}>
-            📎 Attachment
+            📎 Uploading Attachment
             {isProcessingAttachments && (
               <span style={{ 
                 fontSize: '12px', 
@@ -97,7 +164,7 @@ export default function ChatInput({
                   borderRadius: '50%', 
                   animation: 'spin 1s linear infinite' 
                 }}></span>
-                Converting to base64...
+                Uploading to server...
               </span>
             )}
           </div>
@@ -123,13 +190,15 @@ export default function ChatInput({
                 </span>
                 <button
                   onClick={() => removeAttachment(index)}
+                  disabled={isProcessingAttachments}
                   style={{
                     background: 'none',
                     border: 'none',
-                    cursor: 'pointer',
+                    cursor: isProcessingAttachments ? 'not-allowed' : 'pointer',
                     color: '#dc3545',
                     fontSize: '12px',
-                    padding: '2px'
+                    padding: '2px',
+                    opacity: isProcessingAttachments ? 0.5 : 1
                   }}
                 >
                   ×
@@ -138,15 +207,15 @@ export default function ChatInput({
             ))}
           </div>
         </div>
-      )} */}
+      )}
       
       <form onSubmit={handleSendMessage} style={{
         display: 'flex',
         gap: '12px',
         alignItems: 'flex-end'
       }}>
-        {/* Attachment Button - Hidden */}
-        {/* <button
+        {/* Attachment Button */}
+        <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           style={{
@@ -176,7 +245,7 @@ export default function ChatInput({
           }}
         >
           📎
-        </button> */}
+        </button>
         
         <div style={{ flex: 1, position: 'relative' }}>
           <textarea
