@@ -1287,7 +1287,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                 }}>
                   <span>{getFileIcon(file)}</span>
                   <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {file.name || file.fileName}
+                    {(file as any).name || (file as any).fileName}
                   </span>
                   <button
                     onClick={() => removeAttachment(index)}

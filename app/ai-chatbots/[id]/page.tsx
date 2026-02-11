@@ -202,6 +202,8 @@ export default function ChatbotDetailPage() {
         createdAt: Date;
     }>>([]);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+    const [replyMessage, setReplyMessage] = useState('');
+    const [isSendingReply, setIsSendingReply] = useState(false);
     
     // Knowledge base editing state
     interface UploadedFileInfo {
@@ -684,6 +686,67 @@ export default function ChatbotDetailPage() {
             ...prev,
             [field]: value,
         }));
+    };
+
+    const handleSendChatbotReply = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!replyMessage.trim() || !selectedConversationId || !chatbotId) return;
+
+        setIsSendingReply(true);
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (getToken) {
+                try {
+                    const token = await getToken();
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                } catch (error) {
+                    console.error('Failed to get auth token:', error);
+                    setIsSendingReply(false);
+                    return;
+                }
+            }
+
+            // Call backend endpoint to send reply on behalf of chatbot
+            const response = await fetch(`${backendUrl}/v1/api/n8n/authenticated/chatbot-reply`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    conversationId: selectedConversationId,
+                    chatbotId: chatbotId,
+                    message: replyMessage,
+                    role: 'assistant'
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            // Add the reply to the conversation messages
+            const newMessage = {
+                id: result.messageId || `${Date.now()}_reply`,
+                role: 'assistant' as const,
+                content: replyMessage,
+                createdAt: new Date(),
+            };
+
+            setConversationMessages((prev) => [...prev, newMessage]);
+            setReplyMessage(''); // Clear input
+        } catch (error) {
+            console.error('Error sending reply:', error);
+            alert(`Failed to send reply: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setIsSendingReply(false);
+        }
     };
 
     const handleCreateConversation = (event: React.FormEvent<HTMLFormElement>) => {
@@ -3450,18 +3513,71 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                         const hasHTML = containsHTML(message.content);
                                         return (
                                             <div key={message.id} className={`conversation-message ${isUser ? 'message-user' : 'message-assistant'}`}>
-                                                <div 
-                                                    className={`message-content ${hasHTML ? 'message-html' : ''}`}
-                                                    {...(hasHTML ? {
-                                                        dangerouslySetInnerHTML: { __html: message.content }
-                                                    } : {})}
-                                                >
-                                                    {!hasHTML && message.content}
-                                                </div>
+                                                {hasHTML ? (
+                                                    <div 
+                                                        className={`message-content message-html`}
+                                                        dangerouslySetInnerHTML={{ __html: message.content }}
+                                                    />
+                                                ) : (
+                                                    <div className={`message-content`}>
+                                                        {message.content}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })
                                 )}
+                            </div>
+
+                            {/* Reply Input Section */}
+                            <div style={{
+                                borderTop: '1px solid #e0e0e0',
+                                padding: '16px',
+                                backgroundColor: '#f5f5f5',
+                            }}>
+                                <form onSubmit={handleSendChatbotReply} style={{
+                                    display: 'flex',
+                                    gap: '8px',
+                                    alignItems: 'flex-end'
+                                }}>
+                                    <div style={{ flex: 1 }}>
+                                        <textarea
+                                            value={replyMessage}
+                                            onChange={(e) => setReplyMessage(e.target.value)}
+                                            placeholder="Type chatbot reply on behalf of the bot..."
+                                            disabled={isSendingReply}
+                                            style={{
+                                                width: '100%',
+                                                padding: '8px 12px',
+                                                border: '1px solid #ddd',
+                                                borderRadius: '8px',
+                                                fontSize: '14px',
+                                                fontFamily: 'inherit',
+                                                resize: 'vertical',
+                                                minHeight: '60px',
+                                                maxHeight: '120px',
+                                                opacity: isSendingReply ? 0.6 : 1,
+                                            }}
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={!replyMessage.trim() || isSendingReply}
+                                        style={{
+                                            padding: '10px 20px',
+                                            backgroundColor: replyMessage.trim() && !isSendingReply ? '#28a745' : '#ccc',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: replyMessage.trim() && !isSendingReply ? 'pointer' : 'not-allowed',
+                                            fontSize: '14px',
+                                            fontWeight: '500',
+                                            transition: 'all 0.2s ease',
+                                        }}
+                                    >
+                                        {isSendingReply ? '⏳ Sending...' : '➤ Reply'}
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     ) : (

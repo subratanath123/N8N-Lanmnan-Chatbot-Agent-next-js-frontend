@@ -1,0 +1,194 @@
+================================================================================
+                    CHATBOT REPLY ENDPOINT - SUMMARY FOR BACKEND
+================================================================================
+
+📋 WHAT YOU NEED TO BUILD
+================================================================================
+
+ONE endpoint that allows admins to reply on behalf of chatbots in conversations.
+
+
+🎯 ENDPOINT SPECIFICATIONS
+================================================================================
+
+URL:        POST /v1/api/n8n/authenticated/chatbot-reply
+Base URL:   http://localhost:8080
+Full URL:   POST http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply
+
+Authentication: Bearer JWT Token (in Authorization header)
+
+
+📤 REQUEST FORMAT
+================================================================================
+
+Content-Type: application/json
+
+Body:
+{
+  "conversationId": "conv_123",
+  "chatbotId": "chatbot_123",
+  "message": "Thank you for your inquiry!",
+  "role": "assistant"
+}
+
+
+✅ RESPONSE FORMAT (SUCCESS)
+================================================================================
+
+HTTP Status: 200 OK
+
+Body:
+{
+  "success": true,
+  "messageId": "msg_1707385649123",
+  "conversationId": "conv_123",
+  "chatbotId": "chatbot_123",
+  "message": "Thank you for your inquiry!",
+  "role": "assistant",
+  "timestamp": 1707385649000,
+  "savedToDatabase": true
+}
+
+
+❌ ERROR RESPONSES
+================================================================================
+
+401 Unauthorized:
+{
+  "success": false,
+  "message": "Invalid or expired token",
+  "error": "UNAUTHORIZED"
+}
+
+400 Bad Request (various errors):
+{
+  "success": false,
+  "message": "Message cannot be empty",
+  "error": "EMPTY_MESSAGE"
+}
+
+404 Not Found:
+{
+  "success": false,
+  "message": "Conversation not found: conv_123",
+  "error": "CONVERSATION_NOT_FOUND"
+}
+
+500 Server Error:
+{
+  "success": false,
+  "message": "Failed to save message to database",
+  "error": "DATABASE_ERROR"
+}
+
+
+🔍 VALIDATION REQUIREMENTS
+================================================================================
+
+✓ Verify JWT token is valid
+✓ Verify conversationId exists in database
+✓ Verify conversationId belongs to the chatbotId
+✓ Verify message is not empty (max 10,000 characters)
+✓ Verify role is exactly "assistant"
+
+
+💾 DATABASE REQUIREMENTS
+================================================================================
+
+Save to database:
+{
+  messageId: "msg_1707385649123",         // Generate unique ID
+  conversationId: "conv_123",              // From request
+  chatbotId: "chatbot_123",                // From request
+  message: "Thank you for your inquiry!",  // From request
+  role: "assistant",                       // Always "assistant"
+  timestamp: 1707385649000,                // Current time (milliseconds)
+  createdAt: new Date(),                   // Current date
+  senderType: "admin_reply",               // To mark as admin reply
+  adminUserId: "user_456"                  // Optional: from JWT token
+}
+
+
+📋 IMPLEMENTATION CHECKLIST
+================================================================================
+
+1. Create endpoint at POST /v1/api/n8n/authenticated/chatbot-reply
+2. Verify JWT token from Authorization header
+3. Validate all input fields
+4. Check conversation exists in database
+5. Check conversation belongs to chatbot
+6. Generate unique messageId
+7. Get current server timestamp
+8. Save message to database
+9. Return success response with messageId
+10. Handle errors and return appropriate HTTP status codes
+
+
+🧪 QUICK TEST
+================================================================================
+
+curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversationId": "conv_123",
+    "chatbotId": "chatbot_123",
+    "message": "Thank you!",
+    "role": "assistant"
+  }'
+
+
+📚 DOCUMENTATION FILES
+================================================================================
+
+1. BACKEND_ENDPOINT_REQUIREMENTS.md
+   - Complete specification
+   - All error scenarios
+   - Example implementation in Node.js
+   - Full test cases
+
+2. ENDPOINT_QUICK_REFERENCE.md
+   - Quick copy-paste guide
+   - Minimal implementation example
+   - Key points checklist
+
+3. CHATBOT_REPLY_API.md
+   - Full API documentation
+   - Examples in cURL, JavaScript, Python
+   - Security considerations
+
+4. CHATBOT_REPLY_FEATURE.md
+   - Frontend integration overview
+   - How the feature works
+   - Testing checklist
+
+
+🎯 IMPORTANT POINTS
+================================================================================
+
+1. Always return "success" field (true/false)
+2. Always return "timestamp" in milliseconds
+3. Return correct HTTP status codes (200, 400, 401, 404, 500)
+4. Save to database BEFORE responding
+5. Generate unique messageId
+6. Verify conversation exists
+7. Check chatbotId matches conversation
+8. Validate message is not empty
+9. Response time should be < 500ms
+
+
+🚀 STATUS
+================================================================================
+
+Frontend: ✅ COMPLETE
+Backend:  ⏳ READY FOR IMPLEMENTATION
+
+The frontend is ready and waiting for this endpoint to be implemented!
+
+
+📞 QUESTIONS?
+================================================================================
+
+See BACKEND_ENDPOINT_REQUIREMENTS.md for detailed information.
+
+Created: February 11, 2026

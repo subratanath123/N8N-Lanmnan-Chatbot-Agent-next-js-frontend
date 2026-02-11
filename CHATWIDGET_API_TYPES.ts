@@ -138,7 +138,8 @@ export const handleChatWidgetRequest = async (
   }
 
   // Generate AI response based on message and attachments
-  const aiResponse = await generateAIResponse(message, attachments);
+  // TODO: Implement your own AI response generation
+  const aiResponse = "AI response would be generated here based on message and attachments";
 
   // Return response with one of the expected fields
   return {
