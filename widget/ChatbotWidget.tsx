@@ -9,6 +9,13 @@ interface Message {
   createdAt: Date;
   sessionId?: string;
   chatbotId?: string;
+  attachments?: Array<{
+    fileId: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    downloadUrl: string;
+  }>;
 }
 
 interface UserChatHistory {
@@ -652,6 +659,9 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     
     if ((!inputValue.trim() && !hasAttachments) || isLoading) return;
 
+    // Get file attachments for the message
+    const fileAttachments = attachments.filter(f => f && 'fileId' in f) as any[];
+
     const userMessage: Message = {
       id: Date.now().toString(),
       content: inputValue.trim() || (hasAttachments ? `Shared ${attachments.length} file(s)` : ''),
@@ -659,6 +669,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       createdAt: new Date(),
       sessionId: sessionIdRef.current,
       chatbotId: config.chatbotId,
+      attachments: fileAttachments.length > 0 ? fileAttachments : undefined, // Store attachments in message
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -666,8 +677,6 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     setIsLoading(true);
 
     try {
-      // Use already-uploaded files (they have fileId property)
-      const fileAttachments = attachments.filter(f => f && 'fileId' in f) as any[];
 
       // Build JSON payload with fileAttachments
       const payload = {
@@ -1098,6 +1107,64 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                   }}
               >
                 <MessageContent content={message.content} />
+                {/* Display attachments if present */}
+                {message.attachments && message.attachments.length > 0 && (
+                  <div style={{
+                    marginTop: '10px',
+                    paddingTop: '10px',
+                    borderTop: `1px solid ${message.role === 'user' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)'}`,
+                  }}>
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      marginBottom: '6px',
+                      opacity: 0.8,
+                    }}>
+                      📎 Attachments
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '6px',
+                    }}>
+                      {message.attachments.map((file, idx) => (
+                        <a
+                          key={idx}
+                          href={file.downloadUrl}
+                          download={file.fileName}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 8px',
+                            backgroundColor: message.role === 'user' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            color: message.role === 'user' ? 'white' : '#333',
+                            textDecoration: 'none',
+                            border: `1px solid ${message.role === 'user' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)'}`,
+                            cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = message.role === 'user' 
+                              ? 'rgba(255, 255, 255, 0.25)' 
+                              : 'rgba(0, 0, 0, 0.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = message.role === 'user' 
+                              ? 'rgba(255, 255, 255, 0.15)' 
+                              : 'rgba(0, 0, 0, 0.05)';
+                          }}
+                        >
+                          <span>⬇️</span>
+                          <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {file.fileName}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
         ))}
