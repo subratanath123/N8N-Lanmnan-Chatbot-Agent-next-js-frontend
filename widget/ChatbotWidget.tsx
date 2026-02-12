@@ -862,12 +862,14 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           "ul", "ol", "li",
           "h1", "h2", "h3",
           "blockquote", "table", "thead", "tbody", "tr", "th", "td",
-          "a"
+          "a", "img", "div"
         ],
         allowedAttributes: {
           a: ["href", "target", "rel"],
+          img: ["src", "alt", "class", "style"],
+          div: ["class", "style"],
         },
-        allowedSchemes: ["http", "https", "mailto"],
+        allowedSchemes: ["http", "https", "mailto", "data"],
         transformTags: {
           a: sanitizeHtml.simpleTransform("a", {
             target: "_blank",
@@ -876,10 +878,16 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         },
       });
 
+      // Wrap consecutive img tags in a scrollable catalog div when backend doesn't provide one
+      const withCatalogWrap = clean.replace(
+        /(<img[^>]*>)(\s*<img[^>]*>)+/g,
+        (match) => `<div class="image-catalog">${match}</div>`
+      );
+
       return (
           <div
               className="chatbot-html-content"
-              dangerouslySetInnerHTML={{ __html: clean }}
+              dangerouslySetInnerHTML={{ __html: withCatalogWrap }}
           />
       );
     }
@@ -962,6 +970,35 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           background: rgba(0, 0, 0, 0.05);
           font-weight: 600;
           font-family: "Poppins", sans-serif;
+        }
+        /* Image catalog / product catalog in chatbot reply - scrollbar support */
+        .chatbot-html-content img {
+          max-width: 100%;
+          max-height: 140px;
+          object-fit: contain;
+          border-radius: 8px;
+          vertical-align: middle;
+        }
+        .chatbot-html-content .image-catalog,
+        .chatbot-html-content .product-catalog,
+        .chatbot-html-content .product-catalogue,
+        .chatbot-html-content [class*="catalog"] {
+          max-height: 280px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          padding: 8px 0;
+          margin: 12px 0 0;
+          -webkit-overflow-scrolling: touch;
+        }
+        .chatbot-html-content .image-catalog img,
+        .chatbot-html-content .product-catalog img,
+        .chatbot-html-content .product-catalogue img {
+          max-width: 100px;
+          max-height: 100px;
+          flex-shrink: 0;
         }
       `}</style>
       <div style={{
