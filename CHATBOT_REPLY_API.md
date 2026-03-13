@@ -104,7 +104,7 @@ Content-Type: application/json
 ### Using cURL
 
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -119,7 +119,7 @@ curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
 
 ```javascript
 const response = await fetch(
-  'http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply',
+  'http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply',
   {
     method: 'POST',
     headers: {
@@ -145,7 +145,7 @@ console.log('Message sent:', result.messageId);
 import requests
 import json
 
-url = 'http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply'
+url = 'http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply'
 headers = {
     'Authorization': f'Bearer {auth_token}',
     'Content-Type': 'application/json'

@@ -58,10 +58,10 @@ export async function GET(request: NextRequest) {
         try {
           frontendUrl = new URL(referer).origin;
         } catch (e) {
-          frontendUrl = 'http://localhost:3000';
+          frontendUrl = 'https://subratapc.net';
         }
       } else {
-        frontendUrl = 'http://localhost:3000';
+        frontendUrl = 'https://subratapc.net';
       }
     }
     

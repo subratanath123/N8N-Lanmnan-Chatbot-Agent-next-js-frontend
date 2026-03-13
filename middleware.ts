@@ -15,8 +15,13 @@ export default authMiddleware({
     "/api/google-oauth/callback-chatbot",
     "/api/google-oauth/get-tokens",
     "/api/google-oauth/refresh-token",
+    "/auth/social/facebook/authorize",
+    "/auth/social/facebook/callback",
+    "/auth/social/twitter/authorize",
+    "/auth/social/twitter/callback",
     "/oauth-success",
     "/oauth-success-chatbot", // Chatbot owner OAuth success page
+    "/oauth-success-social",  // Social media OAuth success page
     "/oauth-error",
     "/projects/list",
     "/projects/new",
@@ -33,7 +38,12 @@ export default authMiddleware({
     "/api/google-oauth/callback",
     "/api/google-oauth/callback-chatbot",
     "/api/google-oauth/get-tokens",
-    "/api/google-oauth/refresh-token"
+    "/api/google-oauth/refresh-token",
+    "/api/social-auth",
+    "/auth/social/facebook/authorize",
+    "/auth/social/facebook/callback",
+    "/auth/social/twitter/authorize",
+    "/auth/social/twitter/callback"
   ]
 });
 

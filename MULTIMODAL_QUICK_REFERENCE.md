@@ -185,14 +185,14 @@ await sendMessage('Hello', [file1, file2]);
 
 ### Test Anonymous
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{"message":"Hi","attachments":[],"chatbotId":"bot-1","sessionId":"s1"}'
 ```
 
 ### Test Authenticated
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/chat \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"message":"Hi","attachments":[],"chatbotId":"bot-1","sessionId":"s1"}'
@@ -201,7 +201,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/chat \
 ### Test with File (Unix)
 ```bash
 FILE=$(base64 -w 0 < document.pdf)
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message":"Analyze",

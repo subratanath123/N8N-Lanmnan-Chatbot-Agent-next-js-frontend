@@ -66,6 +66,12 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             ]
         },
         {
+            title: 'AI SOCIAL MEDIA',
+            items: [
+                { name: 'Social Media Suite', icon: 'share-alt', href: '/social-media-suite' },
+            ]
+        },
+        {
             title: 'ACCOUNT',
             items: [
                 { name: 'Subscription Plans', icon: 'credit-card', href: '#' },

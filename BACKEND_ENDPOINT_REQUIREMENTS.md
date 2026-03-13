@@ -22,12 +22,12 @@ POST /v1/api/n8n/authenticated/chatbot-reply
 
 ### Base URL
 ```
-http://localhost:8080
+http://subratapc.net:8080
 ```
 
 ### Full URL
 ```
-POST http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply
+POST http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply
 ```
 
 ---
@@ -531,7 +531,7 @@ app.post('/v1/api/n8n/authenticated/chatbot-reply', async (req, res) => {
 
 ### Test 1: Valid Request
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer valid_jwt_token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -545,7 +545,7 @@ curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
 
 ### Test 2: Missing Token
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Content-Type: application/json" \
   -d '{...}'
 ```
@@ -553,7 +553,7 @@ curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
 
 ### Test 3: Empty Message
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer valid_token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -567,7 +567,7 @@ curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
 
 ### Test 4: Invalid Conversation ID
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer valid_token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -581,7 +581,7 @@ curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
 
 ### Test 5: Chatbot ID Mismatch
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer valid_token" \
   -H "Content-Type: application/json" \
   -d '{

@@ -285,7 +285,7 @@ All endpoints are now available at `/api/attachments/` on the frontend:
 
 **Upload:**
 ```bash
-curl -X POST http://localhost:3000/api/attachments/upload \
+curl -X POST https://subratapc.net/api/attachments/upload \
   -F "file=@document.pdf" \
   -F "chatbotId=bot_123" \
   -F "sessionId=sess_456"
@@ -312,7 +312,7 @@ curl -X POST http://localhost:3000/api/attachments/upload \
 
 ```env
 # Backend File API URL (optional)
-NEXT_PUBLIC_ATTACHMENT_API_URL=http://localhost:8080
+NEXT_PUBLIC_ATTACHMENT_API_URL=http://subratapc.net:8080
 
 # Default chatbot ID (optional)
 REACT_APP_CHATBOT_ID=default_bot

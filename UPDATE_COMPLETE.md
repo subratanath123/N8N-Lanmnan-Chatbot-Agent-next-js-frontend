@@ -262,16 +262,16 @@ await sendMultimodalMessageFormData(
 ### Test Endpoints
 ```bash
 # Anonymous endpoint
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
   -F "message=Hello" -F "chatbotId=bot-1" -F "sessionId=sess-1"
 
 # Authenticated endpoint
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer YOUR_JWT" \
   -F "message=Hello" -F "chatbotId=bot-1" -F "sessionId=sess-1"
 
 # With file
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer YOUR_JWT" \
   -F "message=Analyze" -F "chatbotId=bot-1" -F "sessionId=sess-1" \
   -F "files=@document.pdf"

@@ -126,7 +126,7 @@ The widget expects **at least one** of these fields:
 
 ### Test Case 1: Text Message Only
 ```bash
-curl -X POST http://localhost:3000/v1/api/n8n/anonymous/chat \
+curl -X POST https://subratapc.net/v1/api/n8n/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "role": "user",
@@ -142,7 +142,7 @@ curl -X POST http://localhost:3000/v1/api/n8n/anonymous/chat \
 # First, create Base64 of a test file:
 # base64 < test.txt > test.txt.b64
 
-curl -X POST http://localhost:3000/v1/api/n8n/anonymous/chat \
+curl -X POST https://subratapc.net/v1/api/n8n/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "role": "user",
@@ -162,7 +162,7 @@ curl -X POST http://localhost:3000/v1/api/n8n/anonymous/chat \
 
 ### Test Case 3: File Only (No Text)
 ```bash
-curl -X POST http://localhost:3000/v1/api/n8n/anonymous/chat \
+curl -X POST https://subratapc.net/v1/api/n8n/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "role": "user",

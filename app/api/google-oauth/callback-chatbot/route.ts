@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Force dynamic rendering for OAuth routes
+export const dynamic = 'force-dynamic';
+
 /**
  * Google OAuth callback handler for chatbot owners
  * This receives the authorization code from Google, exchanges it for tokens,
@@ -31,10 +34,10 @@ export async function GET(request: NextRequest) {
         try {
           frontendUrl = new URL(referer).origin;
         } catch (e) {
-          frontendUrl = 'http://localhost:3000';
+          frontendUrl = 'https://subratapc.net';
         }
       } else {
-        frontendUrl = 'http://localhost:3000';
+        frontendUrl = 'https://subratapc.net';
       }
     }
     
@@ -110,7 +113,7 @@ export async function GET(request: NextRequest) {
     });
     
     // Store tokens in the backend
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://subratapc.net:8080';
     const backendApiUrl = `${backendUrl}/v1/api/chatbot/google-calendar/${chatbotId}`;
     
     console.log('[callback-chatbot] Storing tokens in backend:', backendApiUrl);
@@ -150,7 +153,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[callback-chatbot] Unexpected error:', error);
     
-    let frontendUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    let frontendUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://subratapc.net').replace(/\/+$/, '');
     return NextResponse.redirect(`${frontendUrl}/oauth-success-chatbot?error=true&message=${encodeURIComponent('Unexpected error occurred')}`);
   }
 }

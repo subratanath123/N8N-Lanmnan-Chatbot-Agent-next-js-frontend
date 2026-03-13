@@ -192,7 +192,7 @@ const { sendMessage, loading, error } = useMultimodalChat(apiUrl, chatbotId);
 
 ### Test Anonymous Endpoint
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Hello",

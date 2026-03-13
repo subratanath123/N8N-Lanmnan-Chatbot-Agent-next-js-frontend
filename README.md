@@ -107,7 +107,7 @@ Retrieves session history and metadata.
    ```
 
 3. **Access the Chat Interface:**
-   Navigate to `http://localhost:3000/openwebui`
+   Navigate to `https://subratapc.net/openwebui`
 
 ## Configuration
 

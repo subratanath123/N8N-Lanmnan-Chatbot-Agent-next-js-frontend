@@ -42,7 +42,7 @@ Consumer → Chatbot Widget → Google OAuth → Callback → Backend Storage �
    - Choose "Web application"
    - Add authorized redirect URIs:
      ```
-     http://localhost:3000/api/google-oauth/callback  (for development)
+     https://subratapc.net/api/google-oauth/callback  (for development)
      https://your-domain.com/api/google-oauth/callback  (for production)
      ```
    - Copy the **Client ID** and **Client Secret**
@@ -57,7 +57,7 @@ GOOGLE_CLIENT_ID=your_google_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 
 # Frontend URL (for OAuth redirects)
-NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000  # Development
+NEXT_PUBLIC_FRONTEND_URL=https://subratapc.net  # Development
 # NEXT_PUBLIC_FRONTEND_URL=https://your-domain.com  # Production
 
 # Backend URL (where tokens are stored)

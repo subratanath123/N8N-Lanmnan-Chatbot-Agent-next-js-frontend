@@ -22,7 +22,7 @@ The **File Attachment API Integration** enables your chat frontend to handle fil
 ### 1. Make Sure Backend is Running
 ```bash
 # Check your File Attachment API is accessible
-curl http://localhost:8080/api/attachments/list/test
+curl http://subratapc.net:8080/api/attachments/list/test
 ```
 
 ### 2. Test in Chat
@@ -197,7 +197,7 @@ Files automatically display in messages with download links:
 ### Environment Variables (Optional)
 ```env
 # Backend File API URL (if using direct URL instead of proxy)
-NEXT_PUBLIC_ATTACHMENT_API_URL=http://localhost:8080
+NEXT_PUBLIC_ATTACHMENT_API_URL=http://subratapc.net:8080
 
 # Default chatbot ID
 REACT_APP_CHATBOT_ID=my_bot_id
@@ -237,7 +237,7 @@ expect(result.fileName).toBe('test.txt');
 ### Q: Files not uploading?
 **A**: Check backend is running:
 ```bash
-curl http://localhost:8080/api/attachments/list/test
+curl http://subratapc.net:8080/api/attachments/list/test
 ```
 
 ### Q: Download links broken?

@@ -443,7 +443,7 @@ try {
 ### Send Text Message
 
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
   -F "message=Hello, world!" \
   -F "chatbotId=bot-1" \
   -F "sessionId=sess-1"
@@ -452,7 +452,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/cha
 ### Send with File
 
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
   -F "message=Analyze this document" \
   -F "chatbotId=bot-1" \
   -F "sessionId=sess-1" \
@@ -462,7 +462,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/cha
 ### Send with Multiple Files
 
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer your-jwt-token" \
   -F "message=Process both documents" \
   -F "chatbotId=bot-1" \
@@ -474,7 +474,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart
 ### With Google OAuth Tokens
 
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer your-jwt-token" \
   -F "message=Process with OAuth" \
   -F "chatbotId=bot-1" \

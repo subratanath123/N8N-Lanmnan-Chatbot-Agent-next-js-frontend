@@ -244,7 +244,7 @@ Configure in `.env.local`:
 
 ```env
 # Optional: Backend API URL (defaults to frontend proxy)
-NEXT_PUBLIC_ATTACHMENT_API_URL=http://localhost:8080
+NEXT_PUBLIC_ATTACHMENT_API_URL=http://subratapc.net:8080
 
 # Default chatbot ID
 REACT_APP_CHATBOT_ID=default_bot

@@ -109,7 +109,7 @@ No configuration needed! It will:
 ### Optional Configuration
 ```env
 # In .env.local
-NEXT_PUBLIC_ATTACHMENT_API_URL=http://localhost:8080
+NEXT_PUBLIC_ATTACHMENT_API_URL=http://subratapc.net:8080
 REACT_APP_CHATBOT_ID=my_bot_id
 ```
 
@@ -258,7 +258,7 @@ Common errors:
 ```
 Check: 
 1. Is backend running?
-2. Can you reach http://localhost:8080/api/attachments/list/test
+2. Can you reach http://subratapc.net:8080/api/attachments/list/test
 3. Check browser console for errors
 4. File size < 15MB?
 ```

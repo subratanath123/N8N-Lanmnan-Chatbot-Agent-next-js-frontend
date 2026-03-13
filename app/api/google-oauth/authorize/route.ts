@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build authorization URL
-    const redirectUri = `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/api/google-oauth/callback`;
+    const redirectUri = `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://subratapc.net'}/api/google-oauth/callback`;
     const state = encodeURIComponent(JSON.stringify({ sessionId, chatbotId }));
     
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');

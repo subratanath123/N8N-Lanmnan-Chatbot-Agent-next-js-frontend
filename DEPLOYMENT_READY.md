@@ -46,7 +46,7 @@ cat QUICK_REFERENCE_MULTIPART.md
 # 2. Copy code snippet for your framework (React, Vue, etc)
 
 # 3. Test with cURL
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
   -F "message=Hello" \
   -F "chatbotId=bot-1" \
   -F "sessionId=sess-1"
@@ -200,13 +200,13 @@ await fetch('/v1/api/n8n/multimodal/authenticated/multipart/chat', {
 ### Verify Installation
 ```bash
 # Test text message (anonymous)
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
   -F "message=Hello" \
   -F "chatbotId=bot-1" \
   -F "sessionId=sess-1"
 
 # Test with file (authenticated)
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -F "message=Analyze" \
   -F "chatbotId=bot-1" \

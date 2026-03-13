@@ -167,7 +167,7 @@ app.post('/v1/api/n8n/authenticated/chatbot-reply', async (req, res) => {
 ## 🧪 Test with cURL
 
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   -H "Content-Type: application/json" \
   -d '{

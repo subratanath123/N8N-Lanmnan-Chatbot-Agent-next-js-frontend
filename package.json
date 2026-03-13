@@ -3,11 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_EXTRA_CA_CERTS=/usr/local/traffik-ingress/certs/rootCA.pem next dev",
+    "dev:turbo": "NODE_EXTRA_CA_CERTS=/usr/local/traffik-ingress/certs/rootCA.pem next dev --turbo",
     "build": "next build",
     "build:widget": "cd widget && vite build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "NODE_EXTRA_CA_CERTS=/usr/local/traffik-ingress/certs/rootCA.pem next start",
+    "lint": "next lint",
+    "clean": "rm -rf .next",
+    "clean:cache": "rm -rf .next/cache",
+    "fresh": "rm -rf .next node_modules && npm install"
   },
   "dependencies": {
     "@clerk/nextjs": "^4.29.9",

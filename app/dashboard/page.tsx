@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/component/DashboardLayout';
 import LeftSidebar from '@/component/LeftSidebar';
 import { useAuth } from '@clerk/nextjs';
@@ -135,6 +136,15 @@ const setCachedData = <T,>(key: string, data: T): void => {
 
 export default function DashboardPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { isSignedIn, isLoaded } = useAuth();
+  const router = useRouter();
+  
+  // Redirect to home if not authenticated
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push('/');
+    }
+  }, [isLoaded, isSignedIn, router]);
   
   // Separate states for each section
   const [overallStats, setOverallStats] = useState<OverallStats | null>(null);

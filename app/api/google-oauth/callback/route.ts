@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error('Google OAuth error:', error);
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/oauth-error?error=${encodeURIComponent(error)}`
+        `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://subratapc.net'}/oauth-error?error=${encodeURIComponent(error)}`
       );
     }
 
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/api/google-oauth/callback`,
+        redirect_uri: `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://subratapc.net'}/api/google-oauth/callback`,
         grant_type: 'authorization_code',
       }),
     });
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     // Redirect back to the widget with success message
     // The widget will detect the success and update its state
-    const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://subratapc.net';
     return NextResponse.redirect(
       `${frontendUrl}/oauth-success?sessionId=${encodeURIComponent(sessionId)}&chatbotId=${encodeURIComponent(chatbotId)}&oauth-success=true`
     );

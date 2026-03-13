@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { chatbotId } = params;
-    const backendUrl = process.env.NEXT_PUBLIC_ATTACHMENT_API_URL || process.env.ATTACHMENT_API_URL || 'http://localhost:8080';
+    const backendUrl = process.env.NEXT_PUBLIC_ATTACHMENT_API_URL || process.env.ATTACHMENT_API_URL || 'http://subratapc.net:8080';
     
     const response = await fetch(`${backendUrl}/api/attachments/list/${chatbotId}`);
 

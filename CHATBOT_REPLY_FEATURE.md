@@ -192,7 +192,7 @@ Done ✅
 Full documentation available in: `CHATBOT_REPLY_API.md`
 
 Key points:
-- **Base URL**: `http://localhost:8080` (configured in `.env`)
+- **Base URL**: `http://subratapc.net:8080` (configured in `.env`)
 - **Path**: `/v1/api/n8n/authenticated/chatbot-reply`
 - **Method**: `POST`
 - **Auth**: Bearer token (JWT)
@@ -214,7 +214,7 @@ Key points:
 ### Manual Testing Steps
 
 1. **Open admin dashboard**
-   - Go to `http://localhost:3000/ai-chatbots/<id>`
+   - Go to `https://subratapc.net/ai-chatbots/<id>`
 
 2. **Click Conversation History tab**
    - Lists all conversations

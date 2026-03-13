@@ -10,18 +10,31 @@ import {
     MDBNavbarItem,
     MDBNavbarLink
 } from 'mdb-react-ui-kit';
-import {signIn, signOut, useSession} from "next-auth/react";
+import { useAuth, useUser, SignInButton, UserButton } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 
 
 export default function Header() {
     const [showNav, setShowNav] = React.useState(false);
-    const {data: session} = useSession();
+    const { isSignedIn, isLoaded } = useAuth();
+    const { user } = useUser();
+    const router = useRouter();
 
+    // Redirect to home if there's an auth error
+    React.useEffect(() => {
+        if (isLoaded && !isSignedIn) {
+            // Only redirect if we're on a protected route
+            const currentPath = window.location.pathname;
+            if (currentPath !== '/' && !currentPath.startsWith('/oauth-') && !currentPath.startsWith('/auth/')) {
+                router.push('/');
+            }
+        }
+    }, [isLoaded, isSignedIn, router]);
 
     return (
         <MDBNavbar expand='lg' light bgColor='light'>
             <MDBContainer fluid>
-                <MDBNavbarBrand href='#'>
+                <MDBNavbarBrand href='/'>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <img 
                             src="/favicon.png" 
@@ -42,7 +55,7 @@ export default function Header() {
                 <MDBCollapse navbar>
                     <MDBNavbarNav>
                         <MDBNavbarItem>
-                            <MDBNavbarLink active aria-current='page' href='#'>
+                            <MDBNavbarLink active aria-current='page' href='/'>
                                 Home
                             </MDBNavbarLink>
                         </MDBNavbarItem>
@@ -55,29 +68,23 @@ export default function Header() {
                         <MDBNavbarItem>
                             <MDBNavbarLink href='#contact'>Contact</MDBNavbarLink>
                         </MDBNavbarItem>
-                        {
-                            session && session.user &&
-                            <>
-                                <MDBNavbarItem>
-                                    <MDBNavbarLink href='#contact' onClick={() => {
-                                        signOut()
-                                    }}>
-                                        Sign Out ({session.user.name})
+                        {isLoaded && isSignedIn && user && (
+                            <MDBNavbarItem>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px' }}>
+                                    <span style={{ marginRight: '8px' }}>{user.fullName || user.firstName || 'User'}</span>
+                                    <UserButton afterSignOutUrl="/" />
+                                </div>
+                            </MDBNavbarItem>
+                        )}
+                        {isLoaded && !isSignedIn && (
+                            <MDBNavbarItem>
+                                <SignInButton mode="modal" redirectUrl="/dashboard">
+                                    <MDBNavbarLink href='#' onClick={(e) => e.preventDefault()}>
+                                        Sign In
                                     </MDBNavbarLink>
-                                </MDBNavbarItem>
-                            </>
-
-                        }
-                        {
-                            !session?.user &&
-                            <>
-                                <MDBNavbarItem>
-                                    <MDBNavbarLink href='#contact' onClick={()=>{signIn('google')}}>
-                                            Sign In
-                                    </MDBNavbarLink>
-                                </MDBNavbarItem>
-                            </>
-                        }
+                                </SignInButton>
+                            </MDBNavbarItem>
+                        )}
                     </MDBNavbarNav>
                 </MDBCollapse>
             </MDBContainer>

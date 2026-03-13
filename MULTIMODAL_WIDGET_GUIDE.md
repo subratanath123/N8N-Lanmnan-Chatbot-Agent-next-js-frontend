@@ -393,7 +393,7 @@ const config = {
 
 ### Send text message
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Hello",
@@ -406,7 +406,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
 ### Send with file
 ```bash
 FILE=$(base64 -w 0 < document.pdf)
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Analyze this",
@@ -423,12 +423,12 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
 
 ### List attachments
 ```bash
-curl http://localhost:8080/v1/api/n8n/multimodal/attachments/bot-1
+curl http://subratapc.net:8080/v1/api/n8n/multimodal/attachments/bot-1
 ```
 
 ### Delete attachment
 ```bash
-curl -X DELETE http://localhost:8080/v1/api/n8n/multimodal/attachments/bot-1/vectorId-123
+curl -X DELETE http://subratapc.net:8080/v1/api/n8n/multimodal/attachments/bot-1/vectorId-123
 ```
 
 ## Migration from Legacy Endpoints

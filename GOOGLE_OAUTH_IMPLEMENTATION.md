@@ -104,7 +104,7 @@ Your backend must implement these endpoints:
 ```env
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_client_secret
-NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000  # or your production URL
+NEXT_PUBLIC_FRONTEND_URL=https://subratapc.net  # or your production URL
 NEXT_PUBLIC_BACKEND_URL=http://your-backend-url.com
 ```
 

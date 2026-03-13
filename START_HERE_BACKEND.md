@@ -97,7 +97,7 @@ POST /v1/api/n8n/authenticated/chatbot-reply
 ## 🧪 Test It with cURL
 
 ```bash
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

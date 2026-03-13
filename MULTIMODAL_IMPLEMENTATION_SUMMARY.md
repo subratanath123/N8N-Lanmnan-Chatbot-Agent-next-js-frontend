@@ -287,7 +287,7 @@ npm run dev
 ### Test with cURL
 ```bash
 # Send text message
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Hello",
@@ -298,7 +298,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
 
 # Send with file (Unix)
 FILE=$(base64 -w 0 < document.pdf)
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Analyze",

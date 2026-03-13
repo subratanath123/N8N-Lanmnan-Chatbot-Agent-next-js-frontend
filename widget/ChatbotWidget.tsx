@@ -150,7 +150,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         formData.append('sessionId', sessionIdRef.current);
 
         // Use backend File Attachment API directly (port 8080)
-        const attachmentApiUrl = config.apiUrl || 'http://localhost:8080';
+        const attachmentApiUrl = config.apiUrl || 'http://subratapc.net:8080';
         const response = await fetch(`${attachmentApiUrl}/api/attachments/upload`, {
           method: 'POST',
           body: formData,

@@ -12,7 +12,7 @@
         // Load the widget script and initialize when ready
         (function() {
             const script = document.createElement('script');
-            script.src = 'http://localhost:3000/widget-dist/chat-widget.iife.js';
+            script.src = 'https://subratapc.net/widget-dist/chat-widget.iife.js';
             script.onload = function() {
                 console.log('Widget script loaded successfully');
                 // Wait a bit to ensure everything is ready
@@ -34,7 +34,7 @@
                 }, 100);
             };
             script.onerror = function() {
-                console.error('Failed to load widget script from http://localhost:3000/widget-dist/chat-widget.iife.js');
+                console.error('Failed to load widget script from https://subratapc.net/widget-dist/chat-widget.iife.js');
                 console.error('Make sure your Next.js server is running on port 3000');
             };
             document.head.appendChild(script);

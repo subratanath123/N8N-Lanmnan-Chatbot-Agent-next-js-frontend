@@ -150,7 +150,7 @@ Targets: All modern browsers
     <script>
         ChatWidget.render({
             chatbotId: 'my_bot',
-            apiUrl: 'http://localhost:8000',
+            apiUrl: 'http://subratapc.net:8000',
             containerId: 'chat-widget'
         });
     </script>
@@ -288,8 +288,8 @@ npm run build:widget
 # Start the dev server
 npm run dev
 
-# Test at http://localhost:3000
-# Widget file at http://localhost:3000/chat-widget.iife.js
+# Test at https://subratapc.net
+# Widget file at https://subratapc.net/chat-widget.iife.js
 ```
 
 ### Test in Browser Console
@@ -300,7 +300,7 @@ console.log(window.ChatWidget);
 // Initialize manually
 ChatWidget.render({
     chatbotId: 'test_bot',
-    apiUrl: 'http://localhost:8000',
+    apiUrl: 'http://subratapc.net:8000',
     containerId: 'chat-widget'
 });
 ```

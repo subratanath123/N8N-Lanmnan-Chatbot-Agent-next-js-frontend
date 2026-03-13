@@ -47,7 +47,7 @@ The built widget includes:
 ```html
 <script src="https://your-cdn.com/chat-widget.iife.js"></script>
 <!-- OR local path -->
-<script src="http://localhost:3000/widget-dist/chat-widget.iife.js"></script>
+<script src="https://subratapc.net/widget-dist/chat-widget.iife.js"></script>
 ```
 
 #### Step 2: Initialize Widget
@@ -179,7 +179,7 @@ const chat = new ChatWidget(config);
 npm run dev
 
 # Widget will be available at:
-# http://localhost:3000/widget-dist/chat-widget.iife.js
+# https://subratapc.net/widget-dist/chat-widget.iife.js
 ```
 
 ### Test Embedding
@@ -192,7 +192,7 @@ npm run dev
 <body>
   <h1>Chat Widget Test</h1>
   
-  <script src="http://localhost:3000/widget-dist/chat-widget.iife.js"></script>
+  <script src="https://subratapc.net/widget-dist/chat-widget.iife.js"></script>
   <script>
     const chat = new ChatWidget({
       apiBaseUrl: 'https://api.example.com',

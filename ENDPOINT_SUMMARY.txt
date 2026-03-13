@@ -12,8 +12,8 @@ ONE endpoint that allows admins to reply on behalf of chatbots in conversations.
 ================================================================================
 
 URL:        POST /v1/api/n8n/authenticated/chatbot-reply
-Base URL:   http://localhost:8080
-Full URL:   POST http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply
+Base URL:   http://subratapc.net:8080
+Full URL:   POST http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply
 
 Authentication: Bearer JWT Token (in Authorization header)
 
@@ -127,7 +127,7 @@ Save to database:
 🧪 QUICK TEST
 ================================================================================
 
-curl -X POST "http://localhost:8080/v1/api/n8n/authenticated/chatbot-reply" \
+curl -X POST "http://subratapc.net:8080/v1/api/n8n/authenticated/chatbot-reply" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

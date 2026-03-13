@@ -300,7 +300,7 @@ Response: Binary file content
 
 ```env
 # Backend API URL (if not using frontend proxy)
-NEXT_PUBLIC_ATTACHMENT_API_URL=http://localhost:8080
+NEXT_PUBLIC_ATTACHMENT_API_URL=http://subratapc.net:8080
 
 # Default chatbot ID
 REACT_APP_CHATBOT_ID=my_bot_id
@@ -320,7 +320,7 @@ If not configured:
 ### 1. Ensure Backend is Running
 ```bash
 # Make sure your backend File Attachment API is running
-curl http://localhost:8080/api/attachments/list/test
+curl http://subratapc.net:8080/api/attachments/list/test
 ```
 
 ### 2. Test in Chat Interface
@@ -432,7 +432,7 @@ describe('AttachmentService', () => {
 ### Files Not Uploading
 
 **Check:**
-1. Is backend running? `curl http://localhost:8080/api/attachments/list/test`
+1. Is backend running? `curl http://subratapc.net:8080/api/attachments/list/test`
 2. Is chatbotId correct?
 3. File size < 15MB?
 4. Check browser console for errors
@@ -440,7 +440,7 @@ describe('AttachmentService', () => {
 **Fix:**
 ```bash
 # Make sure backend is accessible
-curl -X POST http://localhost:8080/api/attachments/upload \
+curl -X POST http://subratapc.net:8080/api/attachments/upload \
   -F "file=@test.pdf" \
   -F "chatbotId=test" \
   -F "sessionId=test"
@@ -457,7 +457,7 @@ curl -X POST http://localhost:8080/api/attachments/upload \
 **Verify:**
 ```bash
 # Check file exists
-curl http://localhost:8080/api/attachments/metadata/file_id?chatbotId=bot_id
+curl http://subratapc.net:8080/api/attachments/metadata/file_id?chatbotId=bot_id
 ```
 
 ### Slow Performance

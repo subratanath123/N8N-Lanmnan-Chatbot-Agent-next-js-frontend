@@ -174,13 +174,13 @@ const handleSend = async () => {
 
 ```bash
 # Text only
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
   -F "message=Hello" \
   -F "chatbotId=bot-1" \
   -F "sessionId=sess-1"
 
 # With file
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -F "message=Analyze this" \
   -F "chatbotId=bot-1" \
@@ -188,7 +188,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart
   -F "files=@document.pdf"
 
 # Multiple files
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -F "message=Process both" \
   -F "chatbotId=bot-1" \

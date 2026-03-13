@@ -202,7 +202,7 @@ const response = await fetch('/v1/api/n8n/multimodal/authenticated/multipart/cha
 
 ### cURL - Text Message
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/anonymous/multipart/chat \
   -F "message=Hello" \
   -F "chatbotId=bot-1" \
   -F "sessionId=sess-1"
@@ -210,7 +210,7 @@ curl -X POST http://localhost:8080/v1/api/n8n/multimodal/anonymous/multipart/cha
 
 ### cURL - With File
 ```bash
-curl -X POST http://localhost:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
+curl -X POST http://subratapc.net:8080/v1/api/n8n/multimodal/authenticated/multipart/chat \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -F "message=Analyze this" \
   -F "chatbotId=bot-1" \
