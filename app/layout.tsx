@@ -7,9 +7,11 @@ import {MDBCol, MDBContainer, MDBFooter, MDBIcon, MDBRow} from "mdb-react-ui-kit
 
 const roboto = Roboto({weight: "400", subsets: ["latin"]});
 
+const chatbotName = process.env.NEXT_PUBLIC_CHATBOT_NAME || 'JadeAIBot';
+
 export const metadata = {
-    title: "JadeAIBot AI",
-    description: "JadeAIBot AI",
+    title: `${chatbotName} AI`,
+    description: `${chatbotName} AI Platform`,
     icons: {
         icon: [
             { url: '/favicon.png', type: 'image/svg+xml' },

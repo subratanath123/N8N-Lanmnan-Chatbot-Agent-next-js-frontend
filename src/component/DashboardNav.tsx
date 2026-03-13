@@ -17,6 +17,7 @@ import {
 import { useUser, SignOutButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import './dashboard.css';
+import { appConfig } from '@/lib/config';
 
 export default function DashboardNav() {
     const [showNav, setShowNav] = useState(false);
@@ -41,10 +42,10 @@ export default function DashboardNav() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <img 
                                 src="/favicon.png" 
-                                alt="JadeAIBot" 
+                                alt={appConfig.chatbotName} 
                                 style={{ width: '24px', height: '24px' }}
                             />
-                            <span>JadeAIBot AI</span>
+                            <span>{appConfig.chatbotName} AI</span>
                         </div>
                     </MDBNavbarBrand>
                     <div style={{ padding: '8px 16px', color: '#6c757d' }}>

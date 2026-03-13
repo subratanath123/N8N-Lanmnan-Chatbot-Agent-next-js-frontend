@@ -19,6 +19,7 @@ export default function Header() {
     const { isSignedIn, isLoaded } = useAuth();
     const { user } = useUser();
     const router = useRouter();
+    const chatbotName = process.env.NEXT_PUBLIC_CHATBOT_NAME || 'JadeAIBot';
 
     // Redirect to home if there's an auth error
     React.useEffect(() => {
@@ -38,10 +39,10 @@ export default function Header() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <img 
                             src="/favicon.png" 
-                            alt="JadeAIBot" 
+                            alt={chatbotName} 
                             style={{ width: '24px', height: '24px' }}
                         />
-                        <span>JadeAIBot AI</span>
+                        <span>{chatbotName} AI</span>
                     </div>
                 </MDBNavbarBrand>
                 <MDBNavbarToggler

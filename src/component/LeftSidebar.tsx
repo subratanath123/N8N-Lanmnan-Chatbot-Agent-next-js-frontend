@@ -10,6 +10,7 @@ import {
 } from 'mdb-react-ui-kit';
 import { usePathname, useRouter } from 'next/navigation';
 import './dashboard-sidebar.css';
+import { appConfig } from '@/lib/config';
 
 interface NavigationItem {
     name: string;
@@ -91,7 +92,7 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             }}
         >
             <div className="dashboard-sidebar-header">
-                <h5 className="fw-bold mb-0 text-center">Jade AI</h5>
+                <h5 className="fw-bold mb-0 text-center">{appConfig.chatbotName}</h5>
             </div>
 
             <div className="sidebar-navigation">

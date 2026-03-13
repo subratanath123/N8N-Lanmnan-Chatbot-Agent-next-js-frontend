@@ -1,5 +1,6 @@
 import React from 'react';
 import {MDBFooter, MDBContainer, MDBRow, MDBCol, MDBIcon} from 'mdb-react-ui-kit';
+import { appConfig } from '@/lib/config';
 
 export default function Footer() {
     return (
@@ -34,10 +35,10 @@ export default function Footer() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <img 
                                             src="/favicon.png" 
-                                            alt="JadeAIBot" 
+                                            alt={appConfig.chatbotName} 
                                             style={{ width: '20px', height: '20px' }}
                                         />
-                                        <span>JadeAIBot</span>
+                                        <span>{appConfig.chatbotName}</span>
                                     </div>
                                 </h6>
                                 <p>
@@ -75,7 +76,7 @@ export default function Footer() {
                 <div className='text-center p-4' style={{backgroundColor: 'rgba(0, 0, 0, 0.05)'}}>
                     © {new Date().getFullYear()} Copyright:
                     <a className='text-reset fw-bold' href='https://yourwebsite.com/'>
-                        JadeAIBot AI
+                        {appConfig.chatbotName} AI
                     </a>
                 </div>
             </MDBFooter>
