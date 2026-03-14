@@ -366,6 +366,7 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
         fileAttachments: filesToInclude, // Include file attachments with fileIds
         sessionId: sessionIdRef.current,
         chatbotId,
+        model: 'gpt-4o', // Include AI model
       };
 
       const headers: Record<string, string> = {

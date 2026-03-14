@@ -16,6 +16,7 @@ import {
     MDBProgress
 } from 'mdb-react-ui-kit';
 import { useAuth, useUser } from '@clerk/nextjs';
+import { appConfig } from '@/lib/config';
 
 interface ChatbotCreationFormProps {
     onCancel: () => void;
@@ -75,8 +76,8 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const [addedWebsites, setAddedWebsites] = useState<string[]>([]);
     const [addedTexts, setAddedTexts] = useState<string[]>([]);
     const [formData, setFormData] = useState<ChatbotFormData>({
-        title: 'JadeAIBot',
-        name: 'JadeAIBot',
+        title: appConfig.chatbotName,
+        name: appConfig.chatbotName,
         hideName: false,
         instructions: '', // Will be populated from chatbot type
         restrictToDataSource: false,

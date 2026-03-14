@@ -36,6 +36,7 @@ interface ChatbotWidgetConfig {
   frontendUrl?: string; // Optional frontend URL for OAuth endpoints (defaults to window.location.origin)
   width?: number; // Optional widget width in pixels (default: 380)
   height?: number; // Optional widget height in pixels (default: 600)
+  model?: string; // Optional AI model to use (default: 'gpt-4o')
 }
 
 interface ChatbotWidgetProps {
@@ -685,6 +686,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         chatbotId: config.chatbotId,
         sessionId: sessionIdRef.current,
         fileAttachments: fileAttachments, // Use pre-uploaded files
+        model: config.model || 'gpt-4o', // Include AI model (default: gpt-4o)
       };
 
       // Add Google OAuth tokens if available

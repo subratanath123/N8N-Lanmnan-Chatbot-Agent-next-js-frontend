@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { FileAttachment } from './types';
+import { appConfig } from '@/lib/config';
 
 interface ChatInputProps {
   inputValue: string;
@@ -251,7 +252,7 @@ export default function ChatInput({
           <textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask anything to JadeAIBot"
+            placeholder={`Ask anything to ${appConfig.chatbotName}`}
             style={{
               width: '100%',
               padding: '14px 18px',

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, SignInButton } from '@clerk/nextjs';
+import { useAuth, SignInButton, UserButton } from '@clerk/nextjs';
+import { isChatbotOnlyMode, appConfig } from '@/lib/config';
 
 interface LandingMessage {
   id: string;
@@ -101,6 +102,29 @@ export default function HomePage() {
   }>>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    // Load saved model preference from localStorage
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('preferred_model') || 'gpt-4o';
+    }
+    return 'gpt-4o';
+  });
+  const [showModelSelector, setShowModelSelector] = useState(false);
+
+  // Available AI models (OpenAI only)
+  const availableModels = [
+    { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable, latest model' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and efficient' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Advanced reasoning' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast, cost-effective' },
+  ];
+
+  // Save model preference
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('preferred_model', selectedModel);
+    }
+  }, [selectedModel]);
 
   // Load conversations from localStorage on mount
   useEffect(() => {
@@ -135,7 +159,8 @@ export default function HomePage() {
   }, [currentConversationId, conversations]);
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
+    if (isLoaded && isSignedIn && !isChatbotOnlyMode()) {
+      // Only redirect to dashboard if NOT in chatbot-only mode
       router.replace('/dashboard');
     }
   }, [isLoaded, isSignedIn, router]);
@@ -375,6 +400,7 @@ export default function HomePage() {
         role: 'user',
         message: text,
         sessionId,
+        model: selectedModel, // Include selected model
       };
 
       // Add file attachments if any
@@ -479,8 +505,8 @@ export default function HomePage() {
     );
   }
 
-  if (isSignedIn) {
-    // brief placeholder while redirecting
+  if (isSignedIn && !isChatbotOnlyMode()) {
+    // brief placeholder while redirecting (only if NOT in chatbot-only mode)
     return (
       <div
         style={{
@@ -544,50 +570,153 @@ export default function HomePage() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <SignInButton mode="modal" redirectUrl="/dashboard">
-            <button
-              type="button"
-              style={{
-                padding: '8px 16px',
-                borderRadius: 8,
-                border: '1px solid rgba(16,185,129,0.5)',
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                color: '#ffffff',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 4px 10px rgba(37,99,235,0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 6px 16px rgba(37,99,235,0.35)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 10px rgba(37,99,235,0.25)';
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+          {isSignedIn ? (
+            // Logged-in users: show model selector + user button
+            <>
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowModelSelector(!showModelSelector)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(16,185,129,0.5)',
+                    background: '#ffffff',
+                    color: '#065f46',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span>🤖</span>
+                  <span>{availableModels.find(m => m.id === selectedModel)?.name || 'Select Model'}</span>
+                  <span style={{ fontSize: 10 }}>▼</span>
+                </button>
+                
+                {showModelSelector && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: 8,
+                      backgroundColor: '#ffffff',
+                      borderRadius: 12,
+                      border: '1px solid rgba(209,213,219,0.9)',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                      minWidth: 280,
+                      maxHeight: 400,
+                      overflowY: 'auto',
+                      zIndex: 1000,
+                    }}
+                  >
+                    {availableModels.map((model) => (
+                      <button
+                        key={model.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedModel(model.id);
+                          setShowModelSelector(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: selectedModel === model.id ? 'rgba(16,185,129,0.1)' : 'transparent',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid rgba(209,213,219,0.5)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedModel !== model.id) {
+                            e.currentTarget.style.background = 'rgba(243,244,246,0.8)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedModel !== model.id) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>
+                            {model.name}
+                          </span>
+                          {selectedModel === model.id && (
+                            <span style={{ color: '#10b981', fontSize: 16 }}>✓</span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 12, color: '#6b7280' }}>{model.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {isChatbotOnlyMode() && (
+                <UserButton 
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox: "w-10 h-10",
+                    },
+                  }}
+                />
+              )}
+            </>
+          ) : (
+            // Show sign-in button for non-logged-in users
+            <SignInButton mode="modal" redirectUrl={isChatbotOnlyMode() ? "/" : "/dashboard"}>
+              <button
+                type="button"
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(16,185,129,0.5)',
+                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(37,99,235,0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(37,99,235,0.35)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 10px rgba(37,99,235,0.25)';
+                }}
               >
-                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                <polyline points="10 17 15 12 10 7" />
-                <line x1="15" y1="12" x2="3" y2="12" />
-              </svg>
-              Sign In to Platform
-            </button>
-          </SignInButton>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                Sign In{isChatbotOnlyMode() ? '' : ' to Platform'}
+              </button>
+            </SignInButton>
+          )}
         </div>
       </header>
 

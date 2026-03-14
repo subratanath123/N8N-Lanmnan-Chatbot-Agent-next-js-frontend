@@ -1,6 +1,35 @@
 import { authMiddleware } from "@clerk/nextjs";
+import { NextResponse } from "next/server";
+
+// Check if chatbot-only mode (Lamnan)
+const isChatbotOnlyMode = () => {
+  return process.env.NEXT_PUBLIC_CHATBOT_NAME?.toLowerCase() === 'lamnan';
+};
 
 export default authMiddleware({
+  // Add beforeAuth to check chatbot-only mode restrictions
+  beforeAuth: (req) => {
+    if (isChatbotOnlyMode()) {
+      const { pathname } = req.nextUrl;
+      
+      // Allow only root page and essential API routes in chatbot-only mode
+      const allowedPaths = [
+        '/',
+        '/api/attachments',
+        '/api/webhook/clerk',
+        '/_next',
+        '/favicon',
+      ];
+      
+      const isAllowed = allowedPaths.some(path => pathname === path || pathname.startsWith(path));
+      
+      if (!isAllowed) {
+        // Redirect to home page for any unauthorized route
+        return NextResponse.redirect(new URL('/', req.url));
+      }
+    }
+  },
+  
   // Public routes that don't require authentication
   publicRoutes: [
     "/",
