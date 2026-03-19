@@ -251,7 +251,6 @@ export default function ChatbotDetailPage() {
     const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [avatarError, setAvatarError] = useState<string | null>(null);
-    const [avatarCategoryEdit, setAvatarCategoryEdit] = useState<string>('all');
     
     // Interface for UserChatHistory from API
     interface UserChatHistory {
@@ -1391,42 +1390,12 @@ export default function ChatbotDetailPage() {
     const AVATAR_FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e2e8f0"/><text x="50" y="68" font-size="52" text-anchor="middle">🤖</text></svg>')}`;
 
     const availableAvatars = [
-        // Robot
-        { id: 'bot1',  category: 'robot',       url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80',   label: 'Bot 1' },
-        { id: 'bot2',  category: 'robot',       url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot2&size=80',   label: 'Bot 2' },
-        { id: 'bot3',  category: 'robot',       url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Assistant&size=80',  label: 'Bot 3' },
-        { id: 'bot4',  category: 'robot',       url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Helper&size=80',     label: 'Bot 4' },
-        { id: 'bot5',  category: 'robot',       url: 'https://api.dicebear.com/9.x/bottts/png?seed=Support1&size=80',           label: 'Bot 5' },
-        { id: 'bot6',  category: 'robot',       url: 'https://api.dicebear.com/9.x/bottts/png?seed=Support2&size=80',           label: 'Bot 6' },
-        // Character
-        { id: 'char1', category: 'character',   url: 'https://api.dicebear.com/9.x/adventurer-neutral/png?seed=Jade&size=80',   label: 'Jade' },
-        { id: 'char2', category: 'character',   url: 'https://api.dicebear.com/9.x/adventurer-neutral/png?seed=Alex&size=80',   label: 'Alex' },
-        { id: 'char3', category: 'character',   url: 'https://api.dicebear.com/9.x/adventurer-neutral/png?seed=Sam&size=80',    label: 'Sam' },
-        { id: 'char4', category: 'character',   url: 'https://api.dicebear.com/9.x/adventurer-neutral/png?seed=Riley&size=80',  label: 'Riley' },
-        { id: 'char5', category: 'character',   url: 'https://api.dicebear.com/9.x/adventurer-neutral/png?seed=Morgan&size=80', label: 'Morgan' },
-        { id: 'char6', category: 'character',   url: 'https://api.dicebear.com/9.x/adventurer-neutral/png?seed=Casey&size=80',  label: 'Casey' },
-        // Illustrated
-        { id: 'ill1',  category: 'illustrated', url: 'https://api.dicebear.com/9.x/lorelei-neutral/png?seed=Alice&size=80',     label: 'Alice' },
-        { id: 'ill2',  category: 'illustrated', url: 'https://api.dicebear.com/9.x/lorelei-neutral/png?seed=Bob&size=80',       label: 'Bob' },
-        { id: 'ill3',  category: 'illustrated', url: 'https://api.dicebear.com/9.x/lorelei-neutral/png?seed=Eve&size=80',       label: 'Eve' },
-        { id: 'ill4',  category: 'illustrated', url: 'https://api.dicebear.com/9.x/lorelei-neutral/png?seed=Max&size=80',       label: 'Max' },
-        { id: 'ill5',  category: 'illustrated', url: 'https://api.dicebear.com/9.x/micah/png?seed=Leo&size=80',                 label: 'Leo' },
-        { id: 'ill6',  category: 'illustrated', url: 'https://api.dicebear.com/9.x/micah/png?seed=Mia&size=80',                 label: 'Mia' },
-        // Fun
-        { id: 'fun1',  category: 'fun',         url: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Happy&size=80',           label: 'Happy' },
-        { id: 'fun2',  category: 'fun',         url: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Cool&size=80',            label: 'Cool' },
-        { id: 'fun3',  category: 'fun',         url: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Buddy&size=80',           label: 'Buddy' },
-        { id: 'fun4',  category: 'fun',         url: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Sunny&size=80',           label: 'Sunny' },
-        { id: 'fun5',  category: 'fun',         url: 'https://api.dicebear.com/9.x/thumbs/png?seed=Wave&size=80',               label: 'Wave' },
-        { id: 'fun6',  category: 'fun',         url: 'https://api.dicebear.com/9.x/thumbs/png?seed=Star&size=80',               label: 'Star' },
-    ];
-
-    const AVATAR_CATEGORIES_EDIT = [
-        { id: 'all',         label: 'All' },
-        { id: 'robot',       label: '🤖 Robot' },
-        { id: 'character',   label: '🧑 Character' },
-        { id: 'illustrated', label: '🎨 Illustrated' },
-        { id: 'fun',         label: '😄 Fun' },
+        { id: 'bot1', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80', label: 'Chatbot 1' },
+        { id: 'bot2', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot2&size=80', label: 'Chatbot 2' },
+        { id: 'bot3', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot3&size=80', label: 'Chatbot 3' },
+        { id: 'bot4', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support1&size=80', label: 'Support 1' },
+        { id: 'bot5', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support2&size=80', label: 'Support 2' },
+        { id: 'bot6', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Assistant&size=80', label: 'Assistant' },
     ];
 
     const CHAT_SKINS = [
@@ -2378,30 +2347,10 @@ export default function ChatbotDetailPage() {
                                         {/* AI Avatar */}
                                         <div className="mb-3">
                                             <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>AI Avatar</label>
-
-                                            {/* Category filter */}
-                                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                                                {AVATAR_CATEGORIES_EDIT.map((cat) => (
-                                                    <button
-                                                        key={cat.id}
-                                                        type="button"
-                                                        onClick={() => setAvatarCategoryEdit(cat.id)}
-                                                        style={{
-                                                            padding: '3px 10px', borderRadius: '999px',
-                                                            border: avatarCategoryEdit === cat.id ? '1.5px solid #3b82f6' : '1.5px solid #e2e8f0',
-                                                            background: avatarCategoryEdit === cat.id ? '#eff6ff' : '#f9fafb',
-                                                            color: avatarCategoryEdit === cat.id ? '#2563eb' : '#64748b',
-                                                            fontSize: '11px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s',
-                                                        }}
-                                                    >{cat.label}</button>
-                                                ))}
-                                            </div>
-
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 36px)', gap: '8px', alignItems: 'center' }}>
-                                                {(avatarCategoryEdit === 'all' ? availableAvatars : availableAvatars.filter(a => a.category === avatarCategoryEdit)).map((avatar) => (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                                                {availableAvatars.map((avatar) => (
                                                     <div
                                                         key={avatar.id}
-                                                        title={avatar.label}
                                                         onClick={() => {
                                                             setEditedChatbot((prev) => prev ? { ...prev, aiAvatar: avatar.url, avatarFileId: undefined } : null);
                                                             setUploadedAvatarUrl(null);
@@ -2412,8 +2361,6 @@ export default function ChatbotDetailPage() {
                                                             cursor: 'pointer', overflow: 'hidden', transition: 'all 0.2s ease',
                                                             boxShadow: (editedChatbot?.avatarFileId ? false : editedChatbot?.aiAvatar === avatar.url) ? '0 4px 12px rgba(59,130,246,0.3)' : 'none',
                                                         }}
-                                                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.12)'; }}
-                                                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                                                     >
                                                         <img
                                                             src={avatar.url}
