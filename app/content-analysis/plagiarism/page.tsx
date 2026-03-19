@@ -238,27 +238,26 @@ ${contentText}`;
 
         {/* ── Header ── */}
         <div style={{
-          background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%)",
-          padding: "32px 36px 28px", color: "#fff",
-          boxShadow: "0 4px 20px rgba(30,58,138,0.35)",
+          padding: "28px 36px 24px",
+          borderBottom: "1px solid #e2e8f0",
         }}>
-          <div style={{ fontSize: "12px", opacity: 0.65, marginBottom: "8px", letterSpacing: "0.04em" }}>
+          <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "8px", letterSpacing: "0.04em" }}>
             Home › Content Analysis › Plagiarism
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
             <div style={{
               width: "48px", height: "48px", borderRadius: "14px",
-              background: "rgba(255,255,255,0.15)", display: "flex",
+              background: "#eff6ff", display: "flex",
               alignItems: "center", justifyContent: "center", flexShrink: 0,
             }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
                 <path d="M11 7v8M7 11h8" />
               </svg>
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, letterSpacing: "-0.02em" }}>Plagiarism Checker</h1>
-              <p style={{ margin: "4px 0 0", fontSize: "13px", opacity: 0.7 }}>
+              <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a" }}>Plagiarism Checker</h1>
+              <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>
                 Detect copied or duplicated content in seconds
               </p>
             </div>
