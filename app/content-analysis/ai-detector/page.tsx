@@ -72,7 +72,6 @@ interface AIDetectorResult {
   indicators: string[];
 }
 
-const CHATBOT_ID = "ai-content-detector";
 const CREDITS_BALANCE = 30;
 
 export default function AIDetectorPage() {
@@ -125,7 +124,7 @@ ${contentText}`;
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
       const response = await fetch(
-        `${backendUrl}/v1/api/n8n/anonymous/chat`,
+        `${backendUrl}/v1/api/n8n/anonymous/chat/generic`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -133,7 +132,6 @@ ${contentText}`;
             role: "user",
             message: prompt,
             sessionId: sessionIdRef.current,
-            chatbotId: CHATBOT_ID,
             model: "gpt-4o",
           }),
         }
@@ -141,22 +139,33 @@ ${contentText}`;
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-      const data = await response.json();
+      const rawText = await response.text();
+      let data: Record<string, unknown>;
+      try { data = rawText ? JSON.parse(rawText) : {}; } catch { data = {}; }
 
       let text: string =
-        (typeof data.output === "string" ? data.output : "") ||
-        (typeof data.data === "string" ? data.data : "") ||
-        (typeof data.message === "string" ? data.message : "") ||
-        (typeof data.responseContent === "string"
-          ? data.responseContent
+        (data?.result && typeof data.result === "object" && typeof (data.result as Record<string,unknown>).response === "string"
+          ? (data.result as Record<string,unknown>).response as string
           : "") ||
+        (typeof data?.result === "string" ? data.result : "") ||
+        (typeof data?.output === "string" ? data.output : "") ||
+        (typeof data?.message === "string" ? data.message : "") ||
+        (typeof data?.response === "string" ? data.response : "") ||
+        (typeof data?.answer === "string" ? data.answer : "") ||
+        (typeof data?.responseContent === "string" ? data.responseContent : "") ||
         "";
 
-      if (text.startsWith('"') && text.endsWith('"')) {
-        try { text = JSON.parse(text); } catch { /* ignore */ }
-      }
-      if (typeof text === "object" && (text as { output?: string }).output) {
-        text = (text as { output: string }).output;
+      // Unwrap nested JSON string
+      if (text && text.trim().startsWith("{")) {
+        try {
+          const inner = JSON.parse(text) as Record<string, unknown>;
+          text =
+            (typeof inner.result === "string" ? inner.result : "") ||
+            (typeof inner.output === "string" ? inner.output : "") ||
+            (typeof inner.response === "string" ? inner.response : "") ||
+            (typeof inner.message === "string" ? inner.message : "") ||
+            text;
+        } catch { /* keep original */ }
       }
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
