@@ -871,9 +871,83 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                     {/* Colors Section */}
                     <div className="mb-3">
                         <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>
-                            Colors
+                            Skin
                         </label>
-                        <small className="text-muted d-block mb-2">Customize color styles for chatbot widget</small>
+                        <small className="text-muted d-block mb-2">Pick a preset skin or fine-tune individual colors below</small>
+
+                        {/* ── Preset skins ── */}
+                        {(() => {
+                            const skins = [
+                                { id: 'midnight', label: 'Midnight',   headerBackground: '#2D3748', headerText: '#FFFFFF', aiBackground: '#F7FAFC', aiText: '#1A202C', userBackground: '#3B82F6', userText: '#FFFFFF' },
+                                { id: 'ocean',    label: 'Ocean',      headerBackground: '#0369a1', headerText: '#FFFFFF', aiBackground: '#f0f9ff', aiText: '#0c4a6e', userBackground: '#0284c7', userText: '#FFFFFF' },
+                                { id: 'forest',   label: 'Forest',     headerBackground: '#166534', headerText: '#FFFFFF', aiBackground: '#f0fdf4', aiText: '#14532d', userBackground: '#16a34a', userText: '#FFFFFF' },
+                                { id: 'sunset',   label: 'Sunset',     headerBackground: '#9a3412', headerText: '#FFFFFF', aiBackground: '#fff7ed', aiText: '#431407', userBackground: '#ea580c', userText: '#FFFFFF' },
+                                { id: 'violet',   label: 'Violet',     headerBackground: '#4c1d95', headerText: '#FFFFFF', aiBackground: '#faf5ff', aiText: '#2e1065', userBackground: '#7c3aed', userText: '#FFFFFF' },
+                                { id: 'rose',     label: 'Rose',       headerBackground: '#9f1239', headerText: '#FFFFFF', aiBackground: '#fff1f2', aiText: '#4c0519', userBackground: '#e11d48', userText: '#FFFFFF' },
+                                { id: 'slate',    label: 'Slate',      headerBackground: '#1e293b', headerText: '#f1f5f9', aiBackground: '#f8fafc', aiText: '#0f172a', userBackground: '#475569', userText: '#FFFFFF' },
+                                { id: 'amber',    label: 'Amber',      headerBackground: '#92400e', headerText: '#fffbeb', aiBackground: '#fffbeb', aiText: '#451a03', userBackground: '#d97706', userText: '#FFFFFF' },
+                                { id: 'candy',    label: 'Candy',      headerBackground: '#ec4899', headerText: '#FFFFFF', aiBackground: '#fdf2f8', aiText: '#831843', userBackground: '#a855f7', userText: '#FFFFFF' },
+                                { id: 'minimal',  label: 'Minimal',    headerBackground: '#FFFFFF', headerText: '#1e293b', aiBackground: '#f8fafc', aiText: '#334155', userBackground: '#e2e8f0', userText: '#334155' },
+                            ];
+                            const isActiveSkin = (s: typeof skins[0]) =>
+                                formData.headerBackground === s.headerBackground &&
+                                formData.userBackground   === s.userBackground;
+                            const applySkin = (s: typeof skins[0]) => {
+                                setFormData((prev) => ({ ...prev, ...s, id: undefined as unknown as string }));
+                            };
+                            return (
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                                    {skins.map((skin) => {
+                                        const active = isActiveSkin(skin);
+                                        return (
+                                            <button
+                                                key={skin.id}
+                                                type="button"
+                                                title={skin.label}
+                                                onClick={() => applySkin(skin)}
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                    padding: '7px 9px',
+                                                    borderRadius: '10px',
+                                                    border: active ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                                                    background: active ? '#eff6ff' : '#fafafa',
+                                                    cursor: 'pointer',
+                                                    boxShadow: active ? '0 0 0 3px rgba(59,130,246,0.15)' : 'none',
+                                                    transition: 'all 0.15s',
+                                                }}
+                                            >
+                                                {/* Mini chat preview */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '46px' }}>
+                                                    {/* Header bar */}
+                                                    <div style={{ height: '10px', borderRadius: '4px 4px 0 0', background: skin.headerBackground }} />
+                                                    {/* AI bubble */}
+                                                    <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+                                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: skin.headerBackground, flexShrink: 0 }} />
+                                                        <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: skin.aiBackground, border: '1px solid rgba(0,0,0,0.07)' }} />
+                                                    </div>
+                                                    {/* User bubble */}
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                        <div style={{ width: '30px', height: '8px', borderRadius: '4px', background: skin.userBackground }} />
+                                                    </div>
+                                                    {/* Input bar */}
+                                                    <div style={{ height: '8px', borderRadius: '0 0 4px 4px', background: '#e2e8f0' }} />
+                                                </div>
+                                                <span style={{ fontSize: '10px', fontWeight: '600', color: active ? '#2563eb' : '#64748b' }}>
+                                                    {skin.label}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+
+                        <label className="form-label" style={{ fontSize: '13px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
+                            Custom Colors
+                        </label>
                         
                         <div className="row g-2 mb-2">
                             <div className="col-6">
