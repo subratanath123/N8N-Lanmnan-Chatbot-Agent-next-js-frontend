@@ -91,7 +91,7 @@ function AdvancedGauge({ targetPercent }: { targetPercent: number }) {
         stroke="rgba(255,255,255,0.92)" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx={cx} cy={cy} r="9" fill="rgba(255,255,255,0.12)" />
       <circle cx={cx} cy={cy} r="5.5" fill="white" />
-      <circle cx={cx} cy={cy} r="2.5" fill="#134e4a" />
+      <circle cx={cx} cy={cy} r="2.5" fill="#1e3a8a" />
 
       <text x={cx} y={cy - 12} textAnchor="middle" fontSize="40" fontWeight="800" fill="white">
         {pct}%
@@ -224,13 +224,13 @@ ${contentText}`;
         onNavItemClick={(_, href) => { if (href && href !== "#") router.push(href); }}
       />
 
-      <div className={`main-content ${sidebarCollapsed ? "collapsed" : ""}`} style={{ overflowY: "auto", background: "#f0fdfa" }}>
+      <div className={`main-content ${sidebarCollapsed ? "collapsed" : ""}`} style={{ overflowY: "auto", background: "#eff6ff" }}>
 
         {/* ── Header ── */}
         <div style={{
-          background: "linear-gradient(135deg, #134e4a 0%, #0f766e 55%, #0d9488 100%)",
+          background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #3b82f6 100%)",
           padding: "32px 36px 28px", color: "#fff",
-          boxShadow: "0 4px 20px rgba(19,78,74,0.35)",
+          boxShadow: "0 4px 20px rgba(30,58,138,0.35)",
         }}>
           <div style={{ fontSize: "12px", opacity: 0.65, marginBottom: "8px", letterSpacing: "0.04em" }}>
             Home › Content Analysis › AI Detector
@@ -260,15 +260,15 @@ ${contentText}`;
 
           {/* Credits bar */}
           <div style={{
-            background: "#fff", borderLeft: "4px solid #0d9488",
+            background: "#fff", borderLeft: "4px solid #3b82f6",
             borderRadius: "12px", padding: "12px 20px", marginBottom: "24px",
             display: "flex", alignItems: "center", gap: "12px",
-            boxShadow: "0 2px 8px rgba(13,148,136,0.1)",
+            boxShadow: "0 2px 8px rgba(59,130,246,0.1)",
           }}>
             <span style={{ fontSize: "18px" }}>⚡</span>
             <span style={{ fontSize: "14px", color: "#374151" }}>
               <strong>Credits Balance:</strong>{" "}
-              <span style={{ color: "#0d9488", fontWeight: 700 }}>30 pages left</span>
+              <span style={{ color: "#3b82f6", fontWeight: 700 }}>30 pages left</span>
             </span>
             <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
               {[
@@ -290,9 +290,9 @@ ${contentText}`;
             {/* Left */}
             <div>
               <div style={{
-                background: "#fff", border: "1.5px solid #99f6e4",
+                background: "#fff", border: "1.5px solid #bfdbfe",
                 borderRadius: "20px", padding: "28px",
-                boxShadow: "0 4px 24px rgba(13,148,136,0.08)",
+                boxShadow: "0 4px 24px rgba(59,130,246,0.08)",
               }}>
                 {/* File upload */}
                 <div style={{ marginBottom: "20px" }}>
@@ -303,8 +303,8 @@ ${contentText}`;
                       onClick={() => fileInputRef.current?.click()}
                       style={{
                         padding: "9px 18px", borderRadius: "10px",
-                        border: "1.5px solid #99f6e4", background: "#f0fdfa",
-                        color: "#0f766e", fontSize: "13px", fontWeight: 700,
+                        border: "1.5px solid #bfdbfe", background: "#eff6ff",
+                        color: "#1d4ed8", fontSize: "13px", fontWeight: 700,
                         cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
                       }}
                     >
@@ -329,8 +329,8 @@ ${contentText}`;
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-                  <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#0d9488" }} />
-                  <label style={{ fontWeight: 700, color: "#134e4a", fontSize: "15px" }}>
+                  <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3b82f6" }} />
+                  <label style={{ fontWeight: 700, color: "#1e3a8a", fontSize: "15px" }}>
                     Content to Analyze *
                   </label>
                 </div>
@@ -343,14 +343,14 @@ ${contentText}`;
                   onChange={(e) => setContentText(e.target.value)}
                   placeholder="Paste your content here to detect AI-generated text…"
                   style={{
-                    width: "100%", border: "1.5px solid #ccfbf1",
+                    width: "100%", border: "1.5px solid #dbeafe",
                     borderRadius: "12px", padding: "16px", fontSize: "14px",
                     color: "#1f2937", resize: "vertical", outline: "none",
                     lineHeight: 1.7, fontFamily: "inherit", boxSizing: "border-box",
-                    background: "#f0fdfa", transition: "border-color 0.2s",
+                    background: "#eff6ff", transition: "border-color 0.2s",
                   }}
-                  onFocus={(e) => (e.target.style.borderColor = "#0d9488")}
-                  onBlur={(e) => (e.target.style.borderColor = "#ccfbf1")}
+                  onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+                  onBlur={(e) => (e.target.style.borderColor = "#dbeafe")}
                 />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
                   <div style={{ display: "flex", gap: "10px" }}>
@@ -385,11 +385,11 @@ ${contentText}`;
                   width: "100%", padding: "16px", borderRadius: "14px", marginTop: "16px",
                   background: isScanning || !contentText.trim()
                     ? "#94a3b8"
-                    : "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
+                    : "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
                   color: "#fff", border: "none", fontWeight: 800, fontSize: "15px",
                   cursor: isScanning || !contentText.trim() ? "not-allowed" : "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
-                  boxShadow: isScanning || !contentText.trim() ? "none" : "0 8px 20px rgba(13,148,136,0.35)",
+                  boxShadow: isScanning || !contentText.trim() ? "none" : "0 8px 20px rgba(59,130,246,0.35)",
                   transition: "all 0.2s", letterSpacing: "0.02em",
                 }}
               >
@@ -413,10 +413,10 @@ ${contentText}`;
               </button>
 
               <div style={{
-                marginTop: "20px", background: "#f0fdfa", border: "1px dashed #5eead4",
+                marginTop: "20px", background: "#eff6ff", border: "1px dashed #93c5fd",
                 borderRadius: "12px", padding: "16px 20px",
               }}>
-                <p style={{ margin: 0, fontSize: "13px", color: "#134e4a", fontWeight: 600, marginBottom: "8px" }}>
+                <p style={{ margin: 0, fontSize: "13px", color: "#1e3a8a", fontWeight: 600, marginBottom: "8px" }}>
                   💡 Tips for best results
                 </p>
                 <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#6b7280", lineHeight: 2 }}>
@@ -429,10 +429,10 @@ ${contentText}`;
 
             {/* Right: Report */}
             <div style={{
-              background: "linear-gradient(160deg, #0a2e2e 0%, #134e4a 50%, #115e59 100%)",
+              background: "linear-gradient(160deg, #0f172a 0%, #1e3a8a 50%, #1e40af 100%)",
               borderRadius: "20px", padding: "24px", color: "#fff",
               position: "sticky", top: "16px",
-              boxShadow: "0 16px 40px rgba(19,78,74,0.4)",
+              boxShadow: "0 16px 40px rgba(30,58,138,0.4)",
             }}>
               <div style={{ textAlign: "center", marginBottom: "4px" }}>
                 <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, letterSpacing: "0.02em" }}>
@@ -489,7 +489,7 @@ ${contentText}`;
                   display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px",
                 }}>
                   <span style={{ opacity: 0.6 }}>Words analyzed</span>
-                  <span style={{ fontWeight: 700, color: "#5eead4" }}>{wordCount.toLocaleString()}</span>
+                  <span style={{ fontWeight: 700, color: "#93c5fd" }}>{wordCount.toLocaleString()}</span>
                 </div>
               )}
 
@@ -535,9 +535,9 @@ ${contentText}`;
                               display: "flex", alignItems: "flex-start", gap: "8px",
                               fontSize: "12px", lineHeight: 1.55,
                               background: "rgba(255,255,255,0.07)", borderRadius: "8px",
-                              padding: "7px 10px", borderLeft: "3px solid #5eead4",
+                              padding: "7px 10px", borderLeft: "3px solid #93c5fd",
                             }}>
-                              <span style={{ color: "#5eead4", fontWeight: 700, flexShrink: 0 }}>›</span>
+                              <span style={{ color: "#93c5fd", fontWeight: 700, flexShrink: 0 }}>›</span>
                               <span style={{ opacity: 0.85 }}>{ind}</span>
                             </div>
                           ))}
