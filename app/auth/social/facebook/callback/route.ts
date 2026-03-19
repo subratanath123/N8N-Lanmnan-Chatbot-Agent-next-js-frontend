@@ -32,18 +32,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!code || !stateParam) {
+    if (!code) {
       return NextResponse.redirect(
-        `${errorUrl}&message=${encodeURIComponent("Missing authorization code or state")}`
+        `${errorUrl}&message=${encodeURIComponent("Missing authorization code")}`
       );
     }
 
-    let clerkToken: string | null = null;
-    try {
-      const stateObj = JSON.parse(decodeURIComponent(stateParam));
-      clerkToken = stateObj.clerkToken;
-    } catch {
-      return NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("Invalid state")}`);
+    // Read clerkToken and CSRF from cookies (set by authorize route)
+    const clerkToken  = request.cookies.get("fb_clerk_token")?.value  || null;
+    const csrfCookie  = request.cookies.get("fb_csrf_state")?.value   || null;
+
+    // CSRF validation — only if both cookie and param are present
+    if (csrfCookie && stateParam && csrfCookie !== stateParam) {
+      return NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("CSRF state mismatch. Please try again.")}`);
     }
 
     const appId = process.env.FACEBOOK_APP_ID;
@@ -180,7 +181,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.redirect(`${successUrl}`);
+    const successRes = NextResponse.redirect(successUrl);
+    successRes.cookies.set("fb_csrf_state",  "", { httpOnly: true, path: "/", maxAge: 0 });
+    successRes.cookies.set("fb_clerk_token", "", { httpOnly: true, path: "/", maxAge: 0 });
+    return successRes;
   } catch (err) {
     console.error("[facebook-callback] Error:", err);
     const errorMessage =

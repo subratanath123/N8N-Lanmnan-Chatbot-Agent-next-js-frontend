@@ -25,7 +25,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=320&q=80',
         accentColor: '#E4EDFF',
         backgroundGradient: 'linear-gradient(180deg, #0f172a 0%, #1e3a8a 100%)',
-        chatbotId: 'support-bot-123',
+        chatbotId: 'support-bot',
         description:
             'Friendly and reliable support companion ready to answer customer questions around the clock with precise, helpful answers.',
         categories: ['Business', 'Coach'],
@@ -38,7 +38,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=320&q=80',
         accentColor: '#E7FFE6',
         backgroundGradient: 'linear-gradient(180deg, #064e3b 0%, #047857 100%)',
-        chatbotId: 'sales-bot-456',
+        chatbotId: 'sales-assistant',
         description:
             'Guides prospects through product benefits, handles objections gracefully, and highlights the perfect plan to close the deal.',
         categories: ['Business'],
@@ -50,7 +50,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=320&q=80',
         accentColor: '#FFE4F0',
         backgroundGradient: 'linear-gradient(180deg, #4c1d95 0%, #7e22ce 100%)',
-        chatbotId: 'hr-bot-789',
+        chatbotId: 'hr-helper',
         description:
             'Keeps your team informed about policies, benefits, and onboarding steps with a personable and approachable tone.',
         categories: ['Specialist', 'Coach'],
@@ -62,7 +62,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=320&q=80',
         accentColor: '#FFF4E5',
         backgroundGradient: 'linear-gradient(180deg, #9a3412 0%, #f97316 100%)',
-        chatbotId: 'relationship-bot-333',
+        chatbotId: 'relationship-coach',
         description:
             'Offers thoughtful relationship guidance, communication tips, and compassionate support during difficult conversations.',
         categories: ['Coach', 'Health'],
@@ -74,7 +74,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=320&q=80',
         accentColor: '#FFF7D6',
         backgroundGradient: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
-        chatbotId: 'trainer-bot-404',
+        chatbotId: 'personal-trainer',
         description:
             'Builds personalized workout plans, keeps you accountable, and celebrates each milestone on your fitness journey.',
         categories: ['Health'],
@@ -86,7 +86,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=320&q=80',
         accentColor: '#F5E8FF',
         backgroundGradient: 'linear-gradient(180deg, #3730a3 0%, #4c1d95 100%)',
-        chatbotId: 'confidence-bot-505',
+        chatbotId: 'confidence-coach',
         description:
             'Provides daily mindset exercises, positive affirmations, and actionable advice to grow lasting confidence.',
         categories: ['Coach'],
@@ -98,7 +98,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=320&q=80',
         accentColor: '#FFF4E5',
         backgroundGradient: 'linear-gradient(180deg, #0f172a 0%, #1f2937 100%)',
-        chatbotId: 'companion-bot-606',
+        chatbotId: 'companion-ally',
         description:
             'Keeps you company with warm conversation, book recommendations, and uplifting reflections throughout the day.',
         categories: ['Leisure'],
@@ -110,7 +110,7 @@ export const assistants: Assistant[] = [
         avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=320&q=80',
         accentColor: '#E4EDFF',
         backgroundGradient: 'linear-gradient(180deg, #0f172a 0%, #2563eb 100%)',
-        chatbotId: 'debate-bot-707',
+        chatbotId: 'debate-mentor',
         description:
             'Sharpens your critical thinking with structured arguments, counterpoints, and persuasive storytelling techniques.',
         categories: ['Specialist', 'Education'],

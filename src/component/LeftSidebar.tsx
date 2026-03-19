@@ -60,10 +60,6 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             title: 'AI CHAT',
             items: [
                 { name: 'AI Chat', icon: 'comments', href: '/ai-chat' },
-                { name: 'Support Chat', icon: 'life-ring', href: '/support-chat' },
-                { name: 'AI Realtime Voice Chat', icon: 'microphone', href: '/ai-voice-chat' },
-                { name: 'AI File Chat', icon: 'file-alt', href: '/ai-file-chat' },
-                { name: 'AI Web Chat', icon: 'globe', href: '/ai-web-chat' },
             ]
         },
         {

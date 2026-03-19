@@ -1,0 +1,26 @@
+---
+description: Keep AI actions fast and cheap for this repo
+alwaysApply: true
+---
+
+# Cost & Performance Guardrails
+
+- **Avoid heavy scans**
+  - Do not search the whole repo if a smaller scope (single file / folder) is enough.
+  - Never read or search inside `node_modules`, `.next`, `public/widget-dist`, or compiled bundles unless the user explicitly asks.
+
+- **Be conservative with builds and dev servers**
+  - Do **not** run `npm run build`, `npm run dev`, or other long-running commands unless the user explicitly asks for them or a build error is blocking progress.
+  - Prefer linting or type-checking a single changed file/module over the entire project when possible.
+
+- **Minimal file reads**
+  - When inspecting a file, read only the portions needed (offset/limit) instead of the entire file if it’s large.
+  - Prefer `Grep` with a tight glob over broad semantic search when looking for exact strings/symbols.
+
+- **Widget / bundle safety**
+  - Treat `public/widget-dist/*` and any generated bundles as read-only; do not edit or reformat them.
+  - Never base new logic on minified bundle code if the original source is available.
+
+- **Reuse context**
+  - Reuse already-open or recently-read files instead of re-reading them from disk when reasoning about ongoing edits.
+

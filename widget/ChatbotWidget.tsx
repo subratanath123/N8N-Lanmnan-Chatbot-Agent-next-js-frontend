@@ -29,6 +29,32 @@ interface UserChatHistory {
   isAnonymous: boolean;
 }
 
+/** Theme/styling for the widget – can come from API or embed config */
+interface WidgetTheme {
+  headerBackground: string;
+  headerText: string;
+  aiBackground: string;
+  aiText: string;
+  userBackground: string;
+  userText: string;
+  widgetPosition: 'left' | 'right';
+  aiAvatar?: string;
+  /** Fallback URL when aiAvatar is from avatarFileId (try backend file if attachments fails) */
+  aiAvatarFallback?: string;
+  hideMainBannerLogo?: boolean;
+}
+
+const DEFAULT_THEME: WidgetTheme = {
+  headerBackground: '#2D3748',
+  headerText: '#FFFFFF',
+  aiBackground: '#F7FAFC',
+  aiText: '#1A202C',
+  userBackground: '#3B82F6',
+  userText: '#FFFFFF',
+  widgetPosition: 'right',
+  hideMainBannerLogo: false,
+};
+
 interface ChatbotWidgetConfig {
   chatbotId: string;
   apiUrl: string;
@@ -37,6 +63,8 @@ interface ChatbotWidgetConfig {
   width?: number; // Optional widget width in pixels (default: 380)
   height?: number; // Optional widget height in pixels (default: 600)
   model?: string; // Optional AI model to use (default: 'gpt-4o')
+  /** Optional theme override; if not set, theme is loaded from GET /v1/api/public/chatbot/:id */
+  theme?: Partial<WidgetTheme>;
 }
 
 interface ChatbotWidgetProps {
@@ -50,6 +78,26 @@ const containsHTML = (text: string): boolean => {
   if (!text) return false;
   const htmlRegex = /<[a-z][\s\S]*>/i;
   return htmlRegex.test(text);
+};
+
+/** Avatar img with fallback: tries attachments URL first, then backend file URL. Calls onResolved when loaded. */
+const AvatarImage: React.FC<{
+  primaryUrl: string;
+  fallbackUrl: string;
+  alt: string;
+  style?: React.CSSProperties;
+  onResolved?: (url: string) => void;
+}> = ({ primaryUrl, fallbackUrl, alt, style, onResolved }) => {
+  const [src, setSrc] = useState(primaryUrl);
+  const [errored, setErrored] = useState(false);
+  const handleError = () => {
+    if (!errored && src === primaryUrl) {
+      setErrored(true);
+      setSrc(fallbackUrl);
+    }
+  };
+  const handleLoad = () => onResolved?.(src);
+  return <img src={src} alt={alt} style={style} onError={handleError} onLoad={handleLoad} />;
 };
 
 interface GoogleTokens {
@@ -67,6 +115,10 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   const [greetingMessage, setGreetingMessage] = useState<string>('');
   const [chatbotWidth, setChatbotWidth] = useState<number | undefined>(config.width);
   const [chatbotHeight, setChatbotHeight] = useState<number | undefined>(config.height);
+  const [widgetTheme, setWidgetTheme] = useState<WidgetTheme>(() => ({
+    ...DEFAULT_THEME,
+    ...config.theme,
+  }));
   const [isLoadingChatbot, setIsLoadingChatbot] = useState(true);
   const [googleTokens, setGoogleTokens] = useState<GoogleTokens | null>(null);
   const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
@@ -77,6 +129,8 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [avatarResolvedUrl, setAvatarResolvedUrl] = useState<string | null>(null);
+  const [isChatbotDisabled, setIsChatbotDisabled] = useState(false);
 
   const getSessionId = (): string => {
     try {
@@ -544,6 +598,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       }
 
       setIsLoadingChatbot(true);
+      setIsChatbotDisabled(false);
       try {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
@@ -560,7 +615,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         });
 
         if (!response.ok) {
-          // If 404 or other error, keep default values
+          setIsChatbotDisabled(false);
           if (response.status === 404) {
             console.warn(`Chatbot ${config.chatbotId} not found, using default values`);
           } else {
@@ -592,9 +647,55 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         if (chatbotData.height !== undefined && chatbotData.height !== null) {
           setChatbotHeight(chatbotData.height);
         }
+
+        // Status: when DISABLED, widget should not allow new messages
+        setIsChatbotDisabled(chatbotData.status === 'DISABLED');
+
+        // Theme / styling from backend (collected in chatbot create form)
+        const themeSource = chatbotData.theme || chatbotData;
+        // avatarFileId can be at root or in theme
+        const avatarFileId = chatbotData.avatarFileId ?? themeSource.avatarFileId;
+        // Resolve aiAvatar: use explicit URL, or construct from avatarFileId when backend returns only fileId
+        // Ignore blob URLs (invalid, e.g. from legacy data) - treat as no avatar
+        const isValidAvatarUrl = (url: string) => url && !url.startsWith('blob:') && (url.startsWith('http://') || url.startsWith('https://'));
+        let aiAvatarUrl: string | undefined = undefined;
+        if (isValidAvatarUrl(themeSource.aiAvatar || '') || isValidAvatarUrl(themeSource.avatarUrl || '')) {
+          aiAvatarUrl = themeSource.aiAvatar || themeSource.avatarUrl;
+        }
+        let aiAvatarFallback: string | undefined;
+        if (!aiAvatarUrl && avatarFileId) {
+          let base = config.apiUrl?.replace(/\/$/, '') || '';
+          const scripts = document.getElementsByTagName('script');
+          for (let i = 0; i < scripts.length; i++) {
+            const src = scripts[i]?.src;
+            if (src && src.includes('chat-widget.iife.js')) {
+              try {
+                base = new URL(src).origin;
+                break;
+              } catch (_) {}
+            }
+          }
+          aiAvatarUrl = `${base}/api/attachments/download/${avatarFileId}?chatbotId=${config.chatbotId}`;
+          aiAvatarFallback = `${base}/api/file/${avatarFileId}`;
+        }
+        const nextTheme: WidgetTheme = {
+          ...DEFAULT_THEME,
+          ...config.theme,
+          headerBackground: themeSource.headerBackground ?? DEFAULT_THEME.headerBackground,
+          headerText: themeSource.headerText ?? DEFAULT_THEME.headerText,
+          aiBackground: themeSource.aiBackground ?? DEFAULT_THEME.aiBackground,
+          aiText: themeSource.aiText ?? DEFAULT_THEME.aiText,
+          userBackground: themeSource.userBackground ?? DEFAULT_THEME.userBackground,
+          userText: themeSource.userText ?? DEFAULT_THEME.userText,
+          widgetPosition: (themeSource.widgetPosition === 'left' ? 'left' : 'right') as 'left' | 'right',
+          aiAvatar: aiAvatarUrl,
+          aiAvatarFallback: aiAvatarFallback,
+          hideMainBannerLogo: themeSource.hideMainBannerLogo ?? DEFAULT_THEME.hideMainBannerLogo,
+        };
+        setWidgetTheme(nextTheme);
       } catch (error) {
         console.error('Error fetching chatbot details:', error);
-        // Keep default values on error - widget will still work with defaults
+        setIsChatbotDisabled(false);
       } finally {
         setIsLoadingChatbot(false);
       }
@@ -602,6 +703,19 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
 
     fetchChatbotDetails();
   }, [config.chatbotId, config.apiUrl, config.authToken]);
+
+  // Preload avatar and reset cache when theme changes
+  useEffect(() => {
+    setAvatarResolvedUrl(null);
+    if (widgetTheme.aiAvatar) {
+      const img = new Image();
+      img.src = widgetTheme.aiAvatar;
+    }
+    if (widgetTheme.aiAvatarFallback) {
+      const img = new Image();
+      img.src = widgetTheme.aiAvatarFallback;
+    }
+  }, [widgetTheme.aiAvatar, widgetTheme.aiAvatarFallback]);
 
   useEffect(() => {
     setIsMinimized(!(startOpen ?? false));
@@ -811,19 +925,19 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       <div style={{
         position: 'fixed',
         bottom: '20px',
-        right: '20px',
+        ...(widgetTheme.widgetPosition === 'left' ? { left: '20px' } : { right: '20px' }),
         zIndex: 9999,
       }}>
         <button
           onClick={() => setIsMinimized(false)}
           style={{
-            background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 50%, #10B981 100%)',
-            color: '#ffffff',
+            background: widgetTheme.headerBackground,
+            color: widgetTheme.headerText,
             border: 'none',
             borderRadius: '999px',
             padding: '16px 26px',
             cursor: 'pointer',
-            boxShadow: '0 18px 36px rgba(79, 70, 229, 0.18)',
+            boxShadow: '0 18px 36px rgba(0, 0, 0, 0.18)',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
@@ -840,7 +954,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'white',
+            color: widgetTheme.headerText,
             fontSize: '14px',
             fontWeight: 'bold',
             flexShrink: 0,
@@ -1006,7 +1120,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       <div style={{
         position: 'fixed',
         bottom: '20px',
-        right: '20px',
+        ...(widgetTheme.widgetPosition === 'left' ? { left: '20px' } : { right: '20px' }),
         width: `${chatbotWidth || config.width || 380}px`,
         height: `${chatbotHeight || config.height || 600}px`,
         background: 'linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%)',
@@ -1021,8 +1135,8 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 50%, #10B981 100%)',
-        color: 'white',
+        background: widgetTheme.headerBackground,
+        color: widgetTheme.headerText,
         padding: '12px 16px',
         display: 'flex',
         justifyContent: 'space-between',
@@ -1030,20 +1144,40 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         borderRadius: '22px 22px 0 0',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '12px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#ffffff',
-            fontSize: '16px',
-            fontWeight: 600,
-          }}>
-            {chatbotName?.charAt(0).toUpperCase() ?? 'C'}
-          </div>
+          {!widgetTheme.hideMainBannerLogo && (
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: widgetTheme.aiAvatar ? 'transparent' : 'rgba(255, 255, 255, 0.2)',
+              color: widgetTheme.headerText,
+              fontSize: '16px',
+              fontWeight: 600,
+            }}>
+              {widgetTheme.aiAvatar ? (
+                avatarResolvedUrl ? (
+                  <img src={avatarResolvedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : widgetTheme.aiAvatarFallback ? (
+                  <AvatarImage
+                    primaryUrl={widgetTheme.aiAvatar}
+                    fallbackUrl={widgetTheme.aiAvatarFallback}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onResolved={setAvatarResolvedUrl}
+                  />
+                ) : (
+                  <img src={widgetTheme.aiAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )
+              ) : (
+                (chatbotName?.charAt(0).toUpperCase() ?? 'C')
+              )}
+            </div>
+          )}
           <div style={{ fontWeight: 600, fontSize: '16px', fontFamily: '"Poppins", sans-serif' }}>{chatbotName}</div>
         </div>
         <button
@@ -1075,18 +1209,44 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         backgroundColor: 'rgba(255,255,255,0.85)',
       }}>
         {messages.length === 0 && !isLoadingChatbot && (
-          <div style={{
-            backgroundColor: '#e0f2fe',
-            color: '#0f172a',
-            borderRadius: '18px',
-            padding: '12px 16px',
-            maxWidth: '80%',
-            boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
-            fontSize: '14px',
-            lineHeight: 1.6,
-            alignSelf: 'flex-start',
-            fontFamily: '"Poppins", sans-serif',
-          }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: widgetTheme.aiAvatar ? 'transparent' : 'rgba(0,0,0,0.1)',
+              color: widgetTheme.headerText,
+              fontSize: '12px',
+              fontWeight: 600,
+            }}>
+              {widgetTheme.aiAvatar ? (
+                avatarResolvedUrl ? (
+                  <img src={avatarResolvedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : widgetTheme.aiAvatarFallback ? (
+                  <AvatarImage primaryUrl={widgetTheme.aiAvatar} fallbackUrl={widgetTheme.aiAvatarFallback} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <img src={widgetTheme.aiAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )
+              ) : (
+                (chatbotName?.charAt(0).toUpperCase() ?? 'C')
+              )}
+            </div>
+            <div style={{
+              backgroundColor: widgetTheme.aiBackground,
+              color: widgetTheme.aiText,
+              borderRadius: '18px',
+              padding: '12px 16px',
+              maxWidth: '80%',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
+              fontSize: '14px',
+              lineHeight: 1.6,
+              fontFamily: '"Poppins", sans-serif',
+            }}>
             {greetingMessage ? (
               <div className={containsHTML(greetingMessage) ? 'chatbot-html-content' : ''}
                 {...(containsHTML(greetingMessage) ? {
@@ -1100,23 +1260,51 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                 <strong style={{ color: '#60a5fa' }}>Hello!</strong> Ask anything about your automation. Adjust the widget size to preview how it will appear on your site.
               </>
             )}
+            </div>
           </div>
         )}
         {messages.length === 0 && isLoadingChatbot && (
-          <div style={{
-            backgroundColor: '#e0f2fe',
-            color: '#0f172a',
-            borderRadius: '18px',
-            padding: '12px 16px',
-            maxWidth: '80%',
-            boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
-            fontSize: '14px',
-            lineHeight: 1.6,
-            textAlign: 'center',
-            alignSelf: 'flex-start',
-            fontFamily: '"Poppins", sans-serif',
-          }}>
-            Loading...
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: widgetTheme.aiAvatar ? 'transparent' : 'rgba(0,0,0,0.1)',
+              color: widgetTheme.headerText,
+              fontSize: '12px',
+              fontWeight: 600,
+            }}>
+              {widgetTheme.aiAvatar ? (
+                avatarResolvedUrl ? (
+                  <img src={avatarResolvedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : widgetTheme.aiAvatarFallback ? (
+                  <AvatarImage primaryUrl={widgetTheme.aiAvatar} fallbackUrl={widgetTheme.aiAvatarFallback} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <img src={widgetTheme.aiAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )
+              ) : (
+                (chatbotName?.charAt(0).toUpperCase() ?? 'C')
+              )}
+            </div>
+            <div style={{
+              backgroundColor: widgetTheme.aiBackground,
+              color: widgetTheme.aiText,
+              borderRadius: '18px',
+              padding: '12px 16px',
+              maxWidth: '80%',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
+              fontSize: '14px',
+              lineHeight: 1.6,
+              textAlign: 'center',
+              fontFamily: '"Poppins", sans-serif',
+            }}>
+              Loading...
+            </div>
           </div>
         )}
 
@@ -1126,22 +1314,54 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                 style={{
                   display: 'flex',
                   justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                  alignItems: 'flex-end',
+                  gap: '8px',
                 }}
             >
+              {message.role === 'assistant' && (
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: widgetTheme.aiAvatar ? 'transparent' : 'rgba(0,0,0,0.1)',
+                  color: widgetTheme.headerText,
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}>
+                  {widgetTheme.aiAvatar ? (
+                    avatarResolvedUrl ? (
+                      <img src={avatarResolvedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : widgetTheme.aiAvatarFallback ? (
+                      <AvatarImage
+                        primaryUrl={widgetTheme.aiAvatar}
+                        fallbackUrl={widgetTheme.aiAvatarFallback}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <img src={widgetTheme.aiAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    )
+                  ) : (
+                    (chatbotName?.charAt(0).toUpperCase() ?? 'C')
+                  )}
+                </div>
+              )}
               <div
                   style={{
                     maxWidth: '80%',
                     padding: '12px 16px',
                     borderRadius: 18,
-                    background:
-                        message.role === 'user'
-                            ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
-                            : '#e0f2fe',
-                    color: message.role === 'user' ? '#fff' : '#0f172a',
+                    background: message.role === 'user' ? widgetTheme.userBackground : widgetTheme.aiBackground,
+                    color: message.role === 'user' ? widgetTheme.userText : widgetTheme.aiText,
                     boxShadow:
                         message.role === 'user'
-                            ? '0 12px 24px rgba(37,99,235,0.22)'
-                            : '0 8px 20px rgba(14,116,144,0.18)',
+                            ? '0 12px 24px rgba(0,0,0,0.12)'
+                            : '0 8px 20px rgba(0,0,0,0.06)',
                     fontFamily: '"Poppins", sans-serif',
                   }}
               >
@@ -1212,28 +1432,62 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           <div style={{
             display: 'flex',
             justifyContent: 'flex-start',
+            alignItems: 'flex-end',
+            gap: '8px',
           }}>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: widgetTheme.aiAvatar ? 'transparent' : 'rgba(0,0,0,0.1)',
+              color: widgetTheme.headerText,
+              fontSize: '12px',
+              fontWeight: 600,
+            }}>
+              {widgetTheme.aiAvatar ? (
+                avatarResolvedUrl ? (
+                  <img src={avatarResolvedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : widgetTheme.aiAvatarFallback ? (
+                  <AvatarImage
+                    primaryUrl={widgetTheme.aiAvatar}
+                    fallbackUrl={widgetTheme.aiAvatarFallback}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <img src={widgetTheme.aiAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )
+              ) : (
+                (chatbotName?.charAt(0).toUpperCase() ?? 'C')
+              )}
+            </div>
             <div style={{
               padding: '12px 16px',
               borderRadius: '18px',
-              backgroundColor: '#e0f2fe',
+              backgroundColor: widgetTheme.aiBackground,
+              color: widgetTheme.aiText,
               display: 'flex',
               gap: '6px',
-              boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
               fontFamily: '"Poppins", sans-serif',
             }}>
               <span style={{
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: '#0ea5e9',
+                backgroundColor: widgetTheme.userBackground,
                 animation: 'bounce 1.4s infinite ease-in-out both',
               }}></span>
               <span style={{
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: '#0ea5e9',
+                backgroundColor: widgetTheme.userBackground,
                 animation: 'bounce 1.4s infinite ease-in-out both',
                 animationDelay: '0.2s',
               }}></span>
@@ -1241,7 +1495,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: '#0ea5e9',
+                backgroundColor: widgetTheme.userBackground,
                 animation: 'bounce 1.4s infinite ease-in-out both',
                 animationDelay: '0.4s',
               }}></span>
@@ -1258,6 +1512,18 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         borderTop: '1px solid rgba(148, 163, 184, 0.25)',
         backgroundColor: '#f1f5f9',
       }}>
+        {isChatbotDisabled ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '16px',
+            color: '#6b7280',
+            fontSize: '14px',
+            fontFamily: '"Poppins", sans-serif',
+          }}>
+            This chatbot is currently unavailable.
+          </div>
+        ) : (
+        <>
         {/* Hidden file input */}
         <input
           ref={fileInputRef}
@@ -1421,8 +1687,8 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             style={{
               background: isLoading || (!inputValue.trim() && attachments.length === 0)
                 ? 'transparent' 
-                : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-              color: 'white',
+                : widgetTheme.userBackground,
+              color: widgetTheme.userText,
               border: 'none',
               borderRadius: '16px',
               padding: '12px 18px',
@@ -1436,6 +1702,8 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             ➤
           </button>
         </form>
+        </>
+        )}
       </div>
 
       <style>{`

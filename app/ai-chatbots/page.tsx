@@ -56,7 +56,7 @@ export default function AIChatbotsPage() {
                     margin-left: 280px;
                     padding: 2rem;
                     min-height: 100vh;
-                    background-color: #ffffff;
+                    background-color: #F8F9FA;
                     transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
                     overflow-x: hidden;
                     position: relative;

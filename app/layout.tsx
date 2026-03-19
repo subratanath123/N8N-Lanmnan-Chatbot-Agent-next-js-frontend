@@ -1,5 +1,6 @@
 import 'mdb-react-ui-kit/dist/css/mdb.min.css'
 import "@fortawesome/fontawesome-free/css/all.min.css"
+import '@/styles/modal-fix.css'
 import {Roboto} from "next/font/google";
 import Providers from "@/component/Providers";
 import React from 'react';

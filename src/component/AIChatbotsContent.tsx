@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+'use client';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import {
     MDBRow,
     MDBCol,
@@ -25,20 +28,76 @@ interface AIChatbotsContentProps {
     embedOrigin?: string;
 }
 
+interface GlobalStats {
+    totalChatbots: number;
+    totalConversations: number;
+    totalMessages: number;
+    activeDomains: number;
+}
+
+interface ChatbotStats {
+    totalConversations: number;
+    totalMessages: number;
+}
+
 export default function AIChatbotsContent({ activeItem, embedOrigin: externalOrigin }: AIChatbotsContentProps) {
     const [showCreationForm, setShowCreationForm] = useState(false);
     const [chatbots, setChatbots] = useState<any[]>([]);
     const [isLoadingChatbots, setIsLoadingChatbots] = useState(false);
+    const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
+    // Per-chatbot stats: { [chatbotId]: { totalConversations, totalMessages } }
+    const [chatbotStats, setChatbotStats] = useState<Record<string, ChatbotStats>>({});
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const [expandedChatbotId, setExpandedChatbotId] = useState<string | null>(null);
     const [copyStates, setCopyStates] = useState<Record<string, 'idle' | 'copied' | 'error'>>({});
     const [resolvedOrigin, setResolvedOrigin] = useState<string>(externalOrigin || '');
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [chatbotToDelete, setChatbotToDelete] = useState<string | null>(null);
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const menuContainerRef = useRef<HTMLDivElement | null>(null);
     const router = useRouter();
+    
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        if (!openMenuId) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
+                setOpenMenuId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [openMenuId]);
     
     // Clerk Authentication
     const { isSignedIn } = useUser();
     const { getToken } = useAuth();
+
+    // Close delete confirmation on Esc
+    useEffect(() => {
+        if (!showDeleteModal) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowDeleteModal(false);
+                setChatbotToDelete(null);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [showDeleteModal]);
+
+    // Close validation errors dialog on Esc
+    useEffect(() => {
+        if (!showErrorModal) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowErrorModal(false);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [showErrorModal]);
 
     const handleCreateChatbot = () => {
         setShowCreationForm(true);
@@ -66,7 +125,19 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                 qaPairs: [],
                 fileIds: chatbotData.fileIds || [],
                 addedWebsites: chatbotData.addedWebsites || [],
-                addedTexts: chatbotData.addedTexts || []
+                addedTexts: chatbotData.addedTexts || [],
+                model: chatbotData.model,
+                widgetPosition: chatbotData.widgetPosition,
+                headerBackground: chatbotData.headerBackground,
+                headerText: chatbotData.headerText,
+                aiBackground: chatbotData.aiBackground,
+                aiText: chatbotData.aiText,
+                userBackground: chatbotData.userBackground,
+                userText: chatbotData.userText,
+                aiAvatar: (typeof chatbotData.aiAvatar === 'string' && !chatbotData.aiAvatar.startsWith('blob:'))
+                    ? chatbotData.aiAvatar
+                    : undefined,
+                avatarFileId: chatbotData.avatarFileId,
             };
 
             // Process QA pairs - remove internal id field
@@ -78,23 +149,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
             }
 
             console.log('Processed chatbot data:', processedData);
-            
-            // Prepare headers with authentication if user is signed in
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-            };
-
-            // Add bearer token if user is signed in
-            if (isSignedIn) {
-                try {
-                    const token = await getToken();
-                    if (token) {
-                        headers['Authorization'] = `Bearer ${token}`;
-                    }
-                } catch (error) {
-                    console.warn('Failed to get auth token:', error);
-                }
-            }
+            const headers = await getAuthHeaders();
 
             // Call the backend API to create the chatbot
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -144,10 +199,17 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
             const result = await response.json();
             console.log('Chatbot created successfully:', result);
             
-            // Refresh the chatbots list
-            await fetchChatbots();
+            // Try to navigate directly to the chatbot details page if we have an ID
+            const createdId = result?.id || result?.chatbotId || result?.botId;
+            if (createdId) {
+                setShowCreationForm(false);
+                router.push(`/ai-chatbots/${createdId}`);
+                return;
+            }
             
-            // Close the form on success
+            // Fallback: refresh the chatbots list + stats and close the form
+            await fetchChatbots();
+            fetchStats();
             setShowCreationForm(false);
             
         } catch (error) {
@@ -179,28 +241,80 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
         }
     };
 
+    // Build auth headers helper
+    const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (isSignedIn) {
+            try {
+                const token = await getToken();
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+            } catch (err) {
+                console.warn('Failed to get auth token:', err);
+            }
+        }
+        return headers;
+    }, [isSignedIn, getToken]);
+
+    // Fetch global stats from /v1/api/chatbot/stats
+    const fetchStats = useCallback(async () => {
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            if (!backendUrl) return;
+            const headers = await getAuthHeaders();
+            const res = await fetch(`${backendUrl}/v1/api/chatbot/stats`, { method: 'GET', headers });
+            if (!res.ok) {
+                console.warn('Stats endpoint returned', res.status);
+                return;
+            }
+            const data = await res.json();
+            setGlobalStats({
+                totalChatbots:     data.totalChatbots     ?? 0,
+                totalConversations: data.totalConversations ?? 0,
+                totalMessages:     data.totalMessages     ?? 0,
+                activeDomains:     data.activeDomains     ?? 0,
+            });
+        } catch (err) {
+            console.error('Error fetching chatbot stats:', err);
+        }
+    }, [getAuthHeaders]);
+
+    // Fetch per-chatbot stats in parallel from GET /v1/api/chatbot/{id}/stats
+    const fetchPerChatbotStats = useCallback(async (ids: string[]) => {
+        if (ids.length === 0) return;
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+        if (!backendUrl) return;
+        const headers = await getAuthHeaders();
+
+        const results = await Promise.allSettled(
+            ids.map((id) =>
+                fetch(`${backendUrl}/v1/api/chatbot/${id}/stats`, { method: 'GET', headers })
+                    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+                    .then((data) => ({
+                        id,
+                        totalConversations: data.totalConversations ?? data.conversationCount ?? 0,
+                        totalMessages:      data.totalMessages      ?? data.messageCount      ?? 0,
+                    }))
+            )
+        );
+
+        const map: Record<string, ChatbotStats> = {};
+        results.forEach((result) => {
+            if (result.status === 'fulfilled') {
+                const { id, totalConversations, totalMessages } = result.value;
+                map[id] = { totalConversations, totalMessages };
+            }
+        });
+
+        // Merge into existing map so already-loaded entries aren't wiped
+        setChatbotStats((prev) => ({ ...prev, ...map }));
+    }, [getAuthHeaders]);
+
     // Fetch chatbots from API
     const fetchChatbots = useCallback(async () => {
         setIsLoadingChatbots(true);
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-            
-            // Prepare headers with authentication if user is signed in
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-            };
-
-            // Add bearer token if user is signed in
-            if (isSignedIn) {
-                try {
-                    const token = await getToken();
-                    if (token) {
-                        headers['Authorization'] = `Bearer ${token}`;
-                    }
-                } catch (error) {
-                    console.warn('Failed to get auth token:', error);
-                }
-            }
+            const headers = await getAuthHeaders();
 
             const response = await fetch(`${backendUrl}/v1/api/chatbot/list`, {
                 method: 'GET',
@@ -215,9 +329,6 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
             const result = await response.json();
             console.log('Chatbots fetched:', result);
             
-            // Handle different response formats
-            // Expected backend response format: List<ChatBotCreationResponse>
-            // Could be wrapped in { data: [...] } or return array directly
             let chatbotList = [];
             if (Array.isArray(result)) {
                 chatbotList = result;
@@ -228,19 +339,23 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
             }
             
             setChatbots(chatbotList);
+
+            // Fire per-chatbot stats requests right after list is ready
+            const ids: string[] = chatbotList.map((b: any) => b.id).filter(Boolean);
+            fetchPerChatbotStats(ids);
             
         } catch (error) {
             console.error('Error fetching chatbots:', error);
         } finally {
             setIsLoadingChatbots(false);
         }
-    }, [isSignedIn, getToken]);
+    }, [getAuthHeaders, fetchPerChatbotStats]);
 
-    // Fetch chatbots on component mount and when activeItem changes
+    // Fetch chatbots + stats on mount and when activeItem changes
     useEffect(() => {
-        // Always fetch chatbots when component mounts or activeItem is dashboard/chatbots
         fetchChatbots();
-    }, [activeItem, fetchChatbots]);
+        fetchStats();
+    }, [activeItem, fetchChatbots, fetchStats]);
 
     useEffect(() => {
         if (externalOrigin) {
@@ -299,27 +414,47 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
         router.push(`/ai-chatbots/${chatbotId}`);
     };
 
+    // Handle delete chatbot
+    const handleDeleteChatbot = async (chatbotId: string) => {
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+            if (!backendUrl) throw new Error('Backend URL is not configured');
+            const headers = await getAuthHeaders();
+
+            const response = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}`, {
+                method: 'DELETE',
+                headers,
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete chatbot');
+            }
+
+            // Remove from local state, clean up its stats entry, refresh global stats
+            setChatbots((prev) => {
+                const next = prev.filter(bot => bot.id !== chatbotId);
+                return next;
+            });
+            setChatbotStats((prev) => {
+                const next = { ...prev };
+                delete next[chatbotId];
+                return next;
+            });
+            setShowDeleteModal(false);
+            setChatbotToDelete(null);
+            fetchStats();
+        } catch (error) {
+            console.error('Error deleting chatbot:', error);
+            alert('Failed to delete chatbot');
+        }
+    };
+
     // Handle enable/disable toggle
     const handleToggleEnabled = async (chatbotId: string, currentStatus: string) => {
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
             const newStatus = currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-            
-            // Prepare headers with authentication
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-            };
-
-            if (isSignedIn) {
-                try {
-                    const token = await getToken();
-                    if (token) {
-                        headers['Authorization'] = `Bearer ${token}`;
-                    }
-                } catch (error) {
-                    console.warn('Failed to get auth token:', error);
-                }
-            }
+            const headers = await getAuthHeaders();
 
             const response = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}/toggle`, {
                 method: 'PUT',
@@ -341,184 +476,131 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
         }
     };
 
-    const renderDashboardContent = () => (
+    const renderDashboardContent = () => {
+        // Use stats from the dedicated endpoint; fall back to local counts while loading
+        const statsLoaded = globalStats !== null;
+        const statItems = [
+            {
+                label: 'Total Chatbots',
+                value: statsLoaded ? globalStats!.totalChatbots : chatbots.length,
+            },
+            {
+                label: 'Total Conversations',
+                value: statsLoaded ? globalStats!.totalConversations : 0,
+            },
+            {
+                label: 'Total Messages',
+                value: statsLoaded ? globalStats!.totalMessages : 0,
+            },
+            {
+                label: 'Active Domains',
+                value: statsLoaded ? globalStats!.activeDomains : chatbots.filter(b => b.status === 'ACTIVE').length,
+            },
+        ];
+
+        return (
         <>
-            {/* AI Chatbots Header */}
-            <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'flex-start',
-                marginBottom: '32px'
+            <style>{`
+                .ai-chatbots-stats { display: grid; grid-template-columns: repeat(4, 1fr); }
+                .ai-chatbots-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+                @media (max-width: 1200px) {
+                    .ai-chatbots-stats { grid-template-columns: repeat(2, 1fr); }
+                    .ai-chatbots-grid { grid-template-columns: repeat(2, 1fr); }
+                }
+                @media (max-width: 768px) {
+                    .ai-chatbots-stats { grid-template-columns: 1fr; }
+                    .ai-chatbots-grid { grid-template-columns: 1fr; }
+                }
+            `}</style>
+            {/* Page Title */}
+            <h1 style={{ 
+                fontSize: '28px', 
+                fontWeight: '700', 
+                color: '#111827', 
+                margin: '0 0 32px 0' 
             }}>
-                <div>
-                    <h1 style={{ 
-                        fontSize: '32px', 
-                        fontWeight: '700', 
-                        color: '#111827', 
-                        margin: '0 0 8px 0' 
+                AI Chatbots
+            </h1>
+
+            {/* Statistics Section */}
+            <div className="ai-chatbots-stats" style={{
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                padding: '24px 32px',
+                marginBottom: '32px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                border: '1px solid #e5e7eb',
+                gap: 0,
+            }}>
+                {statItems.map((stat, i) => (
+                    <div key={stat.label} style={{
+                        padding: i < statItems.length - 1 ? '0 24px 0 0' : 0,
+                        borderRight: i < statItems.length - 1 ? '1px solid #e5e7eb' : 'none',
                     }}>
-                        Dashboard
-                    </h1>
-                    <p style={{ 
-                        fontSize: '16px', 
-                        color: '#6b7280', 
-                        margin: '0' 
-                    }}>
-                        An overview of your account statistics.
-                    </p>
-                </div>
-                
-                        {/* New Chatbot Button */}
-                        <MDBBtn
-                            color="dark"
-                            outline
-                            onClick={handleCreateChatbot}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '12px 20px',
-                                border: '1px solid #111827',
-                                borderRadius: '8px',
-                                fontSize: '14px',
-                                fontWeight: '500',
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            <MDBIcon icon="plus" size="sm" />
-                            New Chatbot
-                        </MDBBtn>
+                        <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>{stat.label}</div>
+                        <div style={{
+                            fontSize: '28px',
+                            fontWeight: '700',
+                            color: '#2B59C3',
+                            // Subtle skeleton shimmer while stats load
+                            opacity: !statsLoaded ? 0.4 : 1,
+                            transition: 'opacity 0.3s ease',
+                        }}>
+                            {stat.value.toLocaleString()}
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            {/* Statistics Cards */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: '20px',
-                marginBottom: '40px'
-            }}>
-                {/* All Conversations Card */}
-                <div className="stat-card" style={{
-                    border: '1px solid #e5e7eb',
+            {/* Create New Chatbot */}
+            <div
+                onClick={handleCreateChatbot}
+                style={{
+                    backgroundColor: 'white',
                     borderRadius: '12px',
-                    padding: '24px',
-                    backgroundColor: 'white'
-                }}>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '16px'
-                    }}>
-                        <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            color: '#6b7280',
-                            margin: '0'
-                        }}>
-                            All Conversations
-                        </h3>
-                        <a href="#" style={{
-                            fontSize: '12px',
-                            color: '#111827',
-                            textDecoration: 'none',
-                            fontWeight: '500'
-                        }}>
-                            See all &gt;
-                        </a>
-                    </div>
-                    <div style={{
-                        fontSize: '48px',
-                        fontWeight: '700',
-                        color: '#111827',
-                        lineHeight: '1'
-                    }}>
-                        0
-                    </div>
-                </div>
-
-                {/* Total Users Card */}
-                <div className="stat-card" style={{
-                    border: '1px solid #e5e7eb',
+                    padding: '48px 24px',
+                    border: '2px dashed #cbd5e1',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '16px',
+                    marginBottom: '40px',
+                    transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#2B59C3';
+                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                    e.currentTarget.style.backgroundColor = 'white';
+                }}
+            >
+                <div style={{
+                    width: '64px',
+                    height: '64px',
                     borderRadius: '12px',
-                    padding: '24px',
-                    backgroundColor: 'white'
+                    backgroundColor: 'rgba(43, 89, 195, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                 }}>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '16px'
-                    }}>
-                        <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            color: '#6b7280',
-                            margin: '0'
-                        }}>
-                            Total users
-                        </h3>
-                    </div>
-                    <div style={{
-                        fontSize: '48px',
-                        fontWeight: '700',
-                        color: '#111827',
-                        lineHeight: '1'
-                    }}>
-                        0
-                    </div>
+                    <MDBIcon icon="plus" size="2x" style={{ color: '#2B59C3' }} />
                 </div>
-
-                {/* Total Active Bots Card */}
-                <div className="stat-card" style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '12px',
-                    padding: '24px',
-                    backgroundColor: 'white'
-                }}>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '16px'
-                    }}>
-                        <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            color: '#6b7280',
-                            margin: '0'
-                        }}>
-                            Total active bots
-                        </h3>
-                        <a href="#" style={{
-                            fontSize: '12px',
-                            color: '#111827',
-                            textDecoration: 'none',
-                            fontWeight: '500'
-                        }}>
-                            See all &gt;
-                        </a>
-                    </div>
-                    <div style={{
-                        fontSize: '48px',
-                        fontWeight: '700',
-                        color: '#111827',
-                        lineHeight: '1'
-                    }}>
-                        {chatbots.length}
-                    </div>
-                </div>
+                <span style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>Create New Chatbot</span>
             </div>
 
-            {/* Your Chatbots Section */}
+            {/* My Chatbots Section */}
             <div>
                 <h2 style={{
-                    fontSize: '24px',
+                    fontSize: '20px',
                     fontWeight: '600',
                     color: '#111827',
                     margin: '0 0 24px 0'
                 }}>
-                    Your Chatbots
+                    My Chatbots
                 </h2>
 
                 {isLoadingChatbots ? (
@@ -532,104 +614,170 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                         <p style={{ color: '#6b7280' }}>Loading chatbots...</p>
                     </div>
                 ) : chatbots.length > 0 ? (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                        gap: '32px',
+                    <div className="ai-chatbots-grid" style={{
+                        gap: '24px',
                         alignItems: 'stretch'
                     }}>
                         {chatbots.map((chatbot, index) => {
-                            const totalConversations =
-                                chatbot.totalConversations ??
-                                chatbot.conversationCount ??
-                                chatbot.conversations ??
-                                0;
-                            const totalMessages =
-                                chatbot.totalMessages ??
-                                chatbot.messageCount ??
-                                chatbot.messages ??
-                                0;
-
+                            const perStats = chatbotStats[chatbot.id];
+                            // perStats is undefined while the request is in-flight → show skeleton dash
+                            const statsReady = perStats !== undefined;
+                            const totalConversations = perStats?.totalConversations ?? 0;
+                            const totalMessages      = perStats?.totalMessages      ?? 0;
                             const isExpanded = expandedChatbotId === chatbot.id;
+                            const menuOpen = openMenuId === chatbot.id;
 
                             return (
                                 <div
                                     key={chatbot.id || index}
                                     style={{
-                                        border: '1px solid #E5E7EB',
-                                        borderRadius: '20px',
-                                        padding: '28px',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: '12px',
+                                        padding: '24px',
                                         background: '#FFFFFF',
-                                        boxShadow: '0 18px 32px rgba(15, 23, 42, 0.04)',
-                                        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                                        transition: 'box-shadow 0.2s ease',
                                         cursor: 'pointer',
                                         position: 'relative',
-                                        overflow: 'hidden',
+                                        overflow: 'visible',
                                     }}
                                     onClick={() => handleChatbotClick(chatbot.id)}
                                     onMouseEnter={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 22px 45px rgba(15, 23, 42, 0.08)';
-                                        e.currentTarget.style.transform = 'translateY(-4px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
                                     }}
                                     onMouseLeave={(e) => {
-                                        e.currentTarget.style.boxShadow = 'none';
-                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+                                        // Don't close dropdown here - it's below the card, so mouse would leave before click registers
                                     }}
                                 >
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            background: isExpanded ? 'rgba(226, 232, 240, 0.28)' : 'transparent',
-                                            opacity: isExpanded ? 1 : 0,
-                                            transition: 'opacity 0.2s ease',
-                                            pointerEvents: 'none',
-                                        }}
-                                    />
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                                        <div style={{ display: 'flex', gap: '16px', flex: '1 1 auto' }}>
-                                            <div
+                                    {/* Header: Avatar + Menu */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                                        <div style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '50%',
+                                            background: '#F3F4F6',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '16px',
+                                            fontWeight: '600',
+                                            color: '#6b7280',
+                                        }}>
+                                            {(chatbot.title || chatbot.name || 'C').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div ref={menuOpen ? (el) => { menuContainerRef.current = el; } : undefined} style={{ position: 'relative' }}>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenMenuId(menuOpen ? null : chatbot.id);
+                                                }}
                                                 style={{
-                                                    width: '64px',
-                                                    height: '64px',
-                                                    borderRadius: '18px',
-                                                    background: '#F3F4F6',
+                                                    width: '36px',
+                                                    height: '36px',
+                                                    borderRadius: '8px',
+                                                    border: 'none',
+                                                    background: 'rgba(43, 89, 195, 0.1)',
+                                                    color: '#2B59C3',
+                                                    cursor: 'pointer',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    boxShadow: 'inset 0 0 0 1px rgba(148, 163, 184, 0.3)',
+                                                    fontSize: '18px',
                                                 }}
                                             >
-                                                <MDBIcon icon="robot" size="lg" className="text-muted" />
-                                            </div>
-                                            <div>
-                                                <h3
-                                                    style={{
-                                                        fontSize: '20px',
-                                                        fontWeight: 700,
-                                                        color: '#0f172a',
-                                                        margin: '0 0 6px',
-                                                        letterSpacing: '-0.01em',
-                                                    }}
-                                                >
-                                                    {chatbot.title || chatbot.name || `Chatbot ${index + 1}`}
-                                                </h3>
-                                                <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
-                                                    Created on{' '}
-                                                    {chatbot.createdAt
-                                                        ? new Date(chatbot.createdAt).toLocaleDateString(undefined, {
-                                                              day: 'numeric',
-                                                              month: 'long',
-                                                              year: 'numeric',
-                                                          })
-                                                        : 'Unknown'}
-                                                </p>
-                                            </div>
+                                                <MDBIcon icon="ellipsis-v" />
+                                            </button>
+                                            {menuOpen && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: '100%',
+                                                    right: 0,
+                                                    marginTop: '4px',
+                                                    zIndex: 10,
+                                                    backgroundColor: 'white',
+                                                    borderRadius: '8px',
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                                    border: '1px solid #e5e7eb',
+                                                    minWidth: '140px',
+                                                    padding: '4px 0',
+                                                }}>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setOpenMenuId(null);
+                                                            handleToggleEmbed(chatbot.id);
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '8px 16px',
+                                                            border: 'none',
+                                                            background: 'none',
+                                                            textAlign: 'left',
+                                                            fontSize: '14px',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        {isExpanded ? 'Hide Embed' : 'Show Embed'}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setOpenMenuId(null);
+                                                            handleCopyEmbed(chatbot.id);
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '8px 16px',
+                                                            border: 'none',
+                                                            background: 'none',
+                                                            textAlign: 'left',
+                                                            fontSize: '14px',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        Copy Embed
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setOpenMenuId(null);
+                                                            setChatbotToDelete(chatbot.id);
+                                                            setShowDeleteModal(true);
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '8px 16px',
+                                                            border: 'none',
+                                                            background: 'none',
+                                                            textAlign: 'left',
+                                                            fontSize: '14px',
+                                                            color: '#dc2626',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <span style={{ fontSize: '12px', color: '#4b5563' }}>
-                                                {chatbot.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                                            </span>
+                                    </div>
+
+                                    {/* Info: Name, Date, Toggle */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '20px' }}>
+                                        <div>
+                                            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>
+                                                {chatbot.title || chatbot.name || `Chatbot ${index + 1}`}
+                                            </h3>
+                                            <p style={{ margin: 0, color: '#6b7280', fontSize: '13px' }}>
+                                                Created on {chatbot.createdAt
+                                                    ? new Date(chatbot.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+                                                    : 'Unknown'}
+                                            </p>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}
+                                             onClick={(e) => e.stopPropagation()}>
+                                            <span style={{ fontSize: '12px', color: '#6b7280' }}>{chatbot.status === 'ACTIVE' ? 'Active' : 'Inactive'}</span>
                                             <MDBSwitch
                                                 checked={chatbot.status === 'ACTIVE'}
                                                 onChange={(e) => {
@@ -641,71 +789,68 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                         </div>
                                     </div>
 
-                                    <div
-                                        style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                                            gap: '18px',
-                                            paddingTop: '20px',
-                                            marginTop: '20px',
-                                            borderTop: '1px solid #E5E7EB',
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '6px',
-                                                padding: '18px 12px',
-                                                borderRight: '1px solid #E5E7EB',
-                                            }}
-                                        >
-                                            <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#6b7280', letterSpacing: '0.1em', fontWeight: 600 }}>
-                                                Total Conversations
-                                            </span>
-                                            <span style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
-                                                {totalConversations.toLocaleString()}
-                                            </span>
-                                        </div>
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '6px',
-                                                padding: '18px 12px',
-                                            }}
-                                        >
-                                            <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#6b7280', letterSpacing: '0.1em', fontWeight: 600 }}>
-                                                Total Messages
-                                            </span>
-                                            <span style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
-                                                {totalMessages.toLocaleString()}
-                                            </span>
-                                        </div>
+                                    {/* Footer: Stats */}
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: 0,
+                                        paddingTop: '16px',
+                                        borderTop: '1px solid #e5e7eb',
+                                    }}>
+                                        {[
+                                            { label: 'Total Conversations', value: totalConversations, border: true },
+                                            { label: 'Total Messages',      value: totalMessages,      border: false },
+                                        ].map(({ label, value, border }) => (
+                                            <div key={label} style={{
+                                                paddingRight: border ? '16px' : undefined,
+                                                paddingLeft:  border ? undefined : '16px',
+                                                borderRight:  border ? '1px solid #e5e7eb' : 'none',
+                                            }}>
+                                                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>{label}</div>
+                                                {statsReady ? (
+                                                    <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827' }}>
+                                                        {value.toLocaleString()}
+                                                    </div>
+                                                ) : (
+                                                    // Skeleton bar while loading
+                                                    <div style={{
+                                                        height: '24px',
+                                                        width: '48px',
+                                                        borderRadius: '6px',
+                                                        background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
+                                                        backgroundSize: '200% 100%',
+                                                        animation: 'shimmer 1.4s infinite',
+                                                        marginTop: '2px',
+                                                    }} />
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
+                                    <style>{`
+                                        @keyframes shimmer {
+                                            0%   { background-position: 200% 0; }
+                                            100% { background-position: -200% 0; }
+                                        }
+                                    `}</style>
 
                                     {isExpanded && (
                                     <div style={{
                                         marginTop: '18px',
-                                        borderRadius: '16px',
-                                        border: '1px solid rgba(17, 24, 39, 0.25)',
-                                        backgroundColor: '#1F2937',
-                                        color: '#F9FAFB',
-                                        padding: '20px',
+                                        borderRadius: '12px',
+                                        border: '1px solid #e5e7eb',
+                                        backgroundColor: '#f9fafb',
+                                        padding: '16px',
                                         position: 'relative',
-                                        boxShadow: '0 18px 38px rgba(15, 23, 42, 0.35)',
-                                    }}>
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}>
                                         <pre style={{
                                             margin: 0,
                                             whiteSpace: 'pre-wrap',
                                             wordBreak: 'break-word',
-                                            fontSize: '13px',
-                                            lineHeight: 1.7,
-                                            fontFamily: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+                                            fontSize: '12px',
+                                            lineHeight: 1.6,
+                                            fontFamily: 'monospace',
+                                            color: '#374151',
                                         }}>
 {getEmbedCode(chatbot.id, chatbot.embedWidth, chatbot.embedHeight)}
                                         </pre>
@@ -720,7 +865,8 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                                 alignItems: 'center',
                                                 gap: '6px',
                                                 padding: '6px 10px',
-                                                fontSize: '12px'
+                                                fontSize: '12px',
+                                                backgroundColor: '#2B59C3',
                                             }}
                                             onClick={(e) => {
                                                 e.preventDefault();
@@ -729,11 +875,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                             }}
                                         >
                                             <MDBIcon icon={copyStates[chatbot.id] === 'copied' ? 'check' : 'copy'} size="sm" />
-                                            {copyStates[chatbot.id] === 'copied'
-                                                ? 'Copied'
-                                                : copyStates[chatbot.id] === 'error'
-                                                    ? 'Copy Failed'
-                                                    : 'Copy'}
+                                            {copyStates[chatbot.id] === 'copied' ? 'Copied' : copyStates[chatbot.id] === 'error' ? 'Failed' : 'Copy'}
                                         </MDBBtn>
                                     </div>
                                 )}
@@ -772,13 +914,14 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                             marginLeft: 'auto',
                             marginRight: 'auto'
                         }}>
-                            Looks like you don't have any chatbot. Click on the button above to create your first bot.
+                            Looks like you don't have any chatbot. Click on one of the cards above to create your first bot.
                         </p>
                     </div>
                 )}
             </div>
         </>
-    );
+        );
+    };
 
     const renderChatbotsContent = () => (
         <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
@@ -826,84 +969,237 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
         </div>
     );
 
-    // Error Modal Component
-    const renderErrorModal = () => (
-        <MDBModal open={showErrorModal} setOpen={setShowErrorModal} tabIndex='-1'>
-            <MDBModalDialog centered>
-                <MDBModalContent>
-                    <MDBModalHeader style={{
-                        backgroundColor: '#dc2626',
-                        color: 'white',
-                        borderBottom: 'none',
-                        padding: '20px 24px'
-                    }}>
-                        <MDBModalTitle style={{
+    // Validation Errors Dialog (custom portal dialog, not MDBModal, to avoid Chromium blur)
+    const renderErrorModal = () => {
+        if (typeof document === 'undefined') return null;
+        if (!showErrorModal) return null;
+
+        return ReactDOM.createPortal(
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="validation-errors-title"
+                onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) {
+                        setShowErrorModal(false);
+                    }
+                }}
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(15, 23, 42, 0.45)',
+                    zIndex: 20000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px',
+                }}
+            >
+                <div
+                    style={{
+                        width: '100%',
+                        maxWidth: '560px',
+                        background: '#ffffff',
+                        borderRadius: '14px',
+                        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)',
+                        border: '1px solid rgba(226, 232, 240, 0.9)',
+                        overflow: 'hidden',
+                        WebkitFontSmoothing: 'subpixel-antialiased',
+                        backfaceVisibility: 'hidden',
+                    }}
+                >
+                    <div
+                        style={{
+                            backgroundColor: '#dc2626',
                             color: 'white',
-                            fontWeight: '600',
-                            fontSize: '18px',
+                            padding: '20px 24px',
                             display: 'flex',
-                            alignItems: 'center'
-                        }}>
-                            <MDBIcon icon="exclamation-triangle" className="me-2" />
+                            alignItems: 'center',
+                            gap: '10px',
+                        }}
+                    >
+                        <MDBIcon icon="exclamation-triangle" />
+                        <div
+                            id="validation-errors-title"
+                            style={{
+                                color: 'white',
+                                fontWeight: 600,
+                                fontSize: '18px',
+                                lineHeight: 1.2,
+                            }}
+                        >
                             Validation Errors
-                        </MDBModalTitle>
-                    </MDBModalHeader>
-                    <MDBModalBody style={{ padding: '24px' }}>
-                        <p style={{ 
-                            marginBottom: '16px', 
-                            color: '#6b7280',
-                            fontSize: '14px'
-                        }}>
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '24px' }}>
+                        <p
+                            style={{
+                                marginBottom: '16px',
+                                color: '#6b7280',
+                                fontSize: '14px',
+                            }}
+                        >
                             Please fix the following errors before creating your chatbot:
                         </p>
-                        <ul style={{
-                            listStyle: 'none',
-                            padding: 0,
-                            margin: 0
-                        }}>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                             {validationErrors.map((error, index) => (
-                                <li key={index} style={{
-                                    display: 'flex',
-                                    alignItems: 'flex-start',
-                                    marginBottom: '12px',
-                                    padding: '12px',
-                                    backgroundColor: '#fef2f2',
-                                    borderRadius: '8px',
-                                    borderLeft: '4px solid #dc2626'
-                                }}>
-                                    <MDBIcon 
-                                        icon="circle" 
-                                        className="text-danger me-3 mt-1" 
+                                <li
+                                    key={index}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        marginBottom: '12px',
+                                        padding: '12px',
+                                        backgroundColor: '#fef2f2',
+                                        borderRadius: '8px',
+                                        borderLeft: '4px solid #dc2626',
+                                    }}
+                                >
+                                    <MDBIcon
+                                        icon="circle"
+                                        className="text-danger me-3 mt-1"
                                         style={{ fontSize: '8px', flexShrink: 0 }}
                                     />
-                                    <span style={{ 
-                                        color: '#991b1b',
-                                        fontSize: '14px',
-                                        lineHeight: '1.5'
-                                    }}>
+                                    <span style={{ color: '#991b1b', fontSize: '14px', lineHeight: '1.5' }}>
                                         {error}
                                     </span>
                                 </li>
                             ))}
                         </ul>
-                    </MDBModalBody>
-                    <MDBModalFooter>
-                        <MDBBtn 
-                            color="danger" 
+                    </div>
+
+                    <div style={{ padding: '0 24px 24px', display: 'flex', justifyContent: 'flex-end' }}>
+                        <MDBBtn
+                            color="danger"
                             onClick={() => setShowErrorModal(false)}
                             style={{
                                 padding: '10px 24px',
                                 borderRadius: '8px',
-                                fontWeight: '500'
+                                fontWeight: '500',
                             }}
                         >
                             Close
                         </MDBBtn>
-                    </MDBModalFooter>
-                </MDBModalContent>
-            </MDBModalDialog>
-        </MDBModal>
-    );
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    };
+
+    // Delete Confirmation (custom dialog, not MDBModal, to avoid Chromium blur issues)
+    const renderDeleteModal = () => {
+        if (typeof document === 'undefined') return null;
+        if (!showDeleteModal) return null;
+
+        return ReactDOM.createPortal(
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="delete-chatbot-title"
+                onMouseDown={(e) => {
+                    // click on backdrop closes
+                    if (e.target === e.currentTarget) {
+                        setShowDeleteModal(false);
+                        setChatbotToDelete(null);
+                    }
+                }}
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(15, 23, 42, 0.45)',
+                    zIndex: 20000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px',
+                }}
+            >
+                <div
+                    style={{
+                        width: '100%',
+                        maxWidth: '520px',
+                        background: '#ffffff',
+                        borderRadius: '14px',
+                        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)',
+                        border: '1px solid rgba(226, 232, 240, 0.9)',
+                        overflow: 'hidden',
+                        WebkitFontSmoothing: 'subpixel-antialiased',
+                        backfaceVisibility: 'hidden',
+                    }}
+                >
+                    <div style={{ padding: '22px 22px 0' }}>
+                        <div
+                            id="delete-chatbot-title"
+                            style={{
+                                fontWeight: 600,
+                                fontSize: '20px',
+                                color: '#111827',
+                            }}
+                        >
+                            Delete Chatbot
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '14px 22px 20px' }}>
+                        <p
+                            style={{
+                                margin: 0,
+                                color: '#6b7280',
+                                fontSize: '15px',
+                                lineHeight: '1.6',
+                            }}
+                        >
+                            Are you sure you want to delete this chatbot? This action cannot be undone and all
+                            associated data will be permanently removed.
+                        </p>
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '12px',
+                            padding: '0 22px 22px',
+                        }}
+                    >
+                        <MDBBtn
+                            color="light"
+                            onClick={() => {
+                                setShowDeleteModal(false);
+                                setChatbotToDelete(null);
+                            }}
+                            style={{
+                                padding: '10px 24px',
+                                borderRadius: '8px',
+                                fontWeight: '500',
+                                border: '1px solid #e5e7eb',
+                            }}
+                        >
+                            Cancel
+                        </MDBBtn>
+                        <MDBBtn
+                            color="danger"
+                            onClick={() => {
+                                if (chatbotToDelete) {
+                                    handleDeleteChatbot(chatbotToDelete);
+                                }
+                            }}
+                            style={{
+                                padding: '10px 24px',
+                                borderRadius: '8px',
+                                fontWeight: '500',
+                            }}
+                        >
+                            Delete Chatbot
+                        </MDBBtn>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    };
 
     // If showing creation form, render it with modal
     if (showCreationForm) {
@@ -938,6 +1234,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
         <>
             {content}
             {renderErrorModal()}
+            {renderDeleteModal()}
         </>
     );
 }

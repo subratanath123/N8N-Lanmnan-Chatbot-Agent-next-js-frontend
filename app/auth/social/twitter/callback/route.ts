@@ -1,62 +1,86 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Force dynamic rendering for OAuth routes
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 /**
- * Twitter/X OAuth 2.0 callback - exchanges code for access token,
- * sends to backend for automatic posting on behalf of user
- * URL: /auth/social/twitter/callback (no /api prefix - avoids backend proxy)
+ * Twitter/X OAuth 2.0 callback — exchanges code for access token,
+ * then saves the account to the backend.
+ *
+ * codeVerifier and clerkToken come from short-lived HTTP-only cookies set
+ * by the authorize route (avoids the oversized-state problem that caused
+ * "Something went wrong / You weren't able to give access" on Twitter).
+ *
+ * URL: /auth/social/twitter/callback  (no /api prefix — avoids backend proxy)
  */
 export async function GET(request: NextRequest) {
+  let frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL;
+  if (!frontendUrl) {
+    const origin = request.headers.get("origin");
+    const referer = request.headers.get("referer");
+    frontendUrl = origin || (referer ? new URL(referer).origin : "https://subratapc.net");
+  }
+  frontendUrl = frontendUrl.replace(/\/+$/, "");
+
+  const successUrl = `${frontendUrl}/oauth-success-social?platform=twitter`;
+  const errorUrl   = `${frontendUrl}/oauth-success-social?platform=twitter&error=true`;
+
+  const clearCookies = (res: NextResponse) => {
+    const opts = { httpOnly: true, path: "/", maxAge: 0 };
+    res.cookies.set("tw_pkce_verifier", "", opts);
+    res.cookies.set("tw_csrf_state",    "", opts);
+    res.cookies.set("tw_clerk_token",   "", opts);
+    return res;
+  };
+
   try {
     const { searchParams } = new URL(request.url);
-    const code = searchParams.get("code");
-    const stateParam = searchParams.get("state");
-    const error = searchParams.get("error");
+    const code             = searchParams.get("code");
+    const stateParam       = searchParams.get("state");
+    const twitterError     = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
-    let frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL;
-    if (!frontendUrl) {
-      const origin = request.headers.get("origin");
-      const referer = request.headers.get("referer");
-      frontendUrl = origin || (referer ? new URL(referer).origin : "https://subratapc.net");
-    }
-    frontendUrl = frontendUrl.replace(/\/+$/, "");
-    const successUrl = `${frontendUrl}/oauth-success-social?platform=twitter`;
-    const errorUrl = `${frontendUrl}/oauth-success-social?platform=twitter&error=true`;
-
-    if (error) {
-      return NextResponse.redirect(
-        `${errorUrl}&message=${encodeURIComponent(errorDescription || error)}`
+    // Twitter returned an error on its consent screen
+    if (twitterError) {
+      return clearCookies(
+        NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent(errorDescription || twitterError)}`)
       );
     }
 
-    if (!code || !stateParam) {
-      return NextResponse.redirect(
-        `${errorUrl}&message=${encodeURIComponent("Missing authorization code or state")}`
+    if (!code) {
+      return clearCookies(
+        NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("Missing authorization code")}`)
       );
     }
 
-    let clerkToken: string | null = null;
-    let codeVerifier: string | null = null;
-    try {
-      const stateObj = JSON.parse(decodeURIComponent(stateParam));
-      clerkToken = stateObj.clerkToken;
-      codeVerifier = stateObj.codeVerifier;
-    } catch {
-      return NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("Invalid state")}`);
+    // Read values from cookies
+    const codeVerifier = request.cookies.get("tw_pkce_verifier")?.value || null;
+    const csrfState    = request.cookies.get("tw_csrf_state")?.value    || null;
+    const clerkToken   = request.cookies.get("tw_clerk_token")?.value   || null;
+
+    if (!codeVerifier) {
+      return clearCookies(
+        NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("Session expired. Please try connecting again.")}`)
+      );
     }
 
-    const clientId = process.env.TWITTER_CLIENT_ID;
+    // CSRF check — only if the cookie was set (browsers in popups sometimes drop cookies)
+    if (csrfState && stateParam && csrfState !== stateParam) {
+      return clearCookies(
+        NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("CSRF state mismatch. Please try again.")}`)
+      );
+    }
+
+    const clientId     = process.env.TWITTER_CLIENT_ID;
     const clientSecret = process.env.TWITTER_CLIENT_SECRET;
-    if (!clientId || !clientSecret || !codeVerifier) {
-      return NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("Twitter OAuth not configured")}`);
+    if (!clientId || !clientSecret) {
+      return clearCookies(
+        NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent("Twitter OAuth not configured on server.")}`)
+      );
     }
 
     const redirectUri = `${frontendUrl}/auth/social/twitter/callback`;
 
-    // Exchange code for access token
+    // ── Exchange code for tokens ────────────────────────────────────────────
     const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {
       method: "POST",
       headers: {
@@ -65,8 +89,8 @@ export async function GET(request: NextRequest) {
       },
       body: new URLSearchParams({
         code,
-        grant_type: "authorization_code",
-        redirect_uri: redirectUri,
+        grant_type:    "authorization_code",
+        redirect_uri:  redirectUri,
         code_verifier: codeVerifier,
       }),
     });
@@ -74,90 +98,72 @@ export async function GET(request: NextRequest) {
     const tokenData = await tokenRes.json();
 
     if (!tokenData.access_token) {
-      return NextResponse.redirect(
-        `${errorUrl}&message=${encodeURIComponent(tokenData.error_description || tokenData.error || "Failed to get access token")}`
+      console.error("[twitter-callback] Token exchange failed:", tokenData);
+      return clearCookies(
+        NextResponse.redirect(
+          `${errorUrl}&message=${encodeURIComponent(tokenData.error_description || tokenData.error || "Failed to get access token from Twitter.")}`
+        )
       );
     }
 
-    // Optionally fetch user info
-    const userRes = await fetch("https://api.twitter.com/2/users/me", {
+    // ── Fetch Twitter user info ─────────────────────────────────────────────
+    const userRes  = await fetch("https://api.twitter.com/2/users/me", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     const userData = await userRes.json();
     const username = userData.data?.username || null;
 
-    // Send to backend
+    // ── Save account to backend ─────────────────────────────────────────────
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://subratapc.net";
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (clerkToken) headers["Authorization"] = `Bearer ${clerkToken}`;
 
-    const backendEndpoint = `${backendUrl}/v1/api/social-accounts/twitter`;
-    const backendBody = JSON.stringify({
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token || null,
-      expiresIn: tokenData.expires_in || null,
-      username,
-    });
     let backendRes: Response;
     try {
-      const fetchOptions: RequestInit = {
+      backendRes = await fetch(`${backendUrl}/v1/api/social-accounts/twitter`, {
         method: "POST",
         headers,
-        body: backendBody,
-      };
-      backendRes = await fetch(backendEndpoint, fetchOptions);
+        body: JSON.stringify({
+          accessToken:  tokenData.access_token,
+          refreshToken: tokenData.refresh_token  || null,
+          expiresIn:    tokenData.expires_in     || null,
+          username,
+        }),
+      });
     } catch (fetchErr) {
-      const certTrustError =
-        fetchErr instanceof Error &&
-        ((fetchErr as Error & { cause?: { code?: string } }).cause?.code ===
-          "DEPTH_ZERO_SELF_SIGNED_CERT" ||
-          (fetchErr as Error & { cause?: { code?: string } }).cause?.code ===
-            "CERT_NOT_YET_VALID" ||
-          fetchErr.message.toLowerCase().includes("self-signed certificate") ||
-          fetchErr.message.toLowerCase().includes("certificate is not yet valid"));
+      const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      const isCert =
+        msg.toLowerCase().includes("self-signed certificate") ||
+        msg.toLowerCase().includes("certificate is not yet valid") ||
+        (fetchErr instanceof Error && (fetchErr as Error & { cause?: { code?: string } }).cause?.code === "DEPTH_ZERO_SELF_SIGNED_CERT");
 
-      if (certTrustError) {
-        return NextResponse.redirect(
+      return clearCookies(
+        NextResponse.redirect(
           `${errorUrl}&message=${encodeURIComponent(
-            "Backend TLS certificate is not trusted by Node. Configure NODE_EXTRA_CA_CERTS and restart Next.js."
+            isCert
+              ? "Backend TLS certificate is not trusted. Configure NODE_EXTRA_CA_CERTS and restart Next.js."
+              : `Backend connection failed: ${msg}`
           )}`
-        );
-      }
-      throw fetchErr;
+        )
+      );
     }
 
     if (!backendRes.ok) {
       const errText = await backendRes.text();
       console.error("[twitter-callback] Backend error:", errText);
-      return NextResponse.redirect(
-        `${errorUrl}&message=${encodeURIComponent("Failed to save account. Backend may not be configured.")}`
+      return clearCookies(
+        NextResponse.redirect(
+          `${errorUrl}&message=${encodeURIComponent("Account connected but could not be saved to backend. Please try again.")}`
+        )
       );
     }
 
-    return NextResponse.redirect(`${successUrl}`);
+    return clearCookies(NextResponse.redirect(successUrl));
   } catch (err) {
-    console.error("[twitter-callback] Error:", err);
-    const errorMessage =
-      err instanceof Error
-        ? err.message
-        : typeof err === "string"
-          ? err
-          : "Unexpected error occurred";
-    const errorCode =
-      err instanceof Error
-        ? (err as Error & { cause?: { code?: string } }).cause?.code
-        : undefined;
-    const certTrustError =
-      errorCode === "DEPTH_ZERO_SELF_SIGNED_CERT" ||
-      errorCode === "CERT_NOT_YET_VALID" ||
-      errorMessage.toLowerCase().includes("self-signed certificate") ||
-      errorMessage.toLowerCase().includes("certificate is not yet valid");
-    const userFacingMessage = certTrustError
-      ? "TLS certificate trust failed in Node. Ensure NODE_EXTRA_CA_CERTS points to mkcert rootCA.pem and restart Next.js."
-      : errorMessage;
-    const frontendUrl = (process.env.NEXT_PUBLIC_FRONTEND_URL || "https://subratapc.net").replace(/\/+$/, "");
-    return NextResponse.redirect(
-      `${frontendUrl}/oauth-success-social?platform=twitter&error=true&message=${encodeURIComponent(userFacingMessage)}`
+    console.error("[twitter-callback] Unexpected error:", err);
+    const msg = err instanceof Error ? err.message : "Unexpected error occurred";
+    return clearCookies(
+      NextResponse.redirect(`${errorUrl}&message=${encodeURIComponent(msg)}`)
     );
   }
 }

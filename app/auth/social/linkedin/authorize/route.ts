@@ -4,25 +4,29 @@ import crypto from "crypto";
 export const dynamic = "force-dynamic";
 
 /**
- * Facebook OAuth authorize endpoint for Social Media Suite.
+ * LinkedIn OAuth 2.0 authorize endpoint.
  *
  * Opened DIRECTLY in the OAuth popup window (not called via fetch).
- * Sets a short-lived cookie for the clerkToken then REDIRECTS the popup
- * to Facebook's consent screen in one navigation chain.
+ * Sets short-lived cookies then REDIRECTS the popup to LinkedIn's consent screen.
+ * LinkedIn uses standard OAuth 2.0 (no PKCE required).
  *
- * URL: /auth/social/facebook/authorize  (no /api prefix — avoids backend proxy)
+ * Required LinkedIn app products:
+ *   - Sign In with LinkedIn using OpenID Connect  → openid, profile, email
+ *   - Share on LinkedIn                           → w_member_social
+ *
+ * URL: /auth/social/linkedin/authorize  (no /api prefix — avoids backend proxy)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const clerkToken = searchParams.get("clerkToken") || "";
 
-    const appId = process.env.FACEBOOK_APP_ID;
-    if (!appId) {
+    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    if (!clientId) {
       return new NextResponse(
         `<html><body style="font-family:sans-serif;padding:40px;text-align:center">
           <h2 style="color:#dc2626">Configuration Error</h2>
-          <p>FACEBOOK_APP_ID is not set. Please configure it in your environment.</p>
+          <p>LINKEDIN_CLIENT_ID is not set. Please add it to your .env.local file.</p>
           <button onclick="window.close()">Close</button>
         </body></html>`,
         { status: 500, headers: { "Content-Type": "text/html" } }
@@ -37,24 +41,21 @@ export async function GET(request: NextRequest) {
     }
     frontendUrl = frontendUrl.replace(/\/+$/, "");
 
-    const redirectUri = `${frontendUrl}/auth/social/facebook/callback`;
+    const redirectUri = `${frontendUrl}/auth/social/linkedin/callback`;
 
-    // Short CSRF state only (avoid double-encoding and size issues)
+    // Short CSRF state — LinkedIn is strict about state not being too long
     const csrfState = crypto.randomBytes(16).toString("base64url");
 
-    const scopes = [
-      "pages_show_list",
-      "pages_manage_posts",
-      "pages_read_engagement",
-      "pages_manage_metadata",
-      "business_management",
-    ].join(",");
+    // Scopes:
+    //   openid + profile + email  → Sign In with LinkedIn (OpenID Connect product)
+    //   w_member_social           → Share on LinkedIn product
+    const scope = "openid profile email w_member_social";
 
-    const authUrl = new URL("https://www.facebook.com/v18.0/dialog/oauth");
-    authUrl.searchParams.set("client_id",     appId);
-    authUrl.searchParams.set("redirect_uri",  redirectUri);
-    authUrl.searchParams.set("scope",         scopes);
+    const authUrl = new URL("https://www.linkedin.com/oauth/v2/authorization");
     authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id",     clientId);
+    authUrl.searchParams.set("redirect_uri",  redirectUri);
+    authUrl.searchParams.set("scope",         scope);
     authUrl.searchParams.set("state",         csrfState);
 
     const isSecure  = frontendUrl.startsWith("https");
@@ -63,15 +64,15 @@ export async function GET(request: NextRequest) {
       secure:   isSecure,
       sameSite: "lax" as const,
       path:     "/",
-      maxAge:   600,
+      maxAge:   600, // 10 minutes
     };
 
     const res = NextResponse.redirect(authUrl.toString());
-    res.cookies.set("fb_csrf_state",  csrfState,  cookieOpts);
-    res.cookies.set("fb_clerk_token", clerkToken, cookieOpts);
+    res.cookies.set("li_csrf_state",  csrfState,  cookieOpts);
+    res.cookies.set("li_clerk_token", clerkToken, cookieOpts);
     return res;
   } catch (error) {
-    console.error("[facebook-authorize] Error:", error);
+    console.error("[linkedin-authorize] Error:", error);
     return new NextResponse(
       `<html><body style="font-family:sans-serif;padding:40px;text-align:center">
         <h2 style="color:#dc2626">Error</h2>

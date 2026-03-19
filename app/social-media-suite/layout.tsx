@@ -65,23 +65,27 @@ export default function SocialMediaSuiteLayout({
 
         <div className="social-suite-breadcrumb">User &gt;&gt; AI Social Media Suite</div>
 
-        <div className="social-tab-bar">
-          {subTabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={`social-tab ${isActive ? "active" : ""}`}
-                onClick={() => router.push(tab.href)}
-              >
-                {tab.name}
-              </button>
-            );
-          })}
-        </div>
+        <div className="social-suite-body">
+          <aside className="social-suite-nav">
+            {subTabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`social-nav-item ${isActive ? "active" : ""}`}
+                  onClick={() => router.push(tab.href)}
+                >
+                  <span className="social-nav-label">{tab.name}</span>
+                </button>
+              );
+            })}
+          </aside>
 
-        {children}
+          <div className="social-suite-main">
+            {children}
+          </div>
+        </div>
       </div>
 
       <style jsx>{`
@@ -141,40 +145,61 @@ export default function SocialMediaSuiteLayout({
         .social-suite-breadcrumb {
           font-size: 13px;
           color: #64748b;
-          margin-bottom: 20px;
+          margin: 16px 0 20px;
         }
 
-        .social-tab-bar {
+        .social-suite-body {
+          display: grid;
+          grid-template-columns: 220px minmax(0, 1fr);
+          align-items: flex-start;
+          gap: 24px;
+        }
+
+        .social-suite-nav {
+          border-radius: 18px;
+          background: #f8fafc;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          padding: 12px;
           display: flex;
-          gap: 8px;
-          background: #f1f5f9;
-          padding: 6px;
-          border-radius: 12px;
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          margin-bottom: 24px;
+          flex-direction: column;
+          gap: 4px;
+          box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
         }
 
-        .social-tab {
-          flex: 1;
-          padding: 10px 16px;
-          border: none;
+        .social-nav-item {
+          width: 100%;
+          padding: 10px 12px;
           border-radius: 10px;
+          border: none;
           background: transparent;
+          text-align: left;
           font-size: 14px;
-          font-weight: 600;
+          font-weight: 500;
           color: #475569;
           cursor: pointer;
-          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          transition: all 0.18s ease;
         }
 
-        .social-tab:hover {
-          background: rgba(148, 163, 184, 0.15);
+        .social-nav-item:hover {
+          background: rgba(148, 163, 184, 0.12);
+          color: #1d4ed8;
         }
 
-        .social-tab.active {
+        .social-nav-item.active {
           background: #ffffff;
-          color: #1e40af;
-          box-shadow: 0 12px 24px rgba(59, 130, 246, 0.18);
+          color: #1d4ed8;
+          box-shadow: 0 10px 22px rgba(59, 130, 246, 0.18);
+        }
+
+        .social-nav-label {
+          flex: 1;
+        }
+
+        .social-suite-main {
+          min-width: 0;
         }
 
         .social-suite-content {
@@ -184,6 +209,24 @@ export default function SocialMediaSuiteLayout({
           padding: 24px;
           min-height: 520px;
           box-shadow: 0 20px 32px rgba(15, 23, 42, 0.06);
+        }
+
+        @media (max-width: 960px) {
+          .social-suite-body {
+            grid-template-columns: minmax(0, 1fr);
+          }
+
+          .social-suite-nav {
+            display: flex;
+            flex-direction: row;
+            overflow-x: auto;
+          }
+
+          .social-nav-item {
+            flex: 1;
+            white-space: nowrap;
+            justify-content: center;
+          }
         }
       `}</style>
     </div>

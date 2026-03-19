@@ -4,11 +4,11 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 
 const PLATFORMS = [
-  { id: "facebook", name: "Facebook", icon: "📘", supportsOAuth: true },
-  { id: "twitter", name: "X (Twitter)", icon: "🐦", supportsOAuth: true },
-  { id: "linkedin", name: "LinkedIn", icon: "💼", supportsOAuth: false },
-  { id: "instagram", name: "Instagram", icon: "📷", supportsOAuth: false },
-  { id: "tiktok", name: "TikTok", icon: "🎵", supportsOAuth: false },
+  { id: "facebook",  name: "Facebook",    icon: "📘", supportsOAuth: true  },
+  { id: "twitter",   name: "X (Twitter)", icon: "🐦", supportsOAuth: true  },
+  { id: "linkedin",  name: "LinkedIn",    icon: "💼", supportsOAuth: true  },
+  { id: "instagram", name: "Instagram",   icon: "📷", supportsOAuth: false },
+  { id: "tiktok",    name: "TikTok",      icon: "🎵", supportsOAuth: false },
 ];
 
 interface AccountPage {
@@ -22,6 +22,8 @@ interface Account {
   connectedAt: string;
   pages?: AccountPage[];
   username?: string;
+  displayName?: string;
+  email?: string;
 }
 
 interface FacebookRow {
@@ -101,41 +103,33 @@ export default function MyAccountsPage() {
     setLoading((prev) => ({ ...prev, [platformId]: true }));
     setError(null);
 
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const baseUrl = window.location.origin;
     const authPath =
       platformId === "facebook"
         ? "/auth/social/facebook/authorize"
+        : platformId === "linkedin"
+        ? "/auth/social/linkedin/authorize"
         : "/auth/social/twitter/authorize";
 
-    try {
-      const res = await fetch(`${baseUrl}${authPath}?clerkToken=${encodeURIComponent(token)}`);
-      const text = await res.text();
-      let data: { authUrl?: string; error?: string };
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        setError(text || "Failed to get authorization URL. Please try again.");
-        setLoading((prev) => ({ ...prev, [platformId]: false }));
-        return;
-      }
+    // Open our authorize route DIRECTLY in the popup.
+    // The authorize route sets cookies then redirects the popup to the provider's
+    // consent screen in one navigation chain — this ensures cookies are reliably
+    // present when the provider redirects back to our callback.
+    const popupUrl = `${baseUrl}${authPath}?clerkToken=${encodeURIComponent(token)}`;
 
-      if (data.error) {
-        setError(data.error);
-        setLoading((prev) => ({ ...prev, [platformId]: false }));
-        return;
-      }
+    const width  = 600;
+    const height = 700;
+    const left   = window.screenX + Math.round((window.outerWidth  - width)  / 2);
+    const top    = window.screenY + Math.round((window.outerHeight - height) / 2);
 
-      const width = 600;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      window.open(
-        data.authUrl,
-        "Social OAuth",
-        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start OAuth");
+    const popup = window.open(
+      popupUrl,
+      "Social OAuth",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+    );
+
+    if (!popup) {
+      setError("Popup was blocked by the browser. Please allow popups for this site and try again.");
       setLoading((prev) => ({ ...prev, [platformId]: false }));
     }
   };
@@ -163,8 +157,11 @@ export default function MyAccountsPage() {
     }
   };
 
-  const facebookAccounts = accounts.filter((a) => a.platform === "facebook");
-  const twitterAccounts = accounts.filter((a) => a.platform === "twitter");
+  const facebookAccounts  = accounts.filter((a) => a.platform === "facebook");
+  const twitterAccounts   = accounts.filter((a) => a.platform === "twitter");
+  const linkedInAccounts  = accounts.filter((a) => a.platform === "linkedin");
+  const totalAccounts = accounts.length;
+  const totalPlatformsConnected = new Set(accounts.map((a) => a.platform)).size;
   const facebookRows: FacebookRow[] = facebookAccounts.flatMap((a) => {
     if (!a.pages || a.pages.length === 0) {
       return [
@@ -185,11 +182,34 @@ export default function MyAccountsPage() {
   });
 
   return (
-    <div>
+    <div className="social-suite-content accounts-page">
       <h2 className="page-title">Connected Social Media Accounts</h2>
       <p className="page-desc">
-        Connect multiple accounts with Login with Facebook or X (Twitter). Long-lived tokens are stored in the backend for scheduling posts. Each connection adds a new account.
+        Connect your Facebook, X (Twitter), or LinkedIn accounts. Tokens are stored securely in the backend for scheduling posts on your behalf.
       </p>
+
+      <div className="accounts-stats-row">
+        <div className="accounts-stat-card">
+          <span className="stat-label">My Accounts</span>
+          <span className="stat-value">{totalPlatformsConnected}</span>
+          <span className="stat-caption">Platforms connected</span>
+        </div>
+        <div className="accounts-stat-card">
+          <span className="stat-label">Total Accounts</span>
+          <span className="stat-value">{totalAccounts}</span>
+          <span className="stat-caption">Profiles & pages</span>
+        </div>
+        <div className="accounts-stat-card">
+          <span className="stat-label">Active Accounts</span>
+          <span className="stat-value">{totalAccounts}</span>
+          <span className="stat-caption">Ready for posting</span>
+        </div>
+        <div className="accounts-stat-card">
+          <span className="stat-label">Inactive Accounts</span>
+          <span className="stat-value">0</span>
+          <span className="stat-caption">Disconnected or expired</span>
+        </div>
+      </div>
 
       {error && (
         <div className="error-banner">
@@ -314,20 +334,61 @@ export default function MyAccountsPage() {
           )}
         </div>
 
-        <div className="platform-section disabled-section">
+        <div className="platform-section">
           <div className="platform-header">
             <span className="account-icon">💼</span>
             <div className="platform-title-wrap">
               <h3>LinkedIn</h3>
-              <p>OAuth integration is not enabled yet.</p>
+              <p>Connect your LinkedIn profile to post and share on your behalf.</p>
             </div>
-            <button type="button" className="connect-btn" disabled>
-              Connect LinkedIn
+            <button
+              type="button"
+              className="connect-btn"
+              onClick={() => handleConnect("linkedin")}
+              disabled={loading.linkedin}
+            >
+              {loading.linkedin ? "Connecting..." : "Connect LinkedIn Account"}
             </button>
           </div>
-          <div className="empty-state">
-            <p>No LinkedIn accounts connected.</p>
-          </div>
+          {linkedInAccounts.length === 0 ? (
+            <div className="empty-state">
+              <p>No LinkedIn accounts connected yet.</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="accounts-table">
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>Email</th>
+                    <th>Connected</th>
+                    <th>Account ID</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linkedInAccounts.map((a) => (
+                    <tr key={a.accountId}>
+                      <td>{a.username || a.displayName || "LinkedIn Profile"}</td>
+                      <td>{(a as any).email || "—"}</td>
+                      <td>{new Date(a.connectedAt).toLocaleString()}</td>
+                      <td className="mono-cell">{a.accountId}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="connect-btn disconnect"
+                          onClick={() => handleDisconnect(a.accountId)}
+                          disabled={loading[a.accountId]}
+                        >
+                          {loading[a.accountId] ? "..." : "Disconnect"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="platform-section disabled-section">
@@ -365,6 +426,38 @@ export default function MyAccountsPage() {
       <style jsx>{`
         .accounts-page {
           max-width: 100%;
+        }
+        .accounts-stats-row {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+        .accounts-stat-card {
+          border-radius: 16px;
+          padding: 16px 18px;
+          background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04);
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .stat-label {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #64748b;
+          font-weight: 600;
+        }
+        .stat-value {
+          font-size: 24px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .stat-caption {
+          font-size: 12px;
+          color: #94a3b8;
         }
         .page-title {
           margin: 0 0 8px;

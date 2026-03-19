@@ -11,6 +11,11 @@ const PLATFORMS = [
   { id: "tiktok", name: "TikTok", icon: "🎵" },
 ];
 
+const MODEL_OPTIONS = [
+  { id: "gpt-4o", label: "GPT-4o (quality)" },
+  { id: "gpt-4o-mini", label: "GPT-4o mini (fast)" },
+];
+
 interface Target {
   targetId: string;
   accountId: string;
@@ -32,9 +37,26 @@ interface UploadedMediaItem {
 
 const getFileKey = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
 
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+const fileToText = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+
 export default function CreatePostPage() {
   const { getToken } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const aiFileInputRef = useRef<HTMLInputElement | null>(null);
   const [contentType, setContentType] = useState<"media" | "text">("text");
   const [postText, setPostText] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState("facebook");
@@ -49,6 +71,10 @@ export default function CreatePostPage() {
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaPreviewUrls, setMediaPreviewUrls] = useState<Record<string, string>>({});
   const [isDragOver, setIsDragOver] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiModel, setAiModel] = useState<string>("gpt-4o");
+  const [aiAttachments, setAiAttachments] = useState<File[]>([]);
   const isFacebookPreview = selectedPlatform === "facebook";
   const isTwitterPreview = selectedPlatform === "twitter";
 
@@ -85,6 +111,125 @@ export default function CreatePostPage() {
   useEffect(() => {
     setSelectedTargetIds([]);
   }, [selectedPlatform]);
+
+  const handleGenerateFromAI = async () => {
+    let promptText = aiPrompt.trim();
+    if (!promptText || aiGenerating) return;
+
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!backendUrl) {
+      setSubmitMessage({
+        type: "error",
+        text: "Backend URL is not configured. Please set NEXT_PUBLIC_BACKEND_URL.",
+      });
+      return;
+    }
+
+    setAiGenerating(true);
+    setSubmitMessage(null);
+
+    try {
+      const platformName = PLATFORMS.find((p) => p.id === selectedPlatform)?.name || "your social media";
+      const sessionId = `social_suite_${selectedPlatform}_${Date.now()}`;
+      const systemInstruction =
+        `You are a senior social media copywriter.\n` +
+        `Write a concise, engaging ${platformName} post in plain text (no markdown, no emojis unless the user explicitly asks).\n` +
+        `Keep it under 4 sentences and suitable for a business audience.`;
+
+      // Process attachments
+      type AttachmentItem = { type: string; data: string; name: string; mimeType: string };
+      const attachmentData: AttachmentItem[] = [];
+
+      for (const file of aiAttachments) {
+        if (file.type.startsWith("image/")) {
+          const base64 = await fileToBase64(file);
+          attachmentData.push({ type: "image", data: base64, name: file.name, mimeType: file.type });
+        } else if (
+          file.type === "text/plain" ||
+          file.type === "text/csv" ||
+          file.type === "text/markdown" ||
+          file.name.endsWith(".txt") ||
+          file.name.endsWith(".csv") ||
+          file.name.endsWith(".md")
+        ) {
+          const text = await fileToText(file);
+          promptText += `\n\nAttached file "${file.name}":\n${text.slice(0, 4000)}`;
+        } else {
+          // For PDFs and other binaries just note them in the prompt
+          promptText += `\n\n[Attached file: ${file.name} (${file.type || "unknown type"})]`;
+        }
+      }
+
+      const payload: Record<string, unknown> = {
+        role: "user",
+        message: `${systemInstruction}\n\nUser brief:\n${promptText}`,
+        sessionId,
+        model: aiModel,
+        ...(attachmentData.length > 0 ? { attachments: attachmentData } : {}),
+      };
+
+      const res = await fetch(`${backendUrl}/v1/api/n8n/anonymous/chat/generic`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const rawText = await res.text();
+      let data: any;
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = rawText;
+      }
+
+      if (!res.ok || (data && data.success === false)) {
+        throw new Error(
+          (data && (data.errorMessage || data.message)) ||
+            `AI generator error: ${res.status}`
+        );
+      }
+
+      let reply: string =
+        (data?.result && typeof data.result === "object" && typeof data.result.response === "string"
+          ? data.result.response
+          : "") ||
+        (typeof data?.result === "string" ? data.result : "") ||
+        (typeof data?.output === "string" ? data.output : "") ||
+        (typeof data?.message === "string" ? data.message : "") ||
+        (typeof data?.response === "string" ? data.response : "") ||
+        (typeof data?.answer === "string" ? data.answer : "") ||
+        (typeof data?.responseContent === "string" ? data.responseContent : "");
+
+      if (reply && reply.trim().startsWith("{")) {
+        try {
+          const inner = JSON.parse(reply);
+          reply =
+            (typeof inner.result === "string" ? inner.result : "") ||
+            (typeof inner.output === "string" ? inner.output : "") ||
+            (typeof inner.response === "string" ? inner.response : "") ||
+            (typeof inner.message === "string" ? inner.message : "") ||
+            (typeof inner.answer === "string" ? inner.answer : "") ||
+            "";
+        } catch {
+          // keep original reply
+        }
+      }
+
+      if (!reply || typeof reply !== "string" || !reply.trim()) {
+        throw new Error("AI did not return usable content. Please try refining your prompt.");
+      }
+
+      setPostText(reply.trim());
+      setContentType("text");
+    } catch (err) {
+      setSubmitMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to generate content. Please try again.",
+      });
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   const handleSchedule = async () => {
     const isMediaMode = contentType === "media";
@@ -221,8 +366,124 @@ export default function CreatePostPage() {
   }, [getToken, selectedPlatform]);
 
   return (
-    <div className="create-post-layout">
+    <div className="social-suite-content">
+      <div className="create-post-layout">
       <div className="create-post-main">
+        <div className="ai-generator-card">
+          <div className="ai-generator-header">
+            <div>
+              <div className="ai-generator-title">AI Content Assistant</div>
+              <div className="ai-generator-subtitle">
+                Describe your idea and we’ll draft a post for your selected platform.
+              </div>
+            </div>
+            <div className="ai-generator-header-right">
+              <div className="ai-model-select-wrap">
+                  <label className="ai-model-label">AI model</label>
+                  <div className="ai-model-toggle">
+                    {MODEL_OPTIONS.map((m) => {
+                      const active = aiModel === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={`ai-model-option ${active ? "active" : ""}`}
+                          onClick={() => setAiModel(m.id)}
+                        >
+                          <span className="ai-model-option-title">{m.id === "gpt-4o" ? "Quality" : "Fast"}</span>
+                          <span className="ai-model-option-sub">{m.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              <span className="ai-generator-badge">Powered by Jade AI</span>
+            </div>
+          </div>
+          {/* Hidden file input for AI attachments */}
+          <input
+            ref={aiFileInputRef}
+            type="file"
+            accept="image/*,text/plain,text/csv,text/markdown,.txt,.csv,.md,.pdf"
+            multiple
+            className="hidden-file-input"
+            onChange={(e) => {
+              if (e.target.files) {
+                const incoming = Array.from(e.target.files);
+                setAiAttachments((prev) => {
+                  const seen = new Set(prev.map((f) => getFileKey(f)));
+                  return [...prev, ...incoming.filter((f) => !seen.has(getFileKey(f)))];
+                });
+              }
+              e.currentTarget.value = "";
+            }}
+          />
+
+          <div className="ai-textarea-wrap">
+            <textarea
+              className="ai-generator-textarea"
+              placeholder="E.g. Announce our new AI chatbot feature for ecommerce stores, friendly and professional tone."
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              rows={3}
+            />
+            <button
+              type="button"
+              className="ai-attach-trigger"
+              onClick={() => aiFileInputRef.current?.click()}
+              title="Attach files (images, text, CSV)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.41 17.41a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+              Attach
+            </button>
+          </div>
+
+          {aiAttachments.length > 0 && (
+            <div className="ai-attach-chips">
+              {aiAttachments.map((file) => {
+                const key = getFileKey(file);
+                const isImage = file.type.startsWith("image/");
+                return (
+                  <div key={key} className="ai-chip">
+                    <span className="ai-chip-icon">{isImage ? "🖼" : "📄"}</span>
+                    <span className="ai-chip-name" title={file.name}>
+                      {file.name.length > 22 ? file.name.slice(0, 20) + "…" : file.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="ai-chip-remove"
+                      onClick={() =>
+                        setAiAttachments((prev) => prev.filter((f) => getFileKey(f) !== key))
+                      }
+                      aria-label="Remove attachment"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="ai-generator-footer">
+            <button
+              type="button"
+              className="ai-generate-btn"
+              onClick={handleGenerateFromAI}
+              disabled={aiGenerating || !aiPrompt.trim()}
+            >
+              {aiGenerating ? "Generating…" : "Generate content"}
+            </button>
+            <span className="ai-generator-hint">
+              {aiAttachments.length > 0
+                ? `${aiAttachments.length} file${aiAttachments.length > 1 ? "s" : ""} attached · text will be inserted below`
+                : "The generated text will be inserted into the Post Text area below."}
+            </span>
+          </div>
+        </div>
+
         <div className="content-type-tabs">
           <button
             type="button"
@@ -491,8 +752,9 @@ export default function CreatePostPage() {
           </div>
         </div>
       </div>
+    </div>
 
-      <style jsx>{`
+    <style jsx>{`
         .create-post-layout {
           display: grid;
           grid-template-columns: 1fr 340px;
@@ -502,7 +764,239 @@ export default function CreatePostPage() {
         .create-post-main {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 20px;
+        }
+
+        .ai-generator-card {
+          border-radius: 16px;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          background: #f8fafc;
+          padding: 16px 18px 14px;
+          box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .ai-generator-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .ai-generator-header-right {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 6px;
+        }
+
+        .ai-generator-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: #0f172a;
+        }
+
+        .ai-model-select-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+        }
+
+        .ai-model-label {
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #94a3b8;
+        }
+
+        .ai-model-toggle {
+          display: inline-flex;
+          padding: 3px;
+          border-radius: 999px;
+          background: #e2e8f0;
+          border: 1px solid rgba(148, 163, 184, 0.8);
+          gap: 3px;
+        }
+
+        .ai-model-option {
+          border: none;
+          border-radius: 999px;
+          padding: 4px 10px;
+          background: transparent;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          min-width: 120px;
+          transition: all 0.18s ease;
+        }
+
+        .ai-model-option-title {
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .ai-model-option-sub {
+          font-size: 11px;
+        }
+
+        .ai-model-option {
+          color: #475569;
+        }
+
+        .ai-model-option.active {
+          background: #0f172a;
+          color: #e5e7eb;
+          box-shadow: 0 6px 16px rgba(15, 23, 42, 0.35);
+        }
+
+        .ai-generator-subtitle {
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .ai-generator-badge {
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(37, 99, 235, 0.08);
+          color: #1d4ed8;
+          white-space: nowrap;
+        }
+
+        .ai-textarea-wrap {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+        }
+
+        .ai-generator-textarea {
+          width: 100%;
+          border-radius: 10px 10px 0 0;
+          border: 1px solid rgba(203, 213, 225, 0.9);
+          border-bottom: none;
+          padding: 10px 12px;
+          font-size: 13px;
+          resize: none;
+          background: #ffffff;
+          font-family: inherit;
+        }
+
+        .ai-generator-textarea:focus {
+          outline: none;
+          border-color: #2563eb;
+          box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+
+        .ai-attach-trigger {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          border: 1px solid rgba(203, 213, 225, 0.9);
+          border-top: none;
+          border-radius: 0 0 10px 10px;
+          padding: 6px 12px;
+          background: #f8fafc;
+          font-size: 12px;
+          font-weight: 500;
+          color: #64748b;
+          cursor: pointer;
+          width: 100%;
+          justify-content: flex-start;
+          transition: background 0.15s;
+        }
+
+        .ai-attach-trigger:hover {
+          background: #f1f5f9;
+          color: #1d4ed8;
+        }
+
+        .ai-attach-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 6px;
+        }
+
+        .ai-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 4px 10px 4px 8px;
+          border-radius: 999px;
+          background: rgba(37, 99, 235, 0.08);
+          border: 1px solid rgba(37, 99, 235, 0.18);
+          font-size: 12px;
+          color: #1e40af;
+          max-width: 220px;
+        }
+
+        .ai-chip-icon {
+          font-size: 13px;
+          flex-shrink: 0;
+        }
+
+        .ai-chip-name {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ai-chip-remove {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #64748b;
+          font-size: 15px;
+          line-height: 1;
+          padding: 0;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          margin-left: 2px;
+        }
+
+        .ai-chip-remove:hover {
+          color: #dc2626;
+        }
+
+        .ai-generator-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-top: 4px;
+        }
+
+        .ai-generate-btn {
+          border-radius: 999px;
+          padding: 8px 18px;
+          border: none;
+          background: #0f172a;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .ai-generate-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .ai-generator-hint {
+          font-size: 11px;
+          color: #94a3b8;
         }
 
         .content-type-tabs {

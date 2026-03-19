@@ -47,6 +47,7 @@ export default function AssistantChatPage() {
   const [conversationSearch, setConversationSearch] = useState('');
   const [isNewConversationMode, setIsNewConversationMode] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
+  const [seedMessage, setSeedMessage] = useState<string>('');
   const [conversations, setConversations] = useState<Array<{
     id: string;
     title: string;
@@ -222,6 +223,7 @@ export default function AssistantChatPage() {
     accentColor?: string;
     backgroundGradient?: string;
     conversationId?: string;
+    initialUserMessage?: string;
     getToken: ReturnType<typeof useAuth>['getToken'];
     isSignedIn: boolean;
   }> = ({ getToken, isSignedIn, ...props }) => {
@@ -342,7 +344,10 @@ export default function AssistantChatPage() {
                 <button
                   type="button"
                   className="conversation-new-btn"
-                  onClick={() => setIsNewConversationMode(true)}
+                  onClick={() => {
+                    setSeedMessage('');
+                    setIsNewConversationMode(true);
+                  }}
                 >
                   + New Conversation
                 </button>
@@ -411,6 +416,8 @@ export default function AssistantChatPage() {
                         setIsNewConversationMode(false);
                         // Clear conversationId for new conversation - it will be created when first message is sent
                         setSelectedConversationId('');
+                        // Seed the chat with the user's starter message (first user message)
+                        setSeedMessage(draftMessage);
                         // Generate a new key to force component remount with new sessionId
                         setNewConversationKey(`new-${Date.now()}`);
                         setDraftMessage('');
@@ -432,6 +439,7 @@ export default function AssistantChatPage() {
                   accentColor={assistant.accentColor}
                   backgroundGradient={assistant.backgroundGradient}
                   conversationId={selectedConversationId || undefined}
+                  initialUserMessage={selectedConversationId ? undefined : (seedMessage || undefined)}
                   getToken={getToken}
                   isSignedIn={isSignedIn}
                 />
@@ -590,7 +598,7 @@ export default function AssistantChatPage() {
 
         .conversation-chat {
           flex: 1;
-          min-height: 560px;
+          min-height: 720px;
         }
 
         .new-conversation-panel {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import {
     MDBContainer,
     MDBRow,
@@ -13,13 +14,6 @@ import {
     MDBBtn,
     MDBSwitch,
     MDBIcon,
-    MDBModal,
-    MDBModalDialog,
-    MDBModalContent,
-    MDBModalHeader,
-    MDBModalTitle,
-    MDBModalBody,
-    MDBModalFooter,
     MDBTable,
     MDBTableHead,
     MDBTableBody,
@@ -101,6 +95,17 @@ interface Chatbot {
     fallbackMessage?: string; // Fallback message for replying user
     greetingMessage?: string; // Greeting message for replying user
     restrictToDataSource?: boolean; // Restrict to Datasource and knowledgebase during user's reply
+    // Theme / style customization (same as chatbot creation step 1)
+    widgetPosition?: 'left' | 'right';
+    headerBackground?: string;
+    headerText?: string;
+    aiBackground?: string;
+    aiText?: string;
+    userBackground?: string;
+    userText?: string;
+    aiAvatar?: string;
+    avatarFileId?: string;
+    hideMainBannerLogo?: boolean;
 }
 
 export default function ChatbotDetailPage() {
@@ -201,6 +206,8 @@ export default function ChatbotDetailPage() {
         content: string;
         createdAt: Date;
     }>>([]);
+    const [showGuidedHand, setShowGuidedHand] = useState(true);
+    const [guidedStep, setGuidedStep] = useState<1 | 2 | 3>(1);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [replyMessage, setReplyMessage] = useState('');
     const [isSendingReply, setIsSendingReply] = useState(false);
@@ -241,6 +248,9 @@ export default function ChatbotDetailPage() {
     const [currentQAAnswer, setCurrentQAAnswer] = useState('');
     const [currentTextContent, setCurrentTextContent] = useState('');
     const [currentWebsiteUrl, setCurrentWebsiteUrl] = useState('');
+    const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [avatarError, setAvatarError] = useState<string | null>(null);
     
     // Interface for UserChatHistory from API
     interface UserChatHistory {
@@ -1303,9 +1313,29 @@ export default function ChatbotDetailPage() {
             // Prepare websites (extract url from WebsiteInfo)
             const websites = editingWebsites.map(websiteInfo => websiteInfo.url);
 
+            // Sanitize avatar: never send blob URLs. Use avatarFileId for custom, preset URL for presets.
+            const isBlobUrl = (url: string) => typeof url === 'string' && url.startsWith('blob:');
+            const isPresetAvatar = (url: string) => availableAvatars.some((a) => a.url === url);
+            let aiAvatarToSend: string | undefined = editedChatbot.aiAvatar;
+            let avatarFileIdToSend: string | undefined = editedChatbot.avatarFileId;
+            if (editedChatbot.avatarFileId) {
+                aiAvatarToSend = undefined;
+                avatarFileIdToSend = editedChatbot.avatarFileId;
+            } else if (editedChatbot.aiAvatar && isBlobUrl(editedChatbot.aiAvatar)) {
+                aiAvatarToSend = availableAvatars[0].url;
+                avatarFileIdToSend = undefined;
+            } else if (editedChatbot.aiAvatar && isPresetAvatar(editedChatbot.aiAvatar)) {
+                avatarFileIdToSend = undefined;
+            } else if (!editedChatbot.aiAvatar || isBlobUrl(editedChatbot.aiAvatar)) {
+                aiAvatarToSend = availableAvatars[0].url;
+            }
+
             // Ensure width and height are included from current preview values
+            // Explicitly send avatarFileId: null when using preset so backend clears any previous custom avatar
             const chatbotToSave = {
                 ...editedChatbot,
+                aiAvatar: aiAvatarToSend,
+                avatarFileId: avatarFileIdToSend ?? null,
                 width: previewWidth,
                 height: previewHeight,
                 fileIds: fileIds,
@@ -1353,11 +1383,77 @@ export default function ChatbotDetailPage() {
         setCurrentQAAnswer('');
         setCurrentTextContent('');
         setCurrentWebsiteUrl('');
+        setUploadedAvatarUrl(null);
+        setAvatarError(null);
+    };
+
+    const AVATAR_FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e2e8f0"/><text x="50" y="68" font-size="52" text-anchor="middle">🤖</text></svg>')}`;
+
+    const availableAvatars = [
+        { id: 'bot1', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80', label: 'Chatbot 1' },
+        { id: 'bot2', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot2&size=80', label: 'Chatbot 2' },
+        { id: 'bot3', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot3&size=80', label: 'Chatbot 3' },
+        { id: 'bot4', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support1&size=80', label: 'Support 1' },
+        { id: 'bot5', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support2&size=80', label: 'Support 2' },
+        { id: 'bot6', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Assistant&size=80', label: 'Assistant' },
+    ];
+
+    const uploadAvatar = async (file: File): Promise<{ fileId: string; downloadUrl?: string }> => {
+        const imageUrl = URL.createObjectURL(file);
+        const image = new Image();
+        await new Promise<void>((resolve, reject) => {
+            image.onload = () => {
+                const { width, height } = image;
+                URL.revokeObjectURL(imageUrl);
+                if (width !== height || width < 64) {
+                    reject(new Error('Please upload a square icon (width = height) with at least 64x64 pixels.'));
+                } else {
+                    resolve();
+                }
+            };
+            image.onerror = () => {
+                URL.revokeObjectURL(imageUrl);
+                reject(new Error('Failed to read image. Please try another file.'));
+            };
+            image.src = imageUrl;
+        });
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('chatbotId', chatbotId);
+        formData.append('sessionId', `avatar_${Date.now()}`);
+
+        const headers: Record<string, string> = {};
+        if (isSignedIn) {
+            try {
+                const token = await getToken();
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+            } catch (e) { /* ignore */ }
+        }
+
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const response = await fetch(`${baseUrl}/api/attachments/upload`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.errorMessage || `Failed to upload avatar: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (!result.fileId) throw new Error(result.errorMessage || 'Avatar upload failed');
+        const downloadUrl = result.downloadUrl || result.fileUrl || result.url || result.fileDownloadUrl;
+        return { fileId: result.fileId, downloadUrl };
     };
     
     // Initialize editing state when entering edit mode
     useEffect(() => {
         if (isEditing && chatbot) {
+            setUploadedAvatarUrl(null);
+            setAvatarError(null);
             // Initialize files from chatbot
             let files: UploadedFileInfo[] = [];
             
@@ -1723,21 +1819,87 @@ export default function ChatbotDetailPage() {
         return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
     };
 
-    const renderKnowledgeModal = () => (
-        <MDBModal open={showKnowledgeModal} setOpen={setShowKnowledgeModal} tabIndex='-1'>
-            <MDBModalDialog size='lg' scrollable>
-                <MDBModalContent>
-                    <MDBModalHeader>
-                        <MDBModalTitle>Knowledge Base</MDBModalTitle>
-                        <MDBBtn className='btn-close' color='none' onClick={handleKnowledgeModalClose}></MDBBtn>
-                    </MDBModalHeader>
-                    <MDBModalBody>
+    const renderKnowledgeModal = () => {
+        if (typeof document === 'undefined') return null;
+        if (!showKnowledgeModal) return null;
+
+        return ReactDOM.createPortal(
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="knowledge-base-title"
+                onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) handleKnowledgeModalClose();
+                }}
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(15, 23, 42, 0.45)',
+                    zIndex: 20000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px',
+                }}
+            >
+                <div
+                    style={{
+                        width: '100%',
+                        maxWidth: '980px',
+                        maxHeight: '85vh',
+                        overflow: 'hidden',
+                        background: '#ffffff',
+                        borderRadius: '14px',
+                        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)',
+                        border: '1px solid rgba(226, 232, 240, 0.9)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        WebkitFontSmoothing: 'subpixel-antialiased',
+                        backfaceVisibility: 'hidden',
+                    }}
+                >
+                    <div
+                        style={{
+                            padding: '16px 18px',
+                            borderBottom: '1px solid rgba(226, 232, 240, 0.9)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                        }}
+                    >
+                        <div id="knowledge-base-title" style={{ fontWeight: 700, fontSize: '18px' }}>
+                            Knowledge Base
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleKnowledgeModalClose}
+                            aria-label="Close"
+                            style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 10,
+                                border: '1px solid rgba(226, 232, 240, 0.9)',
+                                background: '#ffffff',
+                                cursor: 'pointer',
+                                fontSize: 18,
+                                lineHeight: 1,
+                                color: '#334155',
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    <div style={{ padding: '16px 18px', overflowY: 'auto' }}>
                         {/* Knowledge Bases List */}
                         <div className="mb-4">
                             <h5 className="mb-3 d-flex align-items-center gap-2">
                                 <MDBIcon icon="database" className="text-primary" />
                                 Knowledge Bases
-                                <MDBBadge color="primary" pill>{knowledgeBasesList.length}</MDBBadge>
+                                <MDBBadge color="primary" pill>
+                                    {knowledgeBasesList.length}
+                                </MDBBadge>
                             </h5>
                             {isLoadingKnowledgeBases ? (
                                 <div className="py-3 text-center text-muted">
@@ -1750,7 +1912,7 @@ export default function ChatbotDetailPage() {
                                 <p className="text-muted mb-0">No knowledge bases found for this chatbot.</p>
                             ) : (
                                 <div className="table-responsive">
-                                    <MDBTable align='middle' hover small>
+                                    <MDBTable align="middle" hover small>
                                         <MDBTableHead>
                                             <tr>
                                                 <th>Knowledge Of</th>
@@ -1761,12 +1923,12 @@ export default function ChatbotDetailPage() {
                                         </MDBTableHead>
                                         <MDBTableBody>
                                             {knowledgeBasesList.map((kb) => {
-                                                // Handle timestamp in seconds (multiply by 1000 to convert to milliseconds)
-                                                const createdTimestamp = typeof kb.created === 'number' 
-                                                    ? kb.created * 1000 
-                                                    : new Date(kb.created).getTime();
+                                                const createdTimestamp =
+                                                    typeof kb.created === 'number'
+                                                        ? kb.created * 1000
+                                                        : new Date(kb.created).getTime();
                                                 const createdDate = new Date(createdTimestamp);
-                                                
+
                                                 return (
                                                     <tr key={kb.id}>
                                                         <td>
@@ -1780,9 +1942,7 @@ export default function ChatbotDetailPage() {
                                                         <td>
                                                             <span className="text-muted">{kb.createdBy || '—'}</span>
                                                         </td>
-                                                        <td>
-                                                            {createdDate.toLocaleString()}
-                                                        </td>
+                                                        <td>{createdDate.toLocaleString()}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -1791,16 +1951,25 @@ export default function ChatbotDetailPage() {
                                 </div>
                             )}
                         </div>
-                    </MDBModalBody>
-                    <MDBModalFooter>
+                    </div>
+
+                    <div
+                        style={{
+                            padding: '14px 18px',
+                            borderTop: '1px solid rgba(226, 232, 240, 0.9)',
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                        }}
+                    >
                         <MDBBtn color="secondary" onClick={handleKnowledgeModalClose}>
                             Close
                         </MDBBtn>
-                    </MDBModalFooter>
-                </MDBModalContent>
-            </MDBModalDialog>
-        </MDBModal>
-    );
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    };
 
     // Show loading while Clerk is initializing or fetching chatbot
     if (!isLoaded || isLoading) {
@@ -1853,7 +2022,11 @@ export default function ChatbotDetailPage() {
             <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
                 <MDBContainer className="mt-5">
             <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
-                <h2 className="mb-0">Chatbot Details</h2>
+                <div>
+                    <h2 className="mb-1">Chatbot Details</h2>
+                    <p className="mb-0 text-muted" style={{ fontSize: '14px' }}>
+                    </p>
+                </div>
                 <div className="d-flex flex-wrap gap-2">
                     <MDBBtn 
                         color="info" 
@@ -1916,8 +2089,76 @@ export default function ChatbotDetailPage() {
                 </div>
             </div>
 
+            {/* Getting Started / Onboarding strip */}
+            {/* Floating animated hand guide */}
+            {showGuidedHand && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        const nextStep = guidedStep;
+                        let targetId: string | null = null;
+                        if (nextStep === 1) targetId = 'whatsapp-card';
+                        if (nextStep === 2) targetId = 'facebook-card';
+                        if (nextStep === 3) targetId = 'embed-section';
+
+                        if (targetId) {
+                            const el = document.getElementById(targetId);
+                            if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }
+
+                        if (guidedStep < 3) {
+                            setGuidedStep((prev) => (prev + 1) as 1 | 2 | 3);
+                        } else {
+                            setShowGuidedHand(false);
+                        }
+                    }}
+                    style={{
+                        position: 'fixed',
+                        right: '28px',
+                        bottom: '32px',
+                        zIndex: 50,
+                        border: 'none',
+                        backgroundColor: '#0f172a',
+                        color: '#e5e7eb',
+                        padding: '10px 16px',
+                        borderRadius: '999px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 14px 30px rgba(15,23,42,0.35)',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                    }}
+                >
+                    <span
+                        style={{
+                            display: 'inline-flex',
+                            width: 26,
+                            height: 26,
+                            borderRadius: '999px',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#facc15',
+                            animation: 'ai-hand-pulse 1.4s ease-in-out infinite',
+                        }}
+                    >
+                        <span style={{ fontSize: '16px' }}>👋</span>
+                    </span>
+                    <span>
+                        {guidedStep === 1 && 'Tap to jump to WhatsApp setup'}
+                        {guidedStep === 2 && 'Now see Facebook Page integration'}
+                        {guidedStep === 3 && 'Finally, scroll to website embed code'}
+                    </span>
+                </button>
+            )}
+
             <MDBCard>
                 <MDBCardBody className="p-4">
+                    <MDBRow>
+                        {/* Form - Full Width */}
+                        <MDBCol sm="12" md="12" lg="12">
                     <MDBRow>
                         <MDBCol md="6" className="mb-3">
                             <label className="form-label">Title</label>
@@ -2068,6 +2309,220 @@ export default function ChatbotDetailPage() {
                                     </span>
                                 </p>
                             )}
+                        </MDBCol>
+
+                        {/* Customize Styles Section */}
+                        <MDBCol md="12" className="mb-4 mt-4">
+                            <hr />
+                            <h5 className="mb-3 d-flex align-items-center gap-2" style={{
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                                fontWeight: '700',
+                            }}>
+                                Customize Styles
+                            </h5>
+                            <div style={{
+                                padding: '24px',
+                                background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+                                borderRadius: '16px',
+                                border: '1px solid rgba(59, 130, 246, 0.1)',
+                            }}>
+                                {isEditing ? (
+                                    <>
+                                        {/* AI Avatar */}
+                                        <div className="mb-3">
+                                            <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>AI Avatar</label>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                                                {availableAvatars.map((avatar) => (
+                                                    <div
+                                                        key={avatar.id}
+                                                        onClick={() => {
+                                                            setEditedChatbot((prev) => prev ? { ...prev, aiAvatar: avatar.url, avatarFileId: undefined } : null);
+                                                            setUploadedAvatarUrl(null);
+                                                        }}
+                                                        style={{
+                                                            width: '36px', height: '36px', borderRadius: '50%',
+                                                            border: (editedChatbot?.avatarFileId ? false : editedChatbot?.aiAvatar === avatar.url) ? '3px solid #3b82f6' : '2px solid #e2e8f0',
+                                                            cursor: 'pointer', overflow: 'hidden', transition: 'all 0.2s ease',
+                                                            boxShadow: (editedChatbot?.avatarFileId ? false : editedChatbot?.aiAvatar === avatar.url) ? '0 4px 12px rgba(59,130,246,0.3)' : 'none',
+                                                        }}
+                                                    >
+                                                        <img
+                                                            src={avatar.url}
+                                                            alt={avatar.label}
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                            onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK; }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                                {(editedChatbot?.avatarFileId) && (uploadedAvatarUrl || (typeof window !== 'undefined' && `${window.location.origin}/api/attachments/download/${editedChatbot.avatarFileId}?chatbotId=${chatbotId}`)) && (
+                                                    <div
+                                                        onClick={() => setEditedChatbot((prev) => prev ? { ...prev, aiAvatar: uploadedAvatarUrl || `${window.location.origin}/api/attachments/download/${editedChatbot.avatarFileId}?chatbotId=${chatbotId}` } : null)}
+                                                        style={{
+                                                            width: '36px', height: '36px', borderRadius: '50%',
+                                                            border: '3px solid #3b82f6', cursor: 'pointer', overflow: 'hidden',
+                                                            boxShadow: '0 4px 12px rgba(59,130,246,0.3)',
+                                                        }}
+                                                    >
+                                                        <img src={uploadedAvatarUrl || `${window.location.origin}/api/attachments/download/${editedChatbot.avatarFileId}?chatbotId=${chatbotId}`} alt="Custom" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                    </div>
+                                                )}
+                                                <label style={{
+                                                    width: '36px', height: '36px', borderRadius: '50%', border: '2px dashed #cbd5e1',
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb',
+                                                }}>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        style={{ display: 'none' }}
+                                                        onChange={async (e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+                                                            setAvatarError(null);
+                                                            setIsUploadingAvatar(true);
+                                                            try {
+                                                                const { fileId, downloadUrl } = await uploadAvatar(file);
+                                                                const displayUrl = downloadUrl || URL.createObjectURL(file);
+                                                                setUploadedAvatarUrl(displayUrl);
+                                                                setEditedChatbot((prev) => prev ? { ...prev, avatarFileId: fileId, aiAvatar: displayUrl } : null);
+                                                            } catch (err) {
+                                                                setAvatarError(err instanceof Error ? err.message : 'Upload failed');
+                                                            } finally {
+                                                                setIsUploadingAvatar(false);
+                                                                e.target.value = '';
+                                                            }
+                                                        }}
+                                                    />
+                                                    {isUploadingAvatar ? <MDBIcon icon="spinner" spin size="sm" style={{ color: '#3b82f6' }} /> : <MDBIcon icon="plus" size="sm" style={{ color: '#64748b' }} />}
+                                                </label>
+                                            </div>
+                                            {avatarError && <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>{avatarError}</div>}
+                                            <div className="mt-2">
+                                                <MDBSwitch
+                                                    id="hideMainBannerLogo"
+                                                    label="Hide main banner logo"
+                                                    checked={editedChatbot?.hideMainBannerLogo || false}
+                                                    onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, hideMainBannerLogo: e.target.checked } : null)}
+                                                />
+                                            </div>
+                                        </div>
+                                        {/* Colors */}
+                                        <div className="mb-3">
+                                            <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>Colors</label>
+                                            <small className="text-muted d-block mb-2">Customize color styles for chatbot widget</small>
+                                            <div className="row g-2 mb-2">
+                                                <div className="col-6">
+                                                    <label style={{ fontSize: '12px', color: '#6b7280' }}>Header Background</label>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <input type="color" value={editedChatbot?.headerBackground ?? '#2D3748'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, headerBackground: e.target.value } : null)} style={{ width: '40px', height: '32px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }} />
+                                                        <input type="text" value={editedChatbot?.headerBackground ?? '#2D3748'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, headerBackground: e.target.value } : null)} className="form-control form-control-sm" style={{ fontSize: '12px' }} />
+                                                    </div>
+                                                </div>
+                                                <div className="col-6">
+                                                    <label style={{ fontSize: '12px', color: '#6b7280' }}>Header Text</label>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <input type="color" value={editedChatbot?.headerText ?? '#FFFFFF'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, headerText: e.target.value } : null)} style={{ width: '40px', height: '32px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }} />
+                                                        <input type="text" value={editedChatbot?.headerText ?? '#FFFFFF'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, headerText: e.target.value } : null)} className="form-control form-control-sm" style={{ fontSize: '12px' }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="row g-2 mb-2">
+                                                <div className="col-6">
+                                                    <label style={{ fontSize: '12px', color: '#6b7280' }}>AI Background</label>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <input type="color" value={editedChatbot?.aiBackground ?? '#F7FAFC'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, aiBackground: e.target.value } : null)} style={{ width: '40px', height: '32px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }} />
+                                                        <input type="text" value={editedChatbot?.aiBackground ?? '#F7FAFC'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, aiBackground: e.target.value } : null)} className="form-control form-control-sm" style={{ fontSize: '12px' }} />
+                                                    </div>
+                                                </div>
+                                                <div className="col-6">
+                                                    <label style={{ fontSize: '12px', color: '#6b7280' }}>AI Text</label>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <input type="color" value={editedChatbot?.aiText ?? '#1A202C'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, aiText: e.target.value } : null)} style={{ width: '40px', height: '32px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }} />
+                                                        <input type="text" value={editedChatbot?.aiText ?? '#1A202C'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, aiText: e.target.value } : null)} className="form-control form-control-sm" style={{ fontSize: '12px' }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="row g-2">
+                                                <div className="col-6">
+                                                    <label style={{ fontSize: '12px', color: '#6b7280' }}>User Background</label>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <input type="color" value={editedChatbot?.userBackground ?? '#3B82F6'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, userBackground: e.target.value } : null)} style={{ width: '40px', height: '32px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }} />
+                                                        <input type="text" value={editedChatbot?.userBackground ?? '#3B82F6'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, userBackground: e.target.value } : null)} className="form-control form-control-sm" style={{ fontSize: '12px' }} />
+                                                    </div>
+                                                </div>
+                                                <div className="col-6">
+                                                    <label style={{ fontSize: '12px', color: '#6b7280' }}>User Text</label>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <input type="color" value={editedChatbot?.userText ?? '#FFFFFF'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, userText: e.target.value } : null)} style={{ width: '40px', height: '32px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }} />
+                                                        <input type="text" value={editedChatbot?.userText ?? '#FFFFFF'} onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, userText: e.target.value } : null)} className="form-control form-control-sm" style={{ fontSize: '12px' }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* Widget Position */}
+                                        <div className="mb-0">
+                                            <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>Widget Position</label>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <div
+                                                    onClick={() => setEditedChatbot((prev) => prev ? { ...prev, widgetPosition: 'left' } : null)}
+                                                    style={{
+                                                        flex: 1, padding: '24px', border: (editedChatbot?.widgetPosition ?? 'right') === 'left' ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                                                        borderRadius: '12px', cursor: 'pointer', textAlign: 'center', background: (editedChatbot?.widgetPosition ?? 'right') === 'left' ? 'rgba(59,130,246,0.05)' : 'white', transition: 'all 0.2s ease', position: 'relative',
+                                                    }}
+                                                >
+                                                    {(editedChatbot?.widgetPosition ?? 'right') === 'left' && <MDBIcon icon="check-circle" style={{ position: 'absolute', top: '8px', right: '8px', color: '#3b82f6' }} />}
+                                                    <MDBIcon icon="align-left" size="2x" style={{ color: '#3b82f6', marginBottom: '8px' }} />
+                                                    <div style={{ fontSize: '14px', fontWeight: '600' }}>Left Side</div>
+                                                </div>
+                                                <div
+                                                    onClick={() => setEditedChatbot((prev) => prev ? { ...prev, widgetPosition: 'right' } : null)}
+                                                    style={{
+                                                        flex: 1, padding: '24px', border: (editedChatbot?.widgetPosition ?? 'right') === 'right' ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                                                        borderRadius: '12px', cursor: 'pointer', textAlign: 'center', background: (editedChatbot?.widgetPosition ?? 'right') === 'right' ? 'rgba(59,130,246,0.05)' : 'white', transition: 'all 0.2s ease', position: 'relative',
+                                                    }}
+                                                >
+                                                    {(editedChatbot?.widgetPosition ?? 'right') === 'right' && <MDBIcon icon="check-circle" style={{ position: 'absolute', top: '8px', right: '8px', color: '#3b82f6' }} />}
+                                                    <MDBIcon icon="align-right" size="2x" style={{ color: '#3b82f6', marginBottom: '8px' }} />
+                                                    <div style={{ fontSize: '14px', fontWeight: '600' }}>Right Side</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="row g-3">
+                                        <MDBCol md="6">
+                                            <span className="text-muted d-block mb-1">Header</span>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <div style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: chatbot?.headerBackground ?? '#2D3748', border: '1px solid rgba(0,0,0,0.1)' }} title={chatbot?.headerBackground ?? '#2D3748'} />
+                                                <div style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: chatbot?.headerText ?? '#FFFFFF', border: '1px solid rgba(0,0,0,0.15)' }} title={chatbot?.headerText ?? '#FFFFFF'} />
+                                                <span className="small text-muted">bg / text</span>
+                                            </div>
+                                        </MDBCol>
+                                        <MDBCol md="6">
+                                            <span className="text-muted d-block mb-1">Position</span>
+                                            <span>{(chatbot?.widgetPosition ?? 'right') === 'left' ? 'Left' : 'Right'}</span>
+                                        </MDBCol>
+                                        <MDBCol md="6">
+                                            <span className="text-muted d-block mb-1">AI message</span>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <div style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: chatbot?.aiBackground ?? '#F7FAFC', border: '1px solid rgba(0,0,0,0.1)' }} title={chatbot?.aiBackground ?? '#F7FAFC'} />
+                                                <div style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: chatbot?.aiText ?? '#1A202C', border: '1px solid rgba(0,0,0,0.1)' }} title={chatbot?.aiText ?? '#1A202C'} />
+                                                <span className="small text-muted">bg / text</span>
+                                            </div>
+                                        </MDBCol>
+                                        <MDBCol md="6">
+                                            <span className="text-muted d-block mb-1">User message</span>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <div style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: chatbot?.userBackground ?? '#3B82F6', border: '1px solid rgba(0,0,0,0.1)' }} title={chatbot?.userBackground ?? '#3B82F6'} />
+                                                <div style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: chatbot?.userText ?? '#FFFFFF', border: '1px solid rgba(0,0,0,0.15)' }} title={chatbot?.userText ?? '#FFFFFF'} />
+                                                <span className="small text-muted">bg / text</span>
+                                            </div>
+                                        </MDBCol>
+                                    </div>
+                                )}
+                            </div>
                         </MDBCol>
                         
                         {/* Knowledge Base View Section (Non-edit mode) */}
@@ -2561,6 +3016,179 @@ export default function ChatbotDetailPage() {
                             </div>
                         </MDBCol>
                     </MDBRow>
+                        </MDBCol>
+                    </MDBRow>
+
+                    {/* Fixed Live Preview - right side, frozen, fixed height */}
+                    <div style={{
+                        position: 'fixed',
+                        right: '24px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: '320px',
+                        zIndex: 100,
+                        padding: '24px',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+                    }}>
+                        <h5 style={{
+                            color: 'white',
+                            fontWeight: '700',
+                            fontSize: '18px',
+                            marginBottom: '16px',
+                            textAlign: 'center',
+                            flexShrink: 0,
+                        }}>Live Preview</h5>
+                        <div style={{
+                            width: '272px',
+                            height: '420px',
+                            flexShrink: 0,
+                            backgroundColor: 'white',
+                            borderRadius: '16px',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }}>
+                                    {/* Header */}
+                                    <div style={{
+                                        backgroundColor: (isEditing ? editedChatbot?.headerBackground : chatbot?.headerBackground) ?? '#2D3748',
+                                        color: (isEditing ? editedChatbot?.headerText : chatbot?.headerText) ?? '#FFFFFF',
+                                        padding: '16px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                    }}>
+                                        {!((isEditing ? editedChatbot?.hideMainBannerLogo : chatbot?.hideMainBannerLogo)) && (
+                                            <MDBIcon icon="robot" size="lg" />
+                                        )}
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: '700', fontSize: '16px' }}>{(isEditing ? editedChatbot?.title : chatbot?.title) || 'Chatbot'}</div>
+                                        </div>
+                                    </div>
+                                    {/* Chat Messages */}
+                                    <div style={{
+                                        flex: 1,
+                                        minHeight: 0,
+                                        padding: '16px',
+                                        backgroundColor: '#f9fafb',
+                                        overflowY: 'auto',
+                                    }}>
+                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                            {!((isEditing ? editedChatbot?.hideMainBannerLogo : chatbot?.hideMainBannerLogo)) && (
+                                                (() => {
+                                                    const data = isEditing ? editedChatbot : chatbot;
+                                                    const avatarUrl = (isEditing && uploadedAvatarUrl) || data?.aiAvatar ||
+                                                        (data?.avatarFileId && typeof window !== 'undefined'
+                                                            ? `${window.location.origin}/api/attachments/download/${data.avatarFileId}?chatbotId=${chatbotId}`
+                                                            : 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80');
+                                                    const canShowImage = avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('/') || avatarUrl.startsWith('blob:'));
+                                                    return canShowImage ? (
+                                                        <img src={avatarUrl} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />
+                                                    ) : (
+                                                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, flexShrink: 0 }}>
+                                                            {(data?.name || 'C').charAt(0).toUpperCase()}
+                                                        </div>
+                                                    );
+                                                })()
+                                            )}
+                                            <div style={{
+                                                backgroundColor: (isEditing ? editedChatbot?.aiBackground : chatbot?.aiBackground) ?? '#F7FAFC',
+                                                color: (isEditing ? editedChatbot?.aiText : chatbot?.aiText) ?? '#1A202C',
+                                                padding: '12px',
+                                                borderRadius: '12px',
+                                                maxWidth: '70%',
+                                                fontSize: '14px',
+                                            }}>
+                                                {(isEditing ? editedChatbot?.greetingMessage : chatbot?.greetingMessage) || 'Hey, what can I do for you today?'}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                                            <div style={{
+                                                backgroundColor: (isEditing ? editedChatbot?.userBackground : chatbot?.userBackground) ?? '#3B82F6',
+                                                color: (isEditing ? editedChatbot?.userText : chatbot?.userText) ?? '#FFFFFF',
+                                                padding: '12px',
+                                                borderRadius: '12px',
+                                                maxWidth: '70%',
+                                                fontSize: '14px',
+                                            }}>
+                                                I need to place a new order
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            {!((isEditing ? editedChatbot?.hideMainBannerLogo : chatbot?.hideMainBannerLogo)) && (
+                                                (() => {
+                                                    const data = isEditing ? editedChatbot : chatbot;
+                                                    const avatarUrl = (isEditing && uploadedAvatarUrl) || data?.aiAvatar ||
+                                                        (data?.avatarFileId && typeof window !== 'undefined'
+                                                            ? `${window.location.origin}/api/attachments/download/${data.avatarFileId}?chatbotId=${chatbotId}`
+                                                            : 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80');
+                                                    const canShowImage = avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('/') || avatarUrl.startsWith('blob:'));
+                                                    return canShowImage ? (
+                                                        <img src={avatarUrl} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />
+                                                    ) : (
+                                                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, flexShrink: 0 }}>
+                                                            {(data?.name || 'C').charAt(0).toUpperCase()}
+                                                        </div>
+                                                    );
+                                                })()
+                                            )}
+                                            <div style={{
+                                                backgroundColor: (isEditing ? editedChatbot?.aiBackground : chatbot?.aiBackground) ?? '#F7FAFC',
+                                                color: (isEditing ? editedChatbot?.aiText : chatbot?.aiText) ?? '#1A202C',
+                                                padding: '12px',
+                                                borderRadius: '12px',
+                                                maxWidth: '70%',
+                                                fontSize: '14px',
+                                            }}>
+                                                Sure, what would you like to order today? We have valid amount of sophisticated AI book that you can order.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Input Area */}
+                                    <div style={{
+                                        padding: '12px',
+                                        borderTop: '1px solid #e5e7eb',
+                                        display: 'flex',
+                                        gap: '8px',
+                                    }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Type your message..."
+                                            disabled
+                                            style={{
+                                                flex: 1,
+                                                padding: '8px 12px',
+                                                border: '1px solid #e5e7eb',
+                                                borderRadius: '20px',
+                                                fontSize: '14px',
+                                                outline: 'none',
+                                            }}
+                                        />
+                                        <button
+                                            disabled
+                                            style={{
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '50%',
+                                                border: 'none',
+                                                backgroundColor: (isEditing ? editedChatbot?.userBackground : chatbot?.userBackground) ?? '#3B82F6',
+                                                color: (isEditing ? editedChatbot?.userText : chatbot?.userText) ?? '#FFFFFF',
+                                                cursor: 'not-allowed',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            <MDBIcon icon="paper-plane" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                 </MDBCardBody>
             </MDBCard>
 
@@ -2575,7 +3203,7 @@ export default function ChatbotDetailPage() {
                         Integrate your chatbot into websites and communication channels. Configure embed codes and connect to messaging platforms.
                     </p>
 
-                    <div className="row g-4">
+                    <div className="row g-4" id="embed-section">
                         {/* Website Widget Embed */}
                         <MDBCol md="6">
                             <div className="border rounded p-4 h-100" style={{ backgroundColor: '#f8f9fa' }}>
@@ -2751,7 +3379,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                         </MDBCol>
 
                         {/* WhatsApp Integration */}
-                        <MDBCol md="4">
+                        <MDBCol md="4" id="whatsapp-card">
                             <div
                                 className="border rounded-4 p-4 h-100"
                                 style={{
@@ -2873,7 +3501,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                         </MDBCol>
 
                         {/* Facebook Messenger Integration */}
-                        <MDBCol md="4">
+                        <MDBCol md="4" id="facebook-card">
                             <div
                                 className="border rounded-4 p-4 h-100"
                                 style={{
@@ -3014,19 +3642,81 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
             </div>
             
             {renderKnowledgeModal()}
-            <MDBModal open={showWhatsappModal} setOpen={setShowWhatsappModal} tabIndex='-1'>
-                <MDBModalDialog size='lg'>
-                    <MDBModalContent>
-                        <MDBModalHeader className="border-0 pb-0">
+            {typeof document !== 'undefined' && showWhatsappModal && ReactDOM.createPortal(
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="whatsapp-setup-title"
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) handleCloseWhatsappModal();
+                    }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15, 23, 42, 0.45)',
+                        zIndex: 20000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            maxWidth: '980px',
+                            maxHeight: '85vh',
+                            overflow: 'hidden',
+                            background: '#ffffff',
+                            borderRadius: '14px',
+                            boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)',
+                            border: '1px solid rgba(226, 232, 240, 0.9)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            WebkitFontSmoothing: 'subpixel-antialiased',
+                            backfaceVisibility: 'hidden',
+                        }}
+                    >
+                        <div
+                            style={{
+                                padding: '16px 18px',
+                                borderBottom: '1px solid rgba(226, 232, 240, 0.9)',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                justifyContent: 'space-between',
+                                gap: '12px',
+                            }}
+                        >
                             <div>
-                                <MDBModalTitle className="fs-4">WhatsApp API Setup</MDBModalTitle>
+                                <div id="whatsapp-setup-title" className="fs-4 fw-semibold">
+                                    WhatsApp API Setup
+                                </div>
                                 <p className="text-muted mb-0" style={{ fontSize: '14px' }}>
                                     Configure your WhatsApp Business API credentials to enable WhatsApp integration for your chatbot.
                                 </p>
                             </div>
-                            <MDBBtn className="btn-close" color="none" onClick={handleCloseWhatsappModal}></MDBBtn>
-                        </MDBModalHeader>
-                        <MDBModalBody className="pt-2" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                            <button
+                                type="button"
+                                onClick={handleCloseWhatsappModal}
+                                aria-label="Close"
+                                style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 10,
+                                    border: '1px solid rgba(226, 232, 240, 0.9)',
+                                    background: '#ffffff',
+                                    cursor: 'pointer',
+                                    fontSize: 18,
+                                    lineHeight: 1,
+                                    color: '#334155',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div style={{ padding: '16px 18px', overflowY: 'auto' }}>
                             <MDBRow className="g-4">
                                         <MDBCol md="6">
                                             <label className="form-label fw-semibold">
@@ -3234,8 +3924,16 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                             )}
                                         </div>
                                     </div>
-                        </MDBModalBody>
-                        <MDBModalFooter className="border-0">
+                        </div>
+                        <div
+                            style={{
+                                padding: '14px 18px',
+                                borderTop: '1px solid rgba(226, 232, 240, 0.9)',
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                gap: '12px',
+                            }}
+                        >
                             <MDBBtn color="secondary" outline onClick={handleCloseWhatsappModal}>
                                 Cancel
                             </MDBBtn>
@@ -3257,23 +3955,86 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                     </>
                                 )}
                             </MDBBtn>
-                        </MDBModalFooter>
-                    </MDBModalContent>
-                </MDBModalDialog>
-            </MDBModal>
-            <MDBModal open={showFacebookModal} setOpen={setShowFacebookModal} tabIndex='-1'>
-                <MDBModalDialog size='lg'>
-                    <MDBModalContent>
-                        <MDBModalHeader className="border-0 pb-0">
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+            {typeof document !== 'undefined' && showFacebookModal && ReactDOM.createPortal(
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="facebook-setup-title"
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) handleCloseFacebookModal();
+                    }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15, 23, 42, 0.45)',
+                        zIndex: 20000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            maxWidth: '980px',
+                            maxHeight: '85vh',
+                            overflow: 'hidden',
+                            background: '#ffffff',
+                            borderRadius: '14px',
+                            boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)',
+                            border: '1px solid rgba(226, 232, 240, 0.9)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            WebkitFontSmoothing: 'subpixel-antialiased',
+                            backfaceVisibility: 'hidden',
+                        }}
+                    >
+                        <div
+                            style={{
+                                padding: '16px 18px',
+                                borderBottom: '1px solid rgba(226, 232, 240, 0.9)',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                justifyContent: 'space-between',
+                                gap: '12px',
+                            }}
+                        >
                             <div>
-                                <MDBModalTitle className="fs-4">Facebook Messenger Setup</MDBModalTitle>
+                                <div id="facebook-setup-title" className="fs-4 fw-semibold">
+                                    Facebook Messenger Setup
+                                </div>
                                 <p className="text-muted mb-0" style={{ fontSize: '14px' }}>
                                     Configure your Facebook page credentials to enable Messenger conversations for this chatbot.
                                 </p>
                             </div>
-                            <MDBBtn className="btn-close" color="none" onClick={handleCloseFacebookModal}></MDBBtn>
-                        </MDBModalHeader>
-                        <MDBModalBody className="pt-2">
+                            <button
+                                type="button"
+                                onClick={handleCloseFacebookModal}
+                                aria-label="Close"
+                                style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 10,
+                                    border: '1px solid rgba(226, 232, 240, 0.9)',
+                                    background: '#ffffff',
+                                    cursor: 'pointer',
+                                    fontSize: 18,
+                                    lineHeight: 1,
+                                    color: '#334155',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div style={{ padding: '16px 18px', overflowY: 'auto' }}>
                             <MDBRow className="g-4">
                                 <MDBCol md="6">
                                     <label className="form-label fw-semibold">
@@ -3401,8 +4162,16 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                     )}
                                 </div>
                             </div>
-                        </MDBModalBody>
-                        <MDBModalFooter className="border-0">
+                        </div>
+                        <div
+                            style={{
+                                padding: '14px 18px',
+                                borderTop: '1px solid rgba(226, 232, 240, 0.9)',
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                gap: '12px',
+                            }}
+                        >
                             <MDBBtn color="secondary" outline onClick={handleCloseFacebookModal}>
                                 Cancel
                             </MDBBtn>
@@ -3424,35 +4193,41 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                     </>
                                 )}
                             </MDBBtn>
-                        </MDBModalFooter>
-                    </MDBModalContent>
-                </MDBModalDialog>
-            </MDBModal>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
             
-            {/* API Copy Tooltip */}
-            {showApiCopyTooltip && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: '20px',
-                        right: '20px',
-                        backgroundColor: '#10b981',
-                        color: 'white',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                        zIndex: 9999,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        opacity: showApiCopyTooltip ? 1 : 0,
-                        transform: showApiCopyTooltip ? 'translateY(0)' : 'translateY(-10px)',
-                        transition: 'opacity 0.3s ease-in, transform 0.3s ease-in',
-                    }}
-                >
-                    <MDBIcon icon="check-circle" className="me-2" />
-                    <span>API information copied to clipboard!</span>
-                </div>
+            {/* API Copy Tooltip - rendered via Portal to avoid blur from backdrop-filter overlays */}
+            {typeof document !== 'undefined' && ReactDOM.createPortal(
+                showApiCopyTooltip ? (
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: '20px',
+                            right: '20px',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            padding: '12px 20px',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                            zIndex: 99999,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            opacity: 1,
+                            transform: 'translate3d(0, 0, 0)',
+                            transition: 'opacity 0.3s ease-in, transform 0.3s ease-in',
+                            WebkitFontSmoothing: 'subpixel-antialiased',
+                            backfaceVisibility: 'hidden',
+                        }}
+                    >
+                        <MDBIcon icon="check-circle" className="me-2" />
+                        <span>API information copied to clipboard!</span>
+                    </div>
+                ) : null,
+                document.body
             )}
             
             {isConversationDrawerOpen && (
@@ -3996,6 +4771,21 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                     }
                 }
 
+                @keyframes ai-hand-pulse {
+                    0% {
+                        transform: scale(1);
+                        box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.6);
+                    }
+                    70% {
+                        transform: scale(1.08);
+                        box-shadow: 0 0 0 10px rgba(250, 204, 21, 0);
+                    }
+                    100% {
+                        transform: scale(1);
+                        box-shadow: 0 0 0 0 rgba(250, 204, 21, 0);
+                    }
+                }
+
                 .drawer-form {
                     display: flex;
                     flex-direction: column;
@@ -4050,213 +4840,6 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                     margin-top: 8px;
                 }
             `}</style>
-            <div
-                className="chatbot-preview-container"
-                style={{
-                    position: 'fixed',
-                    right: '24px',
-                    bottom: '24px',
-                    width: `${previewWidth}px`,
-                    height: `${previewHeight}px`,
-                    maxWidth: '100vw',
-                    maxHeight: '100vh',
-                    zIndex: 999,
-                }}
-            >
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: '-72px',
-                        right: '0',
-                        background: '#ffffff',
-                        borderRadius: '12px',
-                        boxShadow: '0 10px 20px rgba(15, 23, 42, 0.12)',
-                        padding: '12px 16px',
-                        border: '1px solid rgba(148, 163, 184, 0.25)',
-                        display: 'flex',
-                        gap: '16px',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <MDBIcon icon="expand-arrows-alt" className="text-primary" />
-                        <strong style={{ fontSize: '13px', color: '#0f172a' }}>Widget Size</strong>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>W</span>
-                        <input
-                            type="number"
-                            min={240}
-                            max={1024}
-                            value={previewWidth}
-                            onChange={(e) => handlePreviewWidthChange(Number(e.target.value))}
-                            disabled={!isEditing}
-                            style={{
-                                width: '72px',
-                                padding: '4px 6px',
-                                borderRadius: '6px',
-                                border: '1px solid rgba(148, 163, 184, 0.4)',
-                                fontSize: '12px',
-                            }}
-                        />
-                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>px</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>H</span>
-                        <input
-                            type="number"
-                            min={240}
-                            max={1024}
-                            value={previewHeight}
-                            onChange={(e) => handlePreviewHeightChange(Number(e.target.value))}
-                            disabled={!isEditing}
-                            style={{
-                                width: '72px',
-                                padding: '4px 6px',
-                                borderRadius: '6px',
-                                border: '1px solid rgba(148, 163, 184, 0.4)',
-                                fontSize: '12px',
-                            }}
-                        />
-                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>px</span>
-                    </div>
-                    {!isEditing && (
-                        <MDBBadge
-                            color="light"
-                            style={{
-                                backgroundColor: '#e2e8f0',
-                                color: '#475569',
-                                marginTop: '-20px',
-                            }}
-                        >
-                            Enable edit mode to save changes
-                        </MDBBadge>
-                    )}
-                </div>
-                <div
-                    className="chatbot-preview-frame"
-                    style={{
-                        width: '100%',
-                        height: '100%',
-                        borderRadius: '22px',
-                        boxShadow: '0 24px 60px rgba(15, 23, 42, 0.25)',
-                        overflow: 'hidden',
-                        border: '1px solid rgba(148, 163, 184, 0.35)',
-                        background: 'linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                    }}
-                >
-                    <div
-                        style={{
-                            padding: '12px 16px',
-                            background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 50%, #10B981 100%)',
-                            color: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            borderRadius: '22px 22px 0 0',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div
-                                style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    borderRadius: '12px',
-                                    background: 'rgba(255, 255, 255, 0.2)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#ffffff',
-                                    fontSize: '16px',
-                                    fontWeight: 600,
-                                }}
-                            >
-                                {chatbot.name?.charAt(0).toUpperCase() ?? 'C'}
-                            </div>
-                            <div style={{ fontWeight: 600, fontSize: '16px' }}>{chatbot.name || 'Chatbot'}</div>
-                        </div>
-                        <button
-                            style={{
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                color: 'white',
-                                fontSize: '20px',
-                                cursor: 'pointer',
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                lineHeight: '1',
-                            }}
-                            aria-label="Close"
-                        >
-                            ×
-                        </button>
-                    </div>
-                    <div style={{ flex: 1, padding: '18px', overflow: 'auto', backgroundColor: 'rgba(255,255,255,0.85)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div
-                            style={{
-                                alignSelf: 'flex-start',
-                                backgroundColor: '#e0f2fe',
-                                color: '#0f172a',
-                                padding: '12px 16px',
-                                borderRadius: '18px',
-                                maxWidth: '80%',
-                                boxShadow: '0 8px 20px rgba(14, 116, 144, 0.18)',
-                            }}
-                        >
-                            👋 Hi there! Ask me anything about your automation.
-                        </div>
-                        <div
-                            style={{
-                                alignSelf: 'flex-end',
-                                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                                color: '#ffffff',
-                                padding: '12px 16px',
-                                borderRadius: '18px',
-                                maxWidth: '80%',
-                                boxShadow: '0 12px 24px rgba(37, 99, 235, 0.22)',
-                            }}
-                        >
-                            Sure, can you help me schedule a follow-up?
-                        </div>
-                    </div>
-                    <div
-                        style={{
-                            padding: '14px 18px',
-                            borderTop: '1px solid rgba(148, 163, 184, 0.25)',
-                            backgroundColor: '#f1f5f9',
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                backgroundColor: '#ffffff',
-                                borderRadius: '24px',
-                                padding: '8px 14px',
-                                boxShadow: 'inset 0 0 0 1px rgba(148, 163, 184, 0.2)',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: '10px',
-                                    height: '10px',
-                                    borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                                    boxShadow: '0 0 0 4px rgba(34, 197, 94, 0.15)',
-                                }}
-                            ></div>
-                            <span style={{ fontSize: '12px', color: '#475569' }}>
-                                Preview only — actual conversations appear in production.
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }

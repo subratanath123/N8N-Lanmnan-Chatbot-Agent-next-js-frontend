@@ -1,0 +1,28 @@
+/**
+ * Fix for blurry modal content across the application.
+ * Bootstrap/MDB modals use transform for animations which can cause
+ * subpixel rendering and blurry text in Chromium-based browsers.
+ */
+.modal.show .modal-dialog {
+  transform: translate3d(0, 0, 0) !important;
+}
+
+/* Disable transform-based modal animations entirely.
+   Chromium can keep text rasterized/blurry after transforms. */
+.modal.fade .modal-dialog,
+.modal.modal-static .modal-dialog {
+  transform: none !important;
+}
+
+.modal-content {
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: optimizeLegibility;
+  backface-visibility: hidden;
+}
+
+/* Ensure modal backdrop does not blur modal content (backdrop-filter only blurs behind it,
+   but some browsers have stacking context bugs - explicit none prevents inheritance) */
+.modal-backdrop {
+  backdrop-filter: none !important;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import {
     MDBContainer,
     MDBRow,
@@ -32,6 +33,17 @@ interface ChatbotFormData {
     customFallbackMessage: boolean;
     fallbackMessage: string;
     greetingMessage: string;
+    model: string;
+    widgetPosition: 'left' | 'right';
+    headerBackground: string;
+    headerText: string;
+    aiBackground: string;
+    aiText: string;
+    userBackground: string;
+    userText: string;
+    aiAvatar: string;
+    hideMainBannerLogo: boolean;
+    avatarFileId?: string;
 }
 
 interface ChatbotType {
@@ -64,7 +76,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const { getToken } = useAuth();
     
     const [currentStep, setCurrentStep] = useState(1);
-    const totalSteps = 3;
+    const totalSteps = 2;
     const [selectedDataSource, setSelectedDataSource] = useState<string>('');
     const [qaPairs, setQaPairs] = useState<Array<{id: string, question: string, answer: string}>>([]);
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -83,7 +95,19 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         restrictToDataSource: false,
         customFallbackMessage: false,
         fallbackMessage: 'I apologize, but I don\'t have enough information to answer that question. Please try rephrasing your question or contact support for assistance.',
-        greetingMessage: 'Hey, what can I do for you today?'
+        greetingMessage: 'Hey, what can I do for you today?',
+        model: 'gpt-4o',
+        widgetPosition: 'right',
+        headerBackground: '#2D3748',
+        headerText: '#FFFFFF',
+        aiBackground: '#F7FAFC',
+        aiText: '#1A202C',
+        userBackground: '#3B82F6',
+        userText: '#FFFFFF',
+        // Default preset avatar: friendly chatbot icon
+        aiAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80',
+        hideMainBannerLogo: false,
+        avatarFileId: undefined
     });
 
     const [errors, setErrors] = useState<Partial<ChatbotFormData>>({});
@@ -93,6 +117,9 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
     const [selectedChatbotTypeId, setSelectedChatbotTypeId] = useState<string>('');
     const [isLoadingTypes, setIsLoadingTypes] = useState(false);
     const [isLoadingTypeDetails, setIsLoadingTypeDetails] = useState(false);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [avatarError, setAvatarError] = useState<string | null>(null);
+    const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
 
     const showTooltipNotification = (message: string) => {
         setTooltipMessage(message);
@@ -236,15 +263,12 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             if (!formData.instructions.trim()) {
                 newErrors.instructions = 'Chatbot instructions are required';
             }
-        }
-
-        if (step === 2) {
             if (!formData.greetingMessage.trim()) {
                 newErrors.greetingMessage = 'Greeting message is required';
             }
         }
 
-        if (step === 3) {
+        if (step === 2) {
             // Check if at least one training source is provided
             let hasTrainingData = false;
             
@@ -299,8 +323,29 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 .filter(file => file.fileId !== null)
                 .map(file => file.fileId as string);
             
+            // Sanitize avatar: never send blob URLs. Use avatarFileId for custom, preset URL for presets.
+            const isBlobUrl = (url: string) => typeof url === 'string' && url.startsWith('blob:');
+            const isPresetAvatar = (url: string) => availableAvatars.some((a) => a.url === url);
+            let aiAvatarToSend: string | undefined = formData.aiAvatar;
+            let avatarFileIdToSend: string | undefined = formData.avatarFileId;
+            if (formData.avatarFileId) {
+                // Custom upload: send only avatarFileId, not aiAvatar (backend resolves from fileId)
+                aiAvatarToSend = undefined;
+                avatarFileIdToSend = formData.avatarFileId;
+            } else if (isBlobUrl(formData.aiAvatar)) {
+                // Legacy blob URL: use default preset
+                aiAvatarToSend = availableAvatars[0].url;
+                avatarFileIdToSend = undefined;
+            } else if (isPresetAvatar(formData.aiAvatar)) {
+                avatarFileIdToSend = undefined;
+            } else if (!formData.aiAvatar || isBlobUrl(formData.aiAvatar)) {
+                aiAvatarToSend = availableAvatars[0].url;
+            }
+            
             const submissionData = {
                 ...formData,
+                aiAvatar: aiAvatarToSend,
+                avatarFileId: avatarFileIdToSend,
                 qaPairs: qaPairs,
                 selectedDataSource: selectedDataSource,
                 fileIds: fileIds,
@@ -387,6 +432,72 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         }
 
         return result.fileId;
+    };
+
+    const uploadAvatar = async (file: File): Promise<{ fileId: string; downloadUrl?: string }> => {
+        // Validate image dimensions (square icon, reasonable size)
+        const imageUrl = URL.createObjectURL(file);
+        const image = new Image();
+        await new Promise<void>((resolve, reject) => {
+            image.onload = () => {
+                const { width, height } = image;
+                URL.revokeObjectURL(imageUrl);
+                // Require square and at least 64x64
+                if (width !== height || width < 64) {
+                    reject(
+                        new Error(
+                            'Please upload a square icon (width = height) with at least 64x64 pixels.'
+                        )
+                    );
+                } else {
+                    resolve();
+                }
+            };
+            image.onerror = () => {
+                URL.revokeObjectURL(imageUrl);
+                reject(new Error('Failed to read image. Please try another file.'));
+            };
+            image.src = imageUrl;
+        });
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('chatbotId', 'avatar-upload');
+        formData.append('sessionId', `avatar_${Date.now()}`);
+
+        const headers: Record<string, string> = {};
+
+        if (isSignedIn) {
+            try {
+                const token = await getToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+            } catch (error) {
+                console.warn('Failed to get auth token for avatar upload:', error);
+            }
+        }
+
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const response = await fetch(`${baseUrl}/api/attachments/upload`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.errorMessage || `Failed to upload avatar: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.fileId) {
+            throw new Error(result.errorMessage || 'Avatar upload failed');
+        }
+
+        const downloadUrl = result.downloadUrl || result.fileUrl || result.url || result.fileDownloadUrl;
+        return { fileId: result.fileId, downloadUrl };
     };
 
     const handleFileSelect = async (files: FileList | null) => {
@@ -529,125 +640,711 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    const AVATAR_FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e2e8f0"/><text x="50" y="68" font-size="52" text-anchor="middle">🤖</text></svg>')}`;
+
+    const availableAvatars = [
+        { id: 'bot1', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80', label: 'Chatbot 1' },
+        { id: 'bot2', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot2&size=80', label: 'Chatbot 2' },
+        { id: 'bot3', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot3&size=80', label: 'Chatbot 3' },
+        { id: 'bot4', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support1&size=80', label: 'Support 1' },
+        { id: 'bot5', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support2&size=80', label: 'Support 2' },
+        { id: 'bot6', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Assistant&size=80', label: 'Assistant' },
+    ];
+
+    const availableModels = [
+        { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable, latest model' },
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and efficient' },
+        { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Advanced reasoning' },
+        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast, cost-effective' },
+    ];
+
     const renderStep1 = () => (
-        <div style={{
-            padding: '24px',
-            background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
-            borderRadius: '16px',
-            border: '1px solid rgba(59, 130, 246, 0.1)'
-        }}>
-            <h4 className="mb-4" style={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                fontWeight: '700',
-                fontSize: '24px'
-            }}>Basic Configuration</h4>
-            
-            {/* Chatbot Title */}
-            <div className="mb-4">
-                <MDBInput
-                    label="Chatbot Title"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
-                    className={errors.title ? 'is-invalid' : ''}
-                    required
-                />
-                {errors.title && <div className="invalid-feedback">{errors.title}</div>}
-                <small className="text-muted">This will be displayed as the main title of your chatbot</small>
-            </div>
-
-            {/* AI Chatbot Name */}
-            <div className="mb-4">
-                <MDBInput
-                    label="AI Chatbot Name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className={errors.name ? 'is-invalid' : ''}
-                    required
-                />
-                {errors.name && <div className="invalid-feedback">{errors.name}</div>}
-                
-                {/* Hide Chatbot Name Toggle */}
-                <div className="mt-3">
-                    <MDBSwitch
-                        id="hideName"
-                        label="Hide Chatbot Name"
-                        checked={formData.hideName}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('hideName', e.target.checked)}
-                    />
-                </div>
-            </div>
-
-            {/* Chatbot Type Selection */}
-            <div className="mb-4">
-                <label className="form-label">
-                    Chatbot Type <span className="text-danger">*</span>
-                </label>
-                <select
-                    className={`form-select ${errors.instructions && !selectedChatbotTypeId ? 'is-invalid' : ''}`}
-                    value={selectedChatbotTypeId}
-                    onChange={(e) => handleChatbotTypeChange(e.target.value)}
-                    disabled={isLoadingTypes}
-                    required
-                    style={{
-                        padding: '12px',
-                        borderRadius: '8px',
-                        border: '1px solid #ced4da',
-                        fontSize: '16px',
-                        width: '100%',
-                        backgroundColor: isLoadingTypes ? '#f8f9fa' : '#fff'
-                    }}
-                >
-                    <option value="">{isLoadingTypes ? 'Loading types...' : 'Select a chatbot type'}</option>
-                    {chatbotTypes.map((type) => (
-                        <option key={type.id} value={type.id}>
-                            {type.name}
-                        </option>
-                    ))}
-                </select>
-                {errors.instructions && !selectedChatbotTypeId && (
-                    <div className="invalid-feedback d-block" style={{ marginTop: '4px', marginBottom: '4px' }}>
-                        {errors.instructions}
+        <MDBRow className="g-4">
+            {/* Left Column - Configuration */}
+            <MDBCol sm="12" md="8" lg="8">
+                <div style={{
+                    padding: '24px',
+                    background: 'linear-gradient(to bottom, rgba(59, 130, 246, 0.02) 0%, rgba(34, 197, 94, 0.02) 100%)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(59, 130, 246, 0.1)',
+                    height: '100%'
+                }}>
+                    <h5 style={{
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #22c55e 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        fontWeight: '700',
+                        fontSize: '18px',
+                        marginBottom: '24px'
+                    }}>Customize Styles</h5>
+                    
+                    {/* Chatbot Title */}
+                    <div className="mb-3">
+                        <MDBInput
+                            label="Chatbot Title"
+                            value={formData.title}
+                            onChange={(e) => handleInputChange('title', e.target.value)}
+                            className={errors.title ? 'is-invalid' : ''}
+                            required
+                            size="sm"
+                        />
+                        {errors.title && <div className="invalid-feedback">{errors.title}</div>}
                     </div>
-                )}
-                {(!errors.instructions || selectedChatbotTypeId) && (
-                    <small className="text-muted d-block" style={{ marginTop: '4px' }}>
-                        Select a chatbot type to auto-populate instructions based on role, persona, and constraints
-                    </small>
-                )}
-            </div>
 
-            {/* Chatbot Instructions - Editable after type selection */}
-            {selectedChatbotTypeId && (
-                <div className="mb-4">
-                    <label className="form-label">
-                        Chatbot Instructions <span className="text-danger">*</span>
-                        {isLoadingTypeDetails && (
-                            <span className="ms-2 text-muted">
-                                <MDBIcon icon="spinner" spin className="me-1" />
-                                Loading...
-                            </span>
+                    {/* AI Chatbot Name */}
+                    <div className="mb-3">
+                        <MDBInput
+                            label="AI Chatbot Name"
+                            value={formData.name}
+                            onChange={(e) => handleInputChange('name', e.target.value)}
+                            className={errors.name ? 'is-invalid' : ''}
+                            required
+                            size="sm"
+                        />
+                        {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                        
+                        {/* Hide Chatbot Name Toggle */}
+                        <div className="mt-2">
+                            <MDBSwitch
+                                id="hideName"
+                                label="Hide main banner logo"
+                                checked={formData.hideMainBannerLogo}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('hideMainBannerLogo', e.target.checked)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* AI Avatar Selection */}
+                    <div className="mb-3">
+                        <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>
+                            AI Avatar
+                        </label>
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '8px',
+                                alignItems: 'center',
+                            }}
+                        >
+                            {availableAvatars.map((avatar) => (
+                                <div
+                                    key={avatar.id}
+                                    onClick={() => {
+                                        handleInputChange('aiAvatar', avatar.url);
+                                        setFormData((prev) => ({ ...prev, avatarFileId: undefined }));
+                                    }}
+                                    style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '50%',
+                                        border: formData.aiAvatar === avatar.url ? '3px solid #3b82f6' : '2px solid #e2e8f0',
+                                        cursor: 'pointer',
+                                        overflow: 'hidden',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: formData.aiAvatar === avatar.url ? '0 4px 12px rgba(59,130,246,0.3)' : 'none'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'scale(1.1)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                    }}
+                                >
+                                    <img
+                                        src={avatar.url}
+                                        alt={avatar.label}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK; }}
+                                    />
+                                </div>
+                            ))}
+                            {/* Uploaded custom avatar tile - show when user has uploaded an avatar */}
+                            {(formData.avatarFileId && uploadedAvatarUrl) && (
+                                <div
+                                    key="uploaded-avatar"
+                                    onClick={() => handleInputChange('aiAvatar', uploadedAvatarUrl)}
+                                    style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '50%',
+                                        border: formData.aiAvatar === uploadedAvatarUrl ? '3px solid #3b82f6' : '2px solid #e2e8f0',
+                                        cursor: 'pointer',
+                                        overflow: 'hidden',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: formData.aiAvatar === uploadedAvatarUrl ? '0 4px 12px rgba(59,130,246,0.3)' : 'none'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'scale(1.1)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                    }}
+                                >
+                                    <img 
+                                        src={uploadedAvatarUrl} 
+                                        alt="Uploaded avatar" 
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                </div>
+                            )}
+                            {/* Upload new avatar tile */}
+                            <label
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '50%',
+                                    border: '2px dashed #cbd5e1',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: '#f9fafb',
+                                    transition: 'all 0.2s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLLabelElement).style.borderColor = '#3b82f6';
+                                    (e.currentTarget as HTMLLabelElement).style.backgroundColor = '#eff6ff';
+                                }}
+                                onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLLabelElement).style.borderColor = '#cbd5e1';
+                                    (e.currentTarget as HTMLLabelElement).style.backgroundColor = '#f9fafb';
+                                }}
+                            >
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        setAvatarError(null);
+                                        setIsUploadingAvatar(true);
+                                        try {
+                                            const { fileId, downloadUrl } = await uploadAvatar(file);
+                                            // Use downloadUrl from backend, or create object URL for immediate display
+                                            const displayUrl = downloadUrl || URL.createObjectURL(file);
+                                            setUploadedAvatarUrl(displayUrl);
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                aiAvatar: displayUrl,
+                                                avatarFileId: fileId,
+                                            }));
+                                        } catch (error) {
+                                            const message =
+                                                error instanceof Error
+                                                    ? error.message
+                                                    : 'Failed to upload avatar. Please try again.';
+                                            setAvatarError(message);
+                                            showTooltipNotification(message);
+                                        } finally {
+                                            setIsUploadingAvatar(false);
+                                            // reset input so same file can be chosen again if needed
+                                            e.target.value = '';
+                                        }
+                                    }}
+                                />
+                                {isUploadingAvatar ? (
+                                    <MDBIcon icon="spinner" spin size="sm" style={{ color: '#3b82f6' }} />
+                                ) : (
+                                    <MDBIcon icon="plus" size="sm" style={{ color: '#64748b' }} />
+                                )}
+                            </label>
+                        </div>
+                        <small className="text-muted d-block mt-1">Select an avatar for your chatbot</small>
+                        {avatarError && (
+                            <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
+                                {avatarError}
+                            </div>
                         )}
-                    </label>
-                    <MDBTextArea
-                        value={formData.instructions}
-                        onChange={(e) => handleInputChange('instructions', e.target.value)}
-                        className={errors.instructions ? 'is-invalid' : ''}
-                        rows={8}
-                        required
-                        disabled={isLoadingTypeDetails}
-                    />
-                    {errors.instructions && selectedChatbotTypeId && (
-                        <div className="invalid-feedback">{errors.instructions}</div>
-                    )}
-                    <small className="text-muted">
-                        Instructions are auto-populated from the selected type. You can edit them to customize your chatbot's behavior.
-                    </small>
+                        <div className="mt-2">
+                            <MDBSwitch
+                                id="hideAIAvatar"
+                                label="Hide AI avatar logo"
+                                checked={formData.hideName}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('hideName', e.target.checked)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Colors Section */}
+                    <div className="mb-3">
+                        <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>
+                            Colors
+                        </label>
+                        <small className="text-muted d-block mb-2">Customize color styles for chatbot widget</small>
+                        
+                        <div className="row g-2 mb-2">
+                            <div className="col-6">
+                                <label style={{ fontSize: '12px', color: '#6b7280' }}>Header Background</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="color"
+                                        value={formData.headerBackground}
+                                        onChange={(e) => handleInputChange('headerBackground', e.target.value)}
+                                        style={{
+                                            width: '40px',
+                                            height: '32px',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.headerBackground}
+                                        onChange={(e) => handleInputChange('headerBackground', e.target.value)}
+                                        className="form-control form-control-sm"
+                                        style={{ fontSize: '12px' }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="col-6">
+                                <label style={{ fontSize: '12px', color: '#6b7280' }}>Header Text</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="color"
+                                        value={formData.headerText}
+                                        onChange={(e) => handleInputChange('headerText', e.target.value)}
+                                        style={{
+                                            width: '40px',
+                                            height: '32px',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.headerText}
+                                        onChange={(e) => handleInputChange('headerText', e.target.value)}
+                                        className="form-control form-control-sm"
+                                        style={{ fontSize: '12px' }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="row g-2 mb-2">
+                            <div className="col-6">
+                                <label style={{ fontSize: '12px', color: '#6b7280' }}>AI Background</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="color"
+                                        value={formData.aiBackground}
+                                        onChange={(e) => handleInputChange('aiBackground', e.target.value)}
+                                        style={{
+                                            width: '40px',
+                                            height: '32px',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.aiBackground}
+                                        onChange={(e) => handleInputChange('aiBackground', e.target.value)}
+                                        className="form-control form-control-sm"
+                                        style={{ fontSize: '12px' }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="col-6">
+                                <label style={{ fontSize: '12px', color: '#6b7280' }}>AI Text</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="color"
+                                        value={formData.aiText}
+                                        onChange={(e) => handleInputChange('aiText', e.target.value)}
+                                        style={{
+                                            width: '40px',
+                                            height: '32px',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.aiText}
+                                        onChange={(e) => handleInputChange('aiText', e.target.value)}
+                                        className="form-control form-control-sm"
+                                        style={{ fontSize: '12px' }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="row g-2">
+                            <div className="col-6">
+                                <label style={{ fontSize: '12px', color: '#6b7280' }}>User Background</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="color"
+                                        value={formData.userBackground}
+                                        onChange={(e) => handleInputChange('userBackground', e.target.value)}
+                                        style={{
+                                            width: '40px',
+                                            height: '32px',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.userBackground}
+                                        onChange={(e) => handleInputChange('userBackground', e.target.value)}
+                                        className="form-control form-control-sm"
+                                        style={{ fontSize: '12px' }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="col-6">
+                                <label style={{ fontSize: '12px', color: '#6b7280' }}>User Text</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="color"
+                                        value={formData.userText}
+                                        onChange={(e) => handleInputChange('userText', e.target.value)}
+                                        style={{
+                                            width: '40px',
+                                            height: '32px',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.userText}
+                                        onChange={(e) => handleInputChange('userText', e.target.value)}
+                                        className="form-control form-control-sm"
+                                        style={{ fontSize: '12px' }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Widget Position */}
+                    <div className="mb-3">
+                        <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>
+                            Widget Position
+                        </label>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <div
+                                onClick={() => handleInputChange('widgetPosition', 'left')}
+                                style={{
+                                    flex: 1,
+                                    padding: '24px',
+                                    border: formData.widgetPosition === 'left' ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                                    borderRadius: '12px',
+                                    cursor: 'pointer',
+                                    textAlign: 'center',
+                                    background: formData.widgetPosition === 'left' ? 'rgba(59,130,246,0.05)' : 'white',
+                                    transition: 'all 0.2s ease',
+                                    position: 'relative'
+                                }}
+                            >
+                                {formData.widgetPosition === 'left' && (
+                                    <MDBIcon icon="check-circle" style={{ position: 'absolute', top: '8px', right: '8px', color: '#3b82f6' }} />
+                                )}
+                                <MDBIcon icon="align-left" size="2x" style={{ color: '#3b82f6', marginBottom: '8px' }} />
+                                <div style={{ fontSize: '14px', fontWeight: '600' }}>Left Side</div>
+                            </div>
+                            <div
+                                onClick={() => handleInputChange('widgetPosition', 'right')}
+                                style={{
+                                    flex: 1,
+                                    padding: '24px',
+                                    border: formData.widgetPosition === 'right' ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                                    borderRadius: '12px',
+                                    cursor: 'pointer',
+                                    textAlign: 'center',
+                                    background: formData.widgetPosition === 'right' ? 'rgba(59,130,246,0.05)' : 'white',
+                                    transition: 'all 0.2s ease',
+                                    position: 'relative'
+                                }}
+                            >
+                                {formData.widgetPosition === 'right' && (
+                                    <MDBIcon icon="check-circle" style={{ position: 'absolute', top: '8px', right: '8px', color: '#3b82f6' }} />
+                                )}
+                                <MDBIcon icon="align-right" size="2x" style={{ color: '#3b82f6', marginBottom: '8px' }} />
+                                <div style={{ fontSize: '14px', fontWeight: '600' }}>Right Side</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Chatbot Type & Model Section */}
+                    <div
+                        style={{
+                            marginTop: '24px',
+                            padding: '18px 20px',
+                            borderRadius: '14px',
+                            border: '1px solid rgba(148, 163, 184, 0.35)',
+                            background: '#ffffff',
+                            boxShadow: '0 10px 22px rgba(15, 23, 42, 0.03)',
+                        }}
+                    >
+                        <h6
+                            style={{
+                                fontSize: '14px',
+                                fontWeight: 700,
+                                marginBottom: '14px',
+                                color: '#111827',
+                            }}
+                        >
+                            Chatbot Type & Model
+                        </h6>
+
+                        {/* Chatbot Type Selection */}
+                        <div className="mb-3">
+                            <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
+                                Chatbot Type <span className="text-danger">*</span>
+                            </label>
+                            <select
+                                className={`form-select form-select-sm ${errors.instructions && !selectedChatbotTypeId ? 'is-invalid' : ''}`}
+                                value={selectedChatbotTypeId}
+                                onChange={(e) => handleChatbotTypeChange(e.target.value)}
+                                disabled={isLoadingTypes}
+                                required
+                            >
+                                <option value="">{isLoadingTypes ? 'Loading types...' : 'Select a chatbot type'}</option>
+                                {chatbotTypes.map((type) => (
+                                    <option key={type.id} value={type.id}>
+                                        {type.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.instructions && !selectedChatbotTypeId && (
+                                <div className="invalid-feedback d-block" style={{ fontSize: '12px' }}>
+                                    {errors.instructions}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Model Selection */}
+                        <div className="mb-3">
+                            <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
+                                AI Model <span className="text-danger">*</span>
+                            </label>
+                            <select
+                                className="form-select form-select-sm"
+                                value={formData.model}
+                                onChange={(e) => handleInputChange('model', e.target.value)}
+                                required
+                            >
+                                {availableModels.map((model) => (
+                                    <option key={model.id} value={model.id}>
+                                        {model.name} - {model.description}
+                                    </option>
+                                ))}
+                            </select>
+                            <small className="text-muted d-block mt-1" style={{ fontSize: '12px' }}>
+                                Select the AI model to power your chatbot
+                            </small>
+                        </div>
+
+                        {/* Chatbot Instructions - Editable after type selection */}
+                        {selectedChatbotTypeId && (
+                            <div className="mb-1">
+                                <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
+                                    Chatbot Instructions <span className="text-danger">*</span>
+                                    {isLoadingTypeDetails && (
+                                        <span className="ms-2 text-muted" style={{ fontSize: '12px' }}>
+                                            <MDBIcon icon="spinner" spin className="me-1" />
+                                            Loading...
+                                        </span>
+                                    )}
+                                </label>
+                                <MDBTextArea
+                                    value={formData.instructions}
+                                    onChange={(e) => handleInputChange('instructions', e.target.value)}
+                                    className={errors.instructions ? 'is-invalid' : ''}
+                                    rows={5}
+                                    required
+                                    disabled={isLoadingTypeDetails}
+                                />
+                                {errors.instructions && selectedChatbotTypeId && (
+                                    <div className="invalid-feedback">{errors.instructions}</div>
+                                )}
+                                <small className="text-muted" style={{ fontSize: '12px' }}>
+                                    Instructions are auto-populated. You can edit them to customize behavior.
+                                </small>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            )}
-        </div>
+            </MDBCol>
+
+            {/* Right Column - Preview */}
+            <MDBCol sm="12" md="4" lg="4">
+                <div style={{
+                    padding: '24px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    borderRadius: '16px',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <h5 style={{
+                        color: 'white',
+                        fontWeight: '700',
+                        fontSize: '18px',
+                        marginBottom: '24px',
+                        textAlign: 'center'
+                    }}>Live Preview</h5>
+                    
+                    {/* Chatbot Widget Preview */}
+                    <div style={{
+                        width: '100%',
+                        maxWidth: '320px',
+                        height: '500px',
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            backgroundColor: formData.headerBackground,
+                            color: formData.headerText,
+                            padding: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px'
+                        }}>
+                            {!formData.hideMainBannerLogo && (
+                                <MDBIcon icon="robot" size="lg" />
+                            )}
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: '700', fontSize: '16px' }}>{formData.title}</div>
+                            </div>
+                        </div>
+
+                        {/* Chat Messages */}
+                        <div style={{
+                            flex: 1,
+                            padding: '16px',
+                            backgroundColor: '#f9fafb',
+                            overflowY: 'auto'
+                        }}>
+                            {/* AI Message */}
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                {!formData.hideName && (
+                                    <img
+                                        src={formData.aiAvatar}
+                                        alt="AI Avatar"
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            flexShrink: 0
+                                        }}
+                                    />
+                                )}
+                                <div style={{
+                                    backgroundColor: formData.aiBackground,
+                                    color: formData.aiText,
+                                    padding: '12px',
+                                    borderRadius: '12px',
+                                    maxWidth: '70%',
+                                    fontSize: '14px'
+                                }}>
+                                    {formData.greetingMessage}
+                                </div>
+                            </div>
+
+                            {/* User Message */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                                <div style={{
+                                    backgroundColor: formData.userBackground,
+                                    color: formData.userText,
+                                    padding: '12px',
+                                    borderRadius: '12px',
+                                    maxWidth: '70%',
+                                    fontSize: '14px'
+                                }}>
+                                    I need to place a new order
+                                </div>
+                            </div>
+
+                            {/* AI Message */}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {!formData.hideName && (
+                                    <img
+                                        src={formData.aiAvatar}
+                                        alt="AI Avatar"
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            flexShrink: 0
+                                        }}
+                                    />
+                                )}
+                                <div style={{
+                                    backgroundColor: formData.aiBackground,
+                                    color: formData.aiText,
+                                    padding: '12px',
+                                    borderRadius: '12px',
+                                    maxWidth: '70%',
+                                    fontSize: '14px'
+                                }}>
+                                    Sure, what would you like to order today? We have valid amount of sophisticated AI book that you can order.
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Input Area */}
+                        <div style={{
+                            padding: '12px',
+                            borderTop: '1px solid #e5e7eb',
+                            display: 'flex',
+                            gap: '8px'
+                        }}>
+                            <input
+                                type="text"
+                                placeholder="Type your message..."
+                                disabled
+                                style={{
+                                    flex: 1,
+                                    padding: '8px 12px',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '20px',
+                                    fontSize: '14px',
+                                    outline: 'none'
+                                }}
+                            />
+                            <button
+                                disabled
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '50%',
+                                    border: 'none',
+                                    backgroundColor: formData.userBackground,
+                                    color: formData.userText,
+                                    cursor: 'not-allowed',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <MDBIcon icon="paper-plane" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </MDBCol>
+        </MDBRow>
     );
 
     const renderStep2 = () => (
@@ -786,8 +1483,8 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                     <MDBIcon icon="check-circle" style={{ color: '#3b82f6' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="link" size="2x" style={{ color: '#3b82f6', marginBottom: '12px' }} />
-                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>URL</h6>
+                            <MDBIcon icon="link" size="lg" style={{ color: '#3b82f6', marginBottom: '8px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: 600, margin: 0, fontSize: '14px' }}>URL</h6>
                         </div>
                     </div>
                     <div className="col-md-4">
@@ -830,8 +1527,8 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                     <MDBIcon icon="check-circle" style={{ color: '#3b82f6' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="file-pdf" size="2x" style={{ color: '#ef4444', marginBottom: '12px' }} />
-                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>PDF</h6>
+                            <MDBIcon icon="file-pdf" size="lg" style={{ color: '#ef4444', marginBottom: '8px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: 600, margin: 0, fontSize: '14px' }}>PDF</h6>
                         </div>
                     </div>
                     <div className="col-md-4">
@@ -874,8 +1571,8 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                     <MDBIcon icon="check-circle" style={{ color: '#22c55e' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="file-alt" size="2x" style={{ color: '#22c55e', marginBottom: '12px' }} />
-                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>Text</h6>
+                            <MDBIcon icon="file-alt" size="lg" style={{ color: '#22c55e', marginBottom: '8px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: 600, margin: 0, fontSize: '14px' }}>Text</h6>
                         </div>
                     </div>
                     <div className="col-md-4">
@@ -918,8 +1615,8 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                     <MDBIcon icon="check-circle" style={{ color: '#22c55e' }} size="lg" />
                                 </div>
                             )}
-                            <MDBIcon icon="question-circle" size="2x" style={{ color: '#f59e0b', marginBottom: '12px' }} />
-                            <h6 style={{ color: '#1e293b', fontWeight: '600', margin: 0 }}>Q&A</h6>
+                            <MDBIcon icon="question-circle" size="lg" style={{ color: '#f59e0b', marginBottom: '8px' }} />
+                            <h6 style={{ color: '#1e293b', fontWeight: 600, margin: 0, fontSize: '14px' }}>Q&A</h6>
                         </div>
                     </div>
                 </div>
@@ -1280,8 +1977,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
 
     const stepLabels = [
         { number: 1, label: 'Configure' },
-        { number: 2, label: 'Customize' },
-        { number: 3, label: 'Train' }
+        { number: 2, label: 'Train' }
     ];
 
     const renderStepNavigation = () => (
@@ -1390,9 +2086,9 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         <div style={{ 
             backgroundColor: '#ffffff'
         }}>
-            <MDBContainer>
+            <MDBContainer fluid="md">
                 <MDBRow className="justify-content-center">
-                    <MDBCol md="10" lg="9">
+                    <MDBCol md="12" lg="11" xl="10">
                         <MDBCard className="shadow-lg" style={{
                             border: 'none',
                             borderRadius: '24px',
@@ -1469,9 +2165,224 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
 
                                 {/* Form Content */}
                                 <div className="mb-4" style={{ minHeight: '400px' }}>
-                                    {currentStep === 1 && renderStep1()}
-                                    {currentStep === 2 && renderStep2()}
-                                    {currentStep === 3 && renderStep3()}
+                                    {currentStep === 1 && (
+                                        <>
+                                            {renderStep1()}
+                                            <div style={{ marginTop: '24px' }}>{renderStep2()}</div>
+                                        </>
+                                    )}
+                                    {currentStep === 2 && (
+                                        <MDBRow className="g-4">
+                                            <MDBCol sm="12" md="8" lg="8">
+                                                {renderStep3()}
+                                            </MDBCol>
+                                            <MDBCol sm="12" md="4" lg="4">
+                                                <div
+                                                    style={{
+                                                        padding: '24px',
+                                                        background:
+                                                            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                        borderRadius: '16px',
+                                                        height: '100%',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                    }}
+                                                >
+                                                    <h5
+                                                        style={{
+                                                            color: 'white',
+                                                            fontWeight: '700',
+                                                            fontSize: '18px',
+                                                            marginBottom: '24px',
+                                                            textAlign: 'center',
+                                                        }}
+                                                    >
+                                                        Live Preview
+                                                    </h5>
+
+                                                    {/* Chatbot Widget Preview */}
+                                                    <div
+                                                        style={{
+                                                            width: '100%',
+                                                            maxWidth: '320px',
+                                                            height: '500px',
+                                                            backgroundColor: 'white',
+                                                            borderRadius: '16px',
+                                                            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                                                            overflow: 'hidden',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                        }}
+                                                    >
+                                                        {/* Header */}
+                                                        <div
+                                                            style={{
+                                                                backgroundColor: formData.headerBackground,
+                                                                color: formData.headerText,
+                                                                padding: '16px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '12px',
+                                                            }}
+                                                        >
+                                                            {!formData.hideMainBannerLogo && (
+                                                                <MDBIcon icon="robot" size="lg" />
+                                                            )}
+                                                            <div style={{ flex: 1 }}>
+                                                                <div
+                                                                    style={{
+                                                                        fontWeight: '700',
+                                                                        fontSize: '16px',
+                                                                    }}
+                                                                >
+                                                                    {formData.title}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Chat Messages */}
+                                                        <div
+                                                            style={{
+                                                                flex: 1,
+                                                                padding: '16px',
+                                                                backgroundColor: '#f9fafb',
+                                                                overflowY: 'auto',
+                                                            }}
+                                                        >
+                                                            {/* AI Message */}
+                                                            <div
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    gap: '8px',
+                                                                    marginBottom: '16px',
+                                                                }}
+                                                            >
+                                                                {!formData.hideName && (
+                                                                    <img
+                                                                        src={formData.aiAvatar}
+                                                                        alt="AI Avatar"
+                                                                        style={{
+                                                                            width: '32px',
+                                                                            height: '32px',
+                                                                            borderRadius: '50%',
+                                                                            flexShrink: 0,
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                                <div
+                                                                    style={{
+                                                                        backgroundColor: formData.aiBackground,
+                                                                        color: formData.aiText,
+                                                                        padding: '12px',
+                                                                        borderRadius: '12px',
+                                                                        maxWidth: '70%',
+                                                                        fontSize: '14px',
+                                                                    }}
+                                                                >
+                                                                    {formData.greetingMessage}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* User Message */}
+                                                            <div
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    justifyContent: 'flex-end',
+                                                                    marginBottom: '16px',
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    style={{
+                                                                        backgroundColor: formData.userBackground,
+                                                                        color: formData.userText,
+                                                                        padding: '12px',
+                                                                        borderRadius: '12px',
+                                                                        maxWidth: '70%',
+                                                                        fontSize: '14px',
+                                                                    }}
+                                                                >
+                                                                    I need to place a new order
+                                                                </div>
+                                                            </div>
+
+                                                            {/* AI Message */}
+                                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                                {!formData.hideName && (
+                                                                    <img
+                                                                        src={formData.aiAvatar}
+                                                                        alt="AI Avatar"
+                                                                        style={{
+                                                                            width: '32px',
+                                                                            height: '32px',
+                                                                            borderRadius: '50%',
+                                                                            flexShrink: 0,
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                                <div
+                                                                    style={{
+                                                                        backgroundColor: formData.aiBackground,
+                                                                        color: formData.aiText,
+                                                                        padding: '12px',
+                                                                        borderRadius: '12px',
+                                                                        maxWidth: '70%',
+                                                                        fontSize: '14px',
+                                                                    }}
+                                                                >
+                                                                    Sure, what would you like to order today? We
+                                                                    have valid amount of sophisticated AI book that
+                                                                    you can order.
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Input Area */}
+                                                        <div
+                                                            style={{
+                                                                padding: '12px',
+                                                                borderTop: '1px solid #e5e7eb',
+                                                                display: 'flex',
+                                                                gap: '8px',
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Type your message..."
+                                                                disabled
+                                                                style={{
+                                                                    flex: 1,
+                                                                    padding: '8px 12px',
+                                                                    border: '1px solid #e5e7eb',
+                                                                    borderRadius: '20px',
+                                                                    fontSize: '14px',
+                                                                    outline: 'none',
+                                                                }}
+                                                            />
+                                                            <button
+                                                                disabled
+                                                                style={{
+                                                                    width: '36px',
+                                                                    height: '36px',
+                                                                    borderRadius: '50%',
+                                                                    border: 'none',
+                                                                    backgroundColor: formData.userBackground,
+                                                                    color: formData.userText,
+                                                                    cursor: 'not-allowed',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                }}
+                                                            >
+                                                                <MDBIcon icon="paper-plane" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </MDBCol>
+                                        </MDBRow>
+                                    )}
                                 </div>
 
                                 {/* Navigation Buttons */}
@@ -1574,31 +2485,36 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 </MDBRow>
             </MDBContainer>
             
-            {/* Tooltip Notification */}
-            {showTooltip && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: '20px',
-                        right: '20px',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                        zIndex: 9999,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        opacity: showTooltip ? 1 : 0,
-                        transform: showTooltip ? 'translateY(0)' : 'translateY(-10px)',
-                        transition: 'opacity 0.3s ease-in, transform 0.3s ease-in',
-                        maxWidth: '400px'
-                    }}
-                >
-                    <MDBIcon icon="exclamation-circle" className="me-2" />
-                    <span>{tooltipMessage}</span>
-                </div>
+            {/* Tooltip Notification - rendered via Portal to avoid blur from backdrop-filter overlays */}
+            {typeof document !== 'undefined' && ReactDOM.createPortal(
+                showTooltip ? (
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: '20px',
+                            right: '20px',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            padding: '12px 20px',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                            zIndex: 99999,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            opacity: 1,
+                            transform: 'translate3d(0, 0, 0)',
+                            transition: 'opacity 0.3s ease-in, transform 0.3s ease-in',
+                            maxWidth: '400px',
+                            WebkitFontSmoothing: 'subpixel-antialiased',
+                            backfaceVisibility: 'hidden',
+                        }}
+                    >
+                        <MDBIcon icon="exclamation-circle" className="me-2" />
+                        <span>{tooltipMessage}</span>
+                    </div>
+                ) : null,
+                document.body
             )}
         </div>
     );

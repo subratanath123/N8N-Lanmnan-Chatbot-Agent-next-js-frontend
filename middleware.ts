@@ -48,6 +48,8 @@ export default authMiddleware({
     "/auth/social/facebook/callback",
     "/auth/social/twitter/authorize",
     "/auth/social/twitter/callback",
+    "/auth/social/linkedin/authorize",
+    "/auth/social/linkedin/callback",
     "/oauth-success",
     "/oauth-success-chatbot", // Chatbot owner OAuth success page
     "/oauth-success-social",  // Social media OAuth success page
@@ -72,7 +74,9 @@ export default authMiddleware({
     "/auth/social/facebook/authorize",
     "/auth/social/facebook/callback",
     "/auth/social/twitter/authorize",
-    "/auth/social/twitter/callback"
+    "/auth/social/twitter/callback",
+    "/auth/social/linkedin/authorize",
+    "/auth/social/linkedin/callback"
   ]
 });
 

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { useUser } from '@clerk/nextjs';
 import LeftSidebar from '@/component/LeftSidebar';
 import {
@@ -13,11 +14,6 @@ import {
     MDBCardText,
     MDBIcon,
     MDBBtn,
-    MDBModal,
-    MDBModalHeader,
-    MDBModalTitle,
-    MDBModalBody,
-    MDBModalFooter,
     MDBInput,
     MDBTextArea,
     MDBBadge,
@@ -50,6 +46,20 @@ export default function ProjectsPage() {
       window.location.href = itemHref;
     }
   };
+
+  const closeCreateDialog = () => {
+    setShowCreateModal(false);
+  };
+
+  // Close create dialog on Esc
+  useEffect(() => {
+    if (!showCreateModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeCreateDialog();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showCreateModal]);
 
   if (!isLoaded) {
     return (
@@ -358,142 +368,218 @@ export default function ProjectsPage() {
         </MDBRow>
 
         {/* Create Project Modal */}
-        <MDBModal show={showCreateModal} setShow={setShowCreateModal} tabIndex='-1' size="lg">
-          <MDBModalHeader>
-            <MDBModalTitle>Train New AI Assistant</MDBModalTitle>
-          </MDBModalHeader>
-          <MDBModalBody>
-            <MDBInput
-              label="Project Name"
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              className="mb-3"
-              required
-            />
-            
-            <MDBTabs className="mb-3">
-              <MDBTabsItem>
-                <MDBTabsLink 
-                  onClick={() => setActiveTab('website')} 
-                  active={activeTab === 'website'}
+        {typeof document !== 'undefined' && showCreateModal && ReactDOM.createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="projects-create-title"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) closeCreateDialog();
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.45)',
+              zIndex: 20000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '900px',
+                maxHeight: '85vh',
+                overflow: 'hidden',
+                background: '#ffffff',
+                borderRadius: '14px',
+                boxShadow: '0 24px 70px rgba(15, 23, 42, 0.25)',
+                border: '1px solid rgba(226, 232, 240, 0.9)',
+                display: 'flex',
+                flexDirection: 'column',
+                WebkitFontSmoothing: 'subpixel-antialiased',
+                backfaceVisibility: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  padding: '18px 20px',
+                  borderBottom: '1px solid rgba(226, 232, 240, 0.9)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                }}
+              >
+                <div id="projects-create-title" style={{ fontWeight: 700, fontSize: '18px', color: '#0f172a' }}>
+                  Train New AI Assistant
+                </div>
+                <button
+                  type="button"
+                  onClick={closeCreateDialog}
+                  aria-label="Close"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    border: '1px solid rgba(226, 232, 240, 0.9)',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    lineHeight: 1,
+                    color: '#334155',
+                  }}
                 >
-                  <MDBIcon icon="globe" className="me-2" />
-                  Website
-                </MDBTabsLink>
-              </MDBTabsItem>
-              <MDBTabsItem>
-                <MDBTabsLink 
-                  onClick={() => setActiveTab('files')} 
-                  active={activeTab === 'files'}
-                >
-                  <MDBIcon icon="file-upload" className="me-2" />
-                  Files & Documents
-                </MDBTabsLink>
-              </MDBTabsItem>
-            </MDBTabs>
+                  ×
+                </button>
+              </div>
 
-            <MDBTabsContent>
-              <MDBTabsPane show={activeTab === 'website'}>
+              <div style={{ padding: '18px 20px', overflowY: 'auto' }}>
                 <MDBInput
-                  label="Website URL"
-                  value={newProjectUrl}
-                  onChange={(e) => setNewProjectUrl(e.target.value)}
-                  placeholder="https://example.com"
+                  label="Project Name"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
                   className="mb-3"
                   required
                 />
-                <div className="alert alert-info">
-                  <MDBIcon icon="info-circle" className="me-2" />
-                  We'll crawl your website and train an AI chatbot on your content. This process usually takes 5-10 minutes.
-                </div>
-              </MDBTabsPane>
 
-              <MDBTabsPane show={activeTab === 'files'}>
-                <div className="mb-3">
-                  <label className="form-label">Upload Documents</label>
-                  <div 
-                    className="border border-2 border-dashed rounded p-4 text-center"
-                    style={{ 
-                      borderColor: '#dee2e6',
-                      backgroundColor: '#f8f9fa',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => document.getElementById('fileUpload')?.click()}
-                  >
-                    <MDBIcon icon="cloud-upload-alt" size="3x" className="text-muted mb-2" />
-                    <p className="mb-2">Click to upload or drag and drop</p>
-                    <p className="text-muted small mb-0">
-                      PDF, DOC, DOCX, TXT files (Max 10MB each)
-                    </p>
-                    <input
-                      id="fileUpload"
-                      type="file"
-                      multiple
-                      accept=".pdf,.doc,.docx,.txt"
-                      onChange={handleFileUpload}
-                      style={{ display: 'none' }}
+                <MDBTabs className="mb-3">
+                  <MDBTabsItem>
+                    <MDBTabsLink onClick={() => setActiveTab('website')} active={activeTab === 'website'}>
+                      <MDBIcon icon="globe" className="me-2" />
+                      Website
+                    </MDBTabsLink>
+                  </MDBTabsItem>
+                  <MDBTabsItem>
+                    <MDBTabsLink onClick={() => setActiveTab('files')} active={activeTab === 'files'}>
+                      <MDBIcon icon="file-upload" className="me-2" />
+                      Files & Documents
+                    </MDBTabsLink>
+                  </MDBTabsItem>
+                </MDBTabs>
+
+                <MDBTabsContent>
+                  <MDBTabsPane show={activeTab === 'website'}>
+                    <MDBInput
+                      label="Website URL"
+                      value={newProjectUrl}
+                      onChange={(e) => setNewProjectUrl(e.target.value)}
+                      placeholder="https://example.com"
+                      className="mb-3"
+                      required
                     />
-                  </div>
-                </div>
-
-                {uploadedFiles.length > 0 && (
-                  <div className="mb-3">
-                    <h6>Uploaded Files:</h6>
-                    <div className="list-group">
-                      {uploadedFiles.map((file, index) => (
-                        <div key={index} className="list-group-item d-flex justify-content-between align-items-center">
-                          <div className="d-flex align-items-center">
-                            <MDBIcon 
-                              icon={file.type.includes('pdf') ? 'file-pdf' : 'file-alt'} 
-                              className="me-2 text-danger" 
-                            />
-                            <div>
-                              <div className="fw-bold">{file.name}</div>
-                              <small className="text-muted">{formatFileSize(file.size)}</small>
-                            </div>
-                          </div>
-                          <MDBBtn 
-                            color="link" 
-                            size="sm" 
-                            onClick={() => removeFile(index)}
-                            className="text-danger"
-                          >
-                            <MDBIcon icon="times" />
-                          </MDBBtn>
-                        </div>
-                      ))}
+                    <div className="alert alert-info">
+                      <MDBIcon icon="info-circle" className="me-2" />
+                      We'll crawl your website and train an AI chatbot on your content. This process usually takes 5-10 minutes.
                     </div>
-                  </div>
-                )}
+                  </MDBTabsPane>
 
-                <div className="alert alert-info">
-                  <MDBIcon icon="info-circle" className="me-2" />
-                  Upload your documents and we'll train an AI assistant on their content. Supported formats: PDF, DOC, DOCX, TXT.
-                </div>
-              </MDBTabsPane>
-            </MDBTabsContent>
+                  <MDBTabsPane show={activeTab === 'files'}>
+                    <div className="mb-3">
+                      <label className="form-label">Upload Documents</label>
+                      <div
+                        className="border border-2 border-dashed rounded p-4 text-center"
+                        style={{
+                          borderColor: '#dee2e6',
+                          backgroundColor: '#f8f9fa',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => document.getElementById('fileUpload')?.click()}
+                      >
+                        <MDBIcon icon="cloud-upload-alt" size="3x" className="text-muted mb-2" />
+                        <p className="mb-2">Click to upload or drag and drop</p>
+                        <p className="text-muted small mb-0">PDF, DOC, DOCX, TXT files (Max 10MB each)</p>
+                        <input
+                          id="fileUpload"
+                          type="file"
+                          multiple
+                          accept=".pdf,.doc,.docx,.txt"
+                          onChange={handleFileUpload}
+                          style={{ display: 'none' }}
+                        />
+                      </div>
+                    </div>
 
-            <MDBTextArea
-              label="Description (Optional)"
-              rows={2}
-              className="mb-3"
-              placeholder="Brief description of your AI assistant's purpose..."
-            />
-          </MDBModalBody>
-          <MDBModalFooter>
-            <MDBBtn color="secondary" onClick={() => setShowCreateModal(false)}>
-              Cancel
-            </MDBBtn>
-            <MDBBtn 
-              color="primary" 
-              onClick={handleCreateProject}
-              disabled={!newProjectName || (activeTab === 'website' && !newProjectUrl) || (activeTab === 'files' && uploadedFiles.length === 0)}
-            >
-              <MDBIcon icon="robot" className="me-2" />
-              Start Training
-            </MDBBtn>
-          </MDBModalFooter>
-        </MDBModal>
+                    {uploadedFiles.length > 0 && (
+                      <div className="mb-3">
+                        <h6>Uploaded Files:</h6>
+                        <div className="list-group">
+                          {uploadedFiles.map((file, index) => (
+                            <div
+                              key={index}
+                              className="list-group-item d-flex justify-content-between align-items-center"
+                            >
+                              <div className="d-flex align-items-center">
+                                <MDBIcon
+                                  icon={file.type.includes('pdf') ? 'file-pdf' : 'file-alt'}
+                                  className="me-2 text-danger"
+                                />
+                                <div>
+                                  <div className="fw-bold">{file.name}</div>
+                                  <small className="text-muted">{formatFileSize(file.size)}</small>
+                                </div>
+                              </div>
+                              <MDBBtn
+                                color="link"
+                                size="sm"
+                                onClick={() => removeFile(index)}
+                                className="text-danger"
+                              >
+                                <MDBIcon icon="times" />
+                              </MDBBtn>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="alert alert-info">
+                      <MDBIcon icon="info-circle" className="me-2" />
+                      Upload your documents and we'll train an AI assistant on their content. Supported formats: PDF,
+                      DOC, DOCX, TXT.
+                    </div>
+                  </MDBTabsPane>
+                </MDBTabsContent>
+
+                <MDBTextArea
+                  label="Description (Optional)"
+                  rows={2}
+                  className="mb-3"
+                  placeholder="Brief description of your AI assistant's purpose..."
+                />
+              </div>
+
+              <div
+                style={{
+                  padding: '14px 20px',
+                  borderTop: '1px solid rgba(226, 232, 240, 0.9)',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '12px',
+                }}
+              >
+                <MDBBtn color="secondary" onClick={closeCreateDialog}>
+                  Cancel
+                </MDBBtn>
+                <MDBBtn
+                  color="primary"
+                  onClick={handleCreateProject}
+                  disabled={
+                    !newProjectName ||
+                    (activeTab === 'website' && !newProjectUrl) ||
+                    (activeTab === 'files' && uploadedFiles.length === 0)
+                  }
+                >
+                  <MDBIcon icon="robot" className="me-2" />
+                  Start Training
+                </MDBBtn>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </MDBContainer>
       </div>
       

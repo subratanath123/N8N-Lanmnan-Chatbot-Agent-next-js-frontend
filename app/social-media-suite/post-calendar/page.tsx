@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 
 interface SocialTarget {
   targetId: string;
-  platform: "facebook" | "twitter";
+  platform: string;
   displayName: string;
 }
 
@@ -17,360 +17,876 @@ interface SocialPost {
   targets: SocialTarget[];
 }
 
-const toIsoString = (value: string | number | Date | null | undefined): string => {
-  if (value === null || value === undefined) return "";
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? "" : value.toISOString();
-  }
-  if (typeof value === "number") {
-    if (value <= 0) return "";
-    const millis = value < 1_000_000_000_000 ? value * 1000 : value;
-    const d = new Date(millis);
-    return Number.isNaN(d.getTime()) ? "" : d.toISOString();
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return "";
-    if (/^\d+$/.test(trimmed)) {
-      const n = Number(trimmed);
-      if (!Number.isFinite(n) || n <= 0) return "";
-      const millis = n < 1_000_000_000_000 ? n * 1000 : n;
-      const d = new Date(millis);
-      return Number.isNaN(d.getTime()) ? "" : d.toISOString();
-    }
-    const d = new Date(trimmed);
-    return Number.isNaN(d.getTime()) ? "" : d.toISOString();
-  }
-  return "";
+interface EventPopup {
+  post: SocialPost;
+  x: number;
+  y: number;
+}
+
+const PLATFORM_META: Record<string, { color: string; bg: string; label: string }> = {
+  facebook:  { color: "#2563eb", bg: "#dbeafe", label: "FB" },
+  twitter:   { color: "#334155", bg: "#f1f5f9", label: "X"  },
+  linkedin:  { color: "#0a66c2", bg: "#e0f0ff", label: "LI" },
+  instagram: { color: "#c026d3", bg: "#fae8ff", label: "IG" },
+  tiktok:    { color: "#7c3aed", bg: "#f5f3ff", label: "TT" },
+  default:   { color: "#2563eb", bg: "#eff6ff", label: "•"  },
 };
 
-const toDateKey = (value: string | number | Date | null | undefined): string => {
-  const iso = toIsoString(value);
-  if (!iso) return "";
-  return iso.includes("T") ? iso.split("T")[0] : iso;
+const STATUS_COLOR: Record<string, string> = {
+  published:              "#16a34a",
+  publish_failed:         "#dc2626",
+  published_with_errors:  "#d97706",
+  scheduled:              "#2563eb",
+  pending_publish:        "#7c3aed",
 };
+
+const toIsoString = (v: string | number | Date | null | undefined): string => {
+  if (v == null) return "";
+  if (v instanceof Date) return isNaN(v.getTime()) ? "" : v.toISOString();
+  if (typeof v === "number") {
+    if (v <= 0) return "";
+    const ms = v < 1_000_000_000_000 ? v * 1000 : v;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? "" : d.toISOString();
+  }
+  const s = String(v).trim();
+  if (!s) return "";
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    const ms = n < 1_000_000_000_000 ? n * 1000 : n;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? "" : d.toISOString();
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? "" : d.toISOString();
+};
+
+const toDateKey = (v: string | number | Date | null | undefined): string => {
+  const iso = toIsoString(v);
+  return iso ? iso.split("T")[0] : "";
+};
+
+const fmtTime = (v: string | number | Date | null | undefined) => {
+  const iso = toIsoString(v);
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MAX_EVENTS_PER_CELL = 3;
+
+type ViewMode = "month" | "week" | "day";
 
 export default function PostCalendarPage() {
   const { getToken } = useAuth();
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  const [view, setView] = useState<ViewMode>("month");
+  const [focusDate, setFocusDate] = useState<Date>(() => new Date());
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hasAutoJumped, setHasAutoJumped] = useState(false);
+  const [popup, setPopup] = useState<EventPopup | null>(null);
+  const [overflowDate, setOverflowDate] = useState<string | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // The "current month" / "current week" pivot
+  const currentMonth = useMemo(() => new Date(focusDate.getFullYear(), focusDate.getMonth(), 1), [focusDate]);
 
   const monthLabel = currentMonth.toLocaleString(undefined, { month: "long", year: "numeric" });
 
+  const weekStart = useMemo(() => {
+    const d = new Date(focusDate);
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+  }, [focusDate]);
+
+  const weekLabel = useMemo(() => {
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 6);
+    const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return `${fmt(weekStart)} – ${fmt(end)}, ${end.getFullYear()}`;
+  }, [weekStart]);
+
+  const dayLabel = useMemo(
+    () => focusDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+    [focusDate]
+  );
+
+  const headerLabel = view === "month" ? monthLabel : view === "week" ? weekLabel : dayLabel;
+
+  const navPrev = () => {
+    setFocusDate((d) => {
+      const n = new Date(d);
+      if (view === "month") n.setMonth(n.getMonth() - 1);
+      else if (view === "week") n.setDate(n.getDate() - 7);
+      else n.setDate(n.getDate() - 1);
+      return n;
+    });
+  };
+
+  const navNext = () => {
+    setFocusDate((d) => {
+      const n = new Date(d);
+      if (view === "month") n.setMonth(n.getMonth() + 1);
+      else if (view === "week") n.setDate(n.getDate() + 7);
+      else n.setDate(n.getDate() + 1);
+      return n;
+    });
+  };
+
+  // Fetch posts for a wider window around focus date
+  const fetchPosts = useCallback(async () => {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://subratapc.net";
+    const token = await getToken?.();
+    if (!token) { setError("Please sign in to view calendar."); setLoading(false); return; }
+
+    const startDate = new Date(focusDate.getFullYear(), focusDate.getMonth() - 1, 1).toISOString();
+    const endDate = new Date(focusDate.getFullYear(), focusDate.getMonth() + 2, 0, 23, 59, 59).toISOString();
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${backendUrl}/v1/api/social-posts?${new URLSearchParams({ startDate, endDate })}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error(await res.text() || "Failed to fetch posts.");
+      const data = await res.json();
+      setPosts(Array.isArray(data.posts) ? data.posts : []);
+    } catch (err) {
+      setPosts([]);
+      setError(err instanceof Error ? err.message : "Failed to fetch posts.");
+    } finally {
+      setLoading(false);
+    }
+  }, [focusDate, getToken]);
+
+  useEffect(() => { fetchPosts(); }, [fetchPosts]);
+
+  // Dismiss popup on outside click
   useEffect(() => {
-    const fetchCalendarPosts = async () => {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://subratapc.net";
-      const token = await getToken?.();
-      if (!token) {
-        setError("Please sign in to view calendar posts.");
-        setLoading(false);
-        return;
-      }
-
-      // Pull a broader window so calendar and scheduled tab stay consistent.
-      const startDate = new Date(
-        currentMonth.getFullYear(),
-        currentMonth.getMonth() - 1,
-        1
-      ).toISOString();
-      const endDate = new Date(
-        currentMonth.getFullYear(),
-        currentMonth.getMonth() + 2,
-        0,
-        23,
-        59,
-        59
-      ).toISOString();
-
-      setLoading(true);
-      setError(null);
-      try {
-        const url =
-          `${backendUrl}/v1/api/social-posts?` +
-          new URLSearchParams({
-            startDate,
-            endDate,
-          }).toString();
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || "Failed to fetch calendar posts.");
-        }
-        const data = await res.json();
-        const fetchedPosts: SocialPost[] = Array.isArray(data.posts) ? data.posts : [];
-        setPosts(fetchedPosts);
-
-        if (!hasAutoJumped && fetchedPosts.length > 0) {
-          const sorted = [...fetchedPosts].sort((a, b) =>
-            toIsoString(a.scheduledAt).localeCompare(toIsoString(b.scheduledAt))
-          );
-          const firstIso = toIsoString(sorted[0]?.scheduledAt);
-          if (firstIso) {
-            const firstDate = new Date(firstIso);
-            setCurrentMonth(new Date(firstDate.getFullYear(), firstDate.getMonth(), 1));
-            setSelectedDate(toDateKey(firstIso));
-            setHasAutoJumped(true);
-          }
-        }
-      } catch (err) {
-        setPosts([]);
-        setError(err instanceof Error ? err.message : "Failed to fetch calendar posts.");
-      } finally {
-        setLoading(false);
+    const handler = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setPopup(null);
+        setOverflowDate(null);
       }
     };
-    fetchCalendarPosts();
-  }, [currentMonth, getToken, hasAutoJumped]);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
-  const postCountByDate = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const post of posts) {
-      const d = toDateKey(post.scheduledAt);
-      if (!d) continue;
-      map.set(d, (map.get(d) || 0) + 1);
+  // Group posts by date key
+  const postsByDate = useMemo(() => {
+    const map = new Map<string, SocialPost[]>();
+    for (const p of posts) {
+      const dk = toDateKey(p.scheduledAt);
+      if (!dk) continue;
+      if (!map.has(dk)) map.set(dk, []);
+      map.get(dk)!.push(p);
     }
+    // Sort each day's events by time
+    map.forEach((arr) => arr.sort((a, b) => toIsoString(a.scheduledAt).localeCompare(toIsoString(b.scheduledAt))));
     return map;
   }, [posts]);
 
-  const selectedDatePosts = useMemo(
-    () =>
-      posts
-        .filter((p) => toDateKey(p.scheduledAt) === selectedDate)
-        .sort((a, b) => toIsoString(a.scheduledAt).localeCompare(toIsoString(b.scheduledAt))),
-    [posts, selectedDate]
-  );
-
+  // ─── Month grid cells ─────────────────────────────────────────────────────
   const calendarCells = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstWeekday = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: Array<{ day: number | null; dateStr: string | null }> = [];
-    for (let i = 0; i < firstWeekday; i += 1) {
-      cells.push({ day: null, dateStr: null });
+
+    const cells: Array<{ day: number | null; dateStr: string | null; thisMonth: boolean }> = [];
+
+    // Padding before month
+    for (let i = 0; i < firstWeekday; i++) {
+      const d = new Date(year, month, 1 - (firstWeekday - i));
+      cells.push({ day: d.getDate(), dateStr: d.toISOString().split("T")[0], thisMonth: false });
     }
-    for (let d = 1; d <= daysInMonth; d += 1) {
+    for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      cells.push({ day: d, dateStr });
+      cells.push({ day: d, dateStr, thisMonth: true });
     }
+    // Padding after
     while (cells.length % 7 !== 0) {
-      cells.push({ day: null, dateStr: null });
+      const d = new Date(year, month + 1, cells.length - (firstWeekday + daysInMonth) + 1);
+      cells.push({ day: d.getDate(), dateStr: d.toISOString().split("T")[0], thisMonth: false });
     }
     return cells;
   }, [currentMonth]);
 
+  // ─── Week cells ───────────────────────────────────────────────────────────
+  const weekCells = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      return { dateStr: d.toISOString().split("T")[0], label: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }), day: d.getDate() };
+    });
+  }, [weekStart]);
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+  const firstPlatform = (post: SocialPost) => post.targets?.[0]?.platform?.toLowerCase() || "default";
+
+  const platformMeta = (p: string) => PLATFORM_META[p] || PLATFORM_META.default;
+
+  const openPopup = (e: React.MouseEvent, post: SocialPost) => {
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setPopup({ post, x: rect.left + window.scrollX, y: rect.bottom + window.scrollY + 4 });
+    setOverflowDate(null);
+  };
+
+  const renderEventPill = (post: SocialPost, key: string) => {
+    const plat = firstPlatform(post);
+    const meta = platformMeta(plat);
+    const statusColor = STATUS_COLOR[post.status] || meta.color;
+    const time = fmtTime(post.scheduledAt);
+    return (
+      <button
+        key={key}
+        type="button"
+        className="cal-event-pill"
+        style={{ background: meta.bg, borderLeft: `3px solid ${statusColor}`, color: meta.color }}
+        onClick={(e) => openPopup(e, post)}
+        title={post.content}
+      >
+        <span className="cal-event-time">{time}</span>
+        <span className="cal-event-text">{post.content}</span>
+      </button>
+    );
+  };
+
+  // ─── Day view posts ───────────────────────────────────────────────────────
+  const focusDateStr = focusDate.toISOString().split("T")[0];
+  const dayPosts = postsByDate.get(focusDateStr) || [];
+
   return (
-    <div className="calendar-page">
-      <h2 className="page-title">Post Calendar</h2>
-      <p className="page-desc">View and manage your scheduled posts across all platforms.</p>
-      {error && <div className="error-box">{error}</div>}
-      <div className="calendar-layout">
-        <div className="calendar-widget">
-          <div className="calendar-header">
-            <button
-              type="button"
-              onClick={() =>
-                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
-              }
-            >
-              ←
+    <div className="gcal-wrap">
+      {/* ── Toolbar ── */}
+      <div className="gcal-toolbar">
+        <div className="gcal-toolbar-left">
+          <button type="button" className="gcal-btn-today" onClick={() => setFocusDate(new Date())}>Today</button>
+          <button type="button" className="gcal-nav-btn" onClick={navPrev} aria-label="Previous">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+          <button type="button" className="gcal-nav-btn" onClick={navNext} aria-label="Next">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
+          <span className="gcal-header-label">{headerLabel}</span>
+          {loading && <span className="gcal-loading-dot" />}
+        </div>
+        <div className="gcal-view-toggle">
+          {(["month", "week", "day"] as ViewMode[]).map((v) => (
+            <button key={v} type="button" className={`gcal-view-btn ${view === v ? "active" : ""}`} onClick={() => setView(v)}>
+              {v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
-            <span>{monthLabel}</span>
-            <button
-              type="button"
-              onClick={() =>
-                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
-              }
-            >
-              →
-            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && <div className="gcal-error">{error}</div>}
+
+      {/* ─────────── MONTH VIEW ─────────── */}
+      {view === "month" && (
+        <div className="gcal-month">
+          <div className="gcal-day-headers">
+            {DAYS.map((d) => <div key={d} className="gcal-day-hdr">{d}</div>)}
           </div>
-          <div className="calendar-grid">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="calendar-day-header">{d}</div>
-            ))}
+          <div className="gcal-month-grid">
             {calendarCells.map((cell, i) => {
-              const hasPosts = cell.dateStr ? (postCountByDate.get(cell.dateStr) || 0) > 0 : false;
+              const isToday = cell.dateStr === todayStr;
+              const cellPosts = cell.dateStr ? (postsByDate.get(cell.dateStr) || []) : [];
+              const visible = cellPosts.slice(0, MAX_EVENTS_PER_CELL);
+              const overflow = cellPosts.length - MAX_EVENTS_PER_CELL;
+              const isOverflowOpen = overflowDate === cell.dateStr;
+
               return (
                 <div
                   key={i}
-                  className={`calendar-day ${cell.day ? "" : "other-month"} ${selectedDate === cell.dateStr ? "selected" : ""}`}
-                  onClick={() => cell.day && cell.dateStr && setSelectedDate(cell.dateStr)}
+                  className={`gcal-cell ${!cell.thisMonth ? "other-month" : ""} ${isToday ? "today" : ""}`}
+                  onClick={() => { if (cell.dateStr) { setFocusDate(new Date(cell.dateStr + "T12:00:00")); } }}
                 >
-                  <span>{cell.day || ""}</span>
-                  {hasPosts && <em className="dot" />}
+                  <div className="gcal-cell-day">
+                    <span className={`gcal-day-num ${isToday ? "today-circle" : ""}`}>{cell.day}</span>
+                  </div>
+                  <div className="gcal-cell-events">
+                    {visible.map((p) => renderEventPill(p, `${cell.dateStr}-${p.postId}`))}
+                    {overflow > 0 && (
+                      <button
+                        type="button"
+                        className="gcal-more-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOverflowDate(isOverflowOpen ? null : cell.dateStr);
+                          setPopup(null);
+                        }}
+                      >
+                        +{overflow} more
+                      </button>
+                    )}
+                    {isOverflowOpen && (
+                      <div className="gcal-overflow-list" ref={popupRef} onClick={(e) => e.stopPropagation()}>
+                        <div className="gcal-overflow-header">
+                          {cell.dateStr ? fmtDate(cell.dateStr + "T12:00:00") : ""}
+                          <button type="button" className="gcal-close-btn" onClick={() => setOverflowDate(null)}>×</button>
+                        </div>
+                        {cellPosts.map((p) => renderEventPill(p, `ov-${p.postId}`))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
-        <div className="events-panel">
-          <h3>Scheduled for {selectedDate}</h3>
-          <div className="events-list">
-            {loading ? (
-              <p className="no-events">Loading posts...</p>
-            ) : selectedDatePosts.length > 0 ? (
-              selectedDatePosts.map((ev) => (
-                <div key={ev.postId} className="event-card">
-                  <div className="event-time">
-                    {(() => {
-                      const iso = toIsoString(ev.scheduledAt);
-                      return iso
-                        ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                        : "--:--";
-                    })()}{" "}
-                    ·{" "}
-                    {ev.targets.map((t) => t.platform).join(", ")}
-                  </div>
-                  <div className="event-preview">{ev.content}</div>
-                  <div className="event-targets">
-                    {ev.targets.map((t) => t.displayName).join(" | ")}
-                  </div>
+      )}
+
+      {/* ─────────── WEEK VIEW ─────────── */}
+      {view === "week" && (
+        <div className="gcal-week">
+          {weekCells.map((cell) => {
+            const isToday = cell.dateStr === todayStr;
+            const cellPosts = postsByDate.get(cell.dateStr) || [];
+            return (
+              <div key={cell.dateStr} className={`gcal-week-col ${isToday ? "today" : ""}`}>
+                <div className="gcal-week-col-header">
+                  <span className="gcal-week-col-day">{new Date(cell.dateStr + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" })}</span>
+                  <span className={`gcal-week-col-num ${isToday ? "today-circle" : ""}`}>{cell.day}</span>
                 </div>
-              ))
-            ) : (
-              <p className="no-events">No posts scheduled for this date.</p>
-            )}
+                <div className="gcal-week-events">
+                  {cellPosts.length === 0
+                    ? <div className="gcal-no-events-hint" />
+                    : cellPosts.map((p) => renderEventPill(p, `wk-${p.postId}`))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ─────────── DAY VIEW ─────────── */}
+      {view === "day" && (
+        <div className="gcal-day-view">
+          <div className="gcal-day-view-header">
+            <span className={`gcal-day-view-num ${focusDateStr === todayStr ? "today-circle" : ""}`}>
+              {focusDate.getDate()}
+            </span>
+            <span className="gcal-day-view-label">
+              {focusDate.toLocaleDateString(undefined, { weekday: "long", month: "long", year: "numeric" })}
+            </span>
+            <span className="gcal-day-post-count">
+              {dayPosts.length} post{dayPosts.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {dayPosts.length === 0
+            ? <div className="gcal-day-empty">No posts scheduled for this day.</div>
+            : (
+              <div className="gcal-day-list">
+                {dayPosts.map((p) => {
+                  const plat = firstPlatform(p);
+                  const meta = platformMeta(plat);
+                  const statusColor = STATUS_COLOR[p.status] || meta.color;
+                  return (
+                    <div
+                      key={p.postId}
+                      className="gcal-day-event-card"
+                      style={{ borderLeft: `4px solid ${statusColor}` }}
+                    >
+                      <div className="gcal-day-event-top">
+                        <span className="gcal-day-event-time" style={{ color: statusColor }}>{fmtTime(p.scheduledAt)}</span>
+                        <span className="gcal-day-event-platform" style={{ background: meta.bg, color: meta.color }}>
+                          {meta.label} {p.targets.map((t) => t.displayName).join(", ")}
+                        </span>
+                        <span className="gcal-day-event-status" style={{ color: statusColor }}>{p.status}</span>
+                      </div>
+                      <div className="gcal-day-event-content">{p.content}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          }
+        </div>
+      )}
+
+      {/* ─── Event detail popup ─── */}
+      {popup && (
+        <div
+          ref={popupRef}
+          className="gcal-event-popup"
+          style={{ top: popup.y, left: Math.min(popup.x, typeof window !== "undefined" ? window.innerWidth - 320 : popup.x) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="gcal-popup-header">
+            <div className="gcal-popup-status" style={{ background: STATUS_COLOR[popup.post.status] || "#2563eb" }} />
+            <span className="gcal-popup-time">{fmtTime(popup.post.scheduledAt)}</span>
+            <button type="button" className="gcal-close-btn" onClick={() => setPopup(null)}>×</button>
+          </div>
+          <div className="gcal-popup-content">{popup.post.content}</div>
+          <div className="gcal-popup-meta">
+            <span className="gcal-popup-platforms">
+              {popup.post.targets.map((t) => `${t.displayName} (${t.platform})`).join(" · ")}
+            </span>
+            <span className="gcal-popup-status-badge" style={{ color: STATUS_COLOR[popup.post.status] || "#2563eb" }}>
+              {popup.post.status}
+            </span>
           </div>
         </div>
-      </div>
+      )}
+
       <style jsx>{`
-        .calendar-page {
-          max-width: 900px;
-        }
-        .page-title {
-          margin: 0 0 8px;
-          font-size: 22px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-        .page-desc {
-          margin: 0 0 24px;
-          color: #64748b;
-          font-size: 14px;
-        }
-        .calendar-layout {
-          display: grid;
-          grid-template-columns: 1fr 320px;
-          gap: 24px;
-        }
-        .calendar-widget {
-          border: 1px solid rgba(226, 232, 240, 0.9);
+        /* ── Wrap ── */
+        .gcal-wrap {
+          display: flex;
+          flex-direction: column;
+          height: calc(100vh - 96px);
+          min-height: 600px;
+          background: #fff;
           border-radius: 16px;
-          padding: 20px;
-          background: #f8fafc;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          overflow: hidden;
+          box-shadow: 0 4px 24px rgba(15, 23, 42, 0.05);
+          position: relative;
         }
-        .calendar-header {
+
+        /* ── Toolbar ── */
+        .gcal-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 20px;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+          background: #fff;
+          gap: 16px;
+          flex-shrink: 0;
+        }
+        .gcal-toolbar-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .gcal-btn-today {
+          padding: 6px 16px;
+          border: 1px solid rgba(148, 163, 184, 0.45);
+          border-radius: 6px;
+          background: #fff;
+          font-size: 13px;
+          font-weight: 600;
+          color: #334155;
+          cursor: pointer;
+        }
+        .gcal-btn-today:hover { background: #f8fafc; }
+        .gcal-nav-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          border-radius: 6px;
+          background: #fff;
+          cursor: pointer;
+          color: #334155;
+        }
+        .gcal-nav-btn:hover { background: #f1f5f9; }
+        .gcal-header-label {
+          font-size: 17px;
+          font-weight: 600;
+          color: #0f172a;
+          margin-left: 4px;
+        }
+        .gcal-loading-dot {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #2563eb;
+          animation: pulse 1s infinite;
+          margin-left: 6px;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* ── View toggle ── */
+        .gcal-view-toggle {
+          display: inline-flex;
+          border: 1px solid rgba(148, 163, 184, 0.4);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .gcal-view-btn {
+          padding: 6px 14px;
+          font-size: 13px;
+          font-weight: 500;
+          border: none;
+          background: #fff;
+          color: #475569;
+          cursor: pointer;
+          border-right: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        .gcal-view-btn:last-child { border-right: none; }
+        .gcal-view-btn:hover { background: #f8fafc; }
+        .gcal-view-btn.active { background: #0f172a; color: #fff; }
+
+        /* ── Error ── */
+        .gcal-error {
+          margin: 12px 20px 0;
+          padding: 10px 14px;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          border-radius: 10px;
+          color: #b91c1c;
+          font-size: 13px;
+        }
+
+        /* ── Month view ── */
+        .gcal-month {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          overflow: hidden;
+        }
+        .gcal-day-headers {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+          flex-shrink: 0;
+        }
+        .gcal-day-hdr {
+          padding: 8px 0;
+          text-align: center;
+          font-size: 11px;
+          font-weight: 700;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+        .gcal-month-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          grid-auto-rows: 1fr;
+          flex: 1;
+          overflow-y: auto;
+        }
+        .gcal-cell {
+          border-right: 1px solid rgba(226, 232, 240, 0.6);
+          border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+          padding: 4px 4px 6px;
+          min-height: 110px;
+          cursor: pointer;
+          position: relative;
+          transition: background 0.1s;
+        }
+        .gcal-cell:nth-child(7n) { border-right: none; }
+        .gcal-cell:hover { background: #f8fafc; }
+        .gcal-cell.other-month { background: #fafafa; }
+        .gcal-cell.today { background: #eff6ff; }
+
+        .gcal-cell-day {
+          display: flex;
+          justify-content: flex-end;
+          padding: 2px 4px 2px;
+        }
+        .gcal-day-num {
+          font-size: 13px;
+          font-weight: 500;
+          color: #475569;
+          width: 26px;
+          height: 26px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+        }
+        .gcal-cell.other-month .gcal-day-num { color: #cbd5e1; }
+        .gcal-day-num.today-circle {
+          background: #2563eb;
+          color: #fff;
+          font-weight: 700;
+        }
+
+        .gcal-cell-events {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          position: relative;
+        }
+
+        /* ── Event pill ── */
+        .cal-event-pill {
+          display: flex;
+          align-items: baseline;
+          gap: 4px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 11px;
+          line-height: 1.4;
+          cursor: pointer;
+          text-align: left;
+          border: none;
+          width: 100%;
+          overflow: hidden;
+        }
+        .cal-event-pill:hover { filter: brightness(0.95); }
+        .cal-event-time {
+          font-weight: 700;
+          white-space: nowrap;
+          flex-shrink: 0;
+          font-size: 10px;
+        }
+        .cal-event-text {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex: 1;
+        }
+
+        .gcal-more-btn {
+          font-size: 11px;
+          color: #475569;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 1px 6px;
+          text-align: left;
+          font-weight: 600;
+        }
+        .gcal-more-btn:hover { color: #2563eb; }
+
+        /* ── Overflow list ── */
+        .gcal-overflow-list {
+          position: absolute;
+          top: 0;
+          left: 0;
+          z-index: 200;
+          width: 230px;
+          background: #fff;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(15, 23, 42, 0.15);
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .gcal-overflow-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 16px;
+          font-size: 12px;
           font-weight: 600;
-          color: #0f172a;
+          color: #334155;
+          padding: 2px 2px 6px;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+          margin-bottom: 4px;
         }
-        .calendar-header button {
-          padding: 6px 12px;
-          border: 1px solid rgba(148, 163, 184, 0.4);
-          border-radius: 8px;
-          background: #fff;
+
+        .gcal-close-btn {
+          background: none;
+          border: none;
+          font-size: 18px;
+          line-height: 1;
           cursor: pointer;
+          color: #94a3b8;
+          padding: 0;
         }
-        .calendar-grid {
+        .gcal-close-btn:hover { color: #0f172a; }
+
+        /* ── Week view ── */
+        .gcal-week {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
-          gap: 4px;
+          flex: 1;
+          overflow-y: auto;
+          border-top: 1px solid rgba(226, 232, 240, 0.7);
         }
-        .calendar-day-header {
-          font-size: 11px;
-          font-weight: 600;
-          color: #64748b;
-          text-align: center;
-          padding: 8px;
+        .gcal-week-col {
+          border-right: 1px solid rgba(226, 232, 240, 0.6);
+          padding: 8px 6px;
         }
-        .calendar-day {
-          aspect-ratio: 1;
+        .gcal-week-col:last-child { border-right: none; }
+        .gcal-week-col.today { background: #eff6ff; }
+
+        .gcal-week-col-header {
           display: flex;
           flex-direction: column;
           align-items: center;
+          margin-bottom: 8px;
+          gap: 2px;
+        }
+        .gcal-week-col-day {
+          font-size: 11px;
+          font-weight: 700;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+        .gcal-week-col-num {
+          font-size: 20px;
+          font-weight: 300;
+          color: #334155;
+          width: 38px;
+          height: 38px;
+          display: flex;
+          align-items: center;
           justify-content: center;
-          border-radius: 10px;
-          font-size: 14px;
-          cursor: pointer;
-          color: #0f172a;
+          border-radius: 50%;
         }
-        .calendar-day.other-month {
-          color: #94a3b8;
-        }
-        .calendar-day.selected {
+        .gcal-week-col-num.today-circle {
           background: #2563eb;
           color: #fff;
+          font-weight: 600;
         }
-        .dot {
-          margin-top: 4px;
-          width: 6px;
-          height: 6px;
+        .gcal-week-events {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .gcal-no-events-hint { height: 24px; }
+
+        /* ── Day view ── */
+        .gcal-day-view {
+          flex: 1;
+          overflow-y: auto;
+          padding: 20px 24px;
+        }
+        .gcal-day-view-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 20px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .gcal-day-view-num {
+          font-size: 36px;
+          font-weight: 300;
+          color: #334155;
+          width: 56px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           border-radius: 50%;
-          background: currentColor;
-          opacity: 0.9;
         }
-        .calendar-day:not(.other-month):hover {
-          background: rgba(37, 99, 235, 0.15);
-        }
-        .events-panel {
-          border: 1px solid rgba(226, 232, 240, 0.9);
-          border-radius: 16px;
-          padding: 20px;
-          background: #fff;
-        }
-        .events-panel h3 {
-          margin: 0 0 16px;
-          font-size: 16px;
+        .gcal-day-view-num.today-circle {
+          background: #2563eb;
+          color: #fff;
           font-weight: 600;
-          color: #0f172a;
         }
-        .event-card {
-          padding: 12px 16px;
-          border-radius: 12px;
-          background: #f8fafc;
-          margin-bottom: 8px;
-          border: 1px solid rgba(226, 232, 240, 0.6);
+        .gcal-day-view-label {
+          font-size: 18px;
+          font-weight: 500;
+          color: #334155;
+          flex: 1;
         }
-        .event-time {
-          font-size: 12px;
-          font-weight: 600;
-          color: #2563eb;
-          margin-bottom: 4px;
-        }
-        .event-preview {
+        .gcal-day-post-count {
           font-size: 13px;
-          color: #475569;
+          color: #94a3b8;
         }
-        .event-targets {
-          margin-top: 6px;
+        .gcal-day-empty {
+          color: #94a3b8;
+          font-size: 14px;
+          text-align: center;
+          margin-top: 60px;
+        }
+        .gcal-day-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .gcal-day-event-card {
+          background: #f8fafc;
+          border-radius: 10px;
+          padding: 14px 16px;
+          border: 1px solid rgba(226, 232, 240, 0.7);
+        }
+        .gcal-day-event-top {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 8px;
+          flex-wrap: wrap;
+        }
+        .gcal-day-event-time {
+          font-size: 13px;
+          font-weight: 700;
+        }
+        .gcal-day-event-platform {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 3px 8px;
+          border-radius: 999px;
+        }
+        .gcal-day-event-status {
+          font-size: 11px;
+          font-weight: 600;
+          margin-left: auto;
+        }
+        .gcal-day-event-content {
+          font-size: 14px;
+          color: #334155;
+          line-height: 1.55;
+          white-space: pre-wrap;
+        }
+
+        /* ── Event popup ── */
+        .gcal-event-popup {
+          position: absolute;
+          z-index: 9999;
+          width: 300px;
+          background: #fff;
+          border-radius: 14px;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+          padding: 14px 16px 16px;
+        }
+        .gcal-popup-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        .gcal-popup-status {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .gcal-popup-time {
+          font-size: 14px;
+          font-weight: 700;
+          color: #0f172a;
+          flex: 1;
+        }
+        .gcal-popup-content {
+          font-size: 14px;
+          color: #334155;
+          line-height: 1.55;
+          margin-bottom: 12px;
+          white-space: pre-wrap;
+          max-height: 120px;
+          overflow-y: auto;
+        }
+        .gcal-popup-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          padding-top: 10px;
+          border-top: 1px solid rgba(226, 232, 240, 0.7);
+        }
+        .gcal-popup-platforms {
           font-size: 12px;
           color: #64748b;
         }
-        .error-box {
-          margin-bottom: 16px;
-          border: 1px solid #fecaca;
-          background: #fef2f2;
-          color: #b91c1c;
-          border-radius: 12px;
-          padding: 10px 12px;
-          font-size: 13px;
-        }
-        .no-events {
-          color: #94a3b8;
-          font-size: 14px;
+        .gcal-popup-status-badge {
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: capitalize;
         }
       `}</style>
     </div>

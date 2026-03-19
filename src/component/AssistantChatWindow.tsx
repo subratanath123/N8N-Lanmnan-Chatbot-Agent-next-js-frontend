@@ -40,6 +40,7 @@ interface AssistantChatWindowProps {
   accentColor?: string;
   backgroundGradient?: string;
   conversationId?: string; // Optional conversation ID to load history
+  initialUserMessage?: string; // Optional: auto-send as the first user message for new conversations
   getToken?: () => Promise<string | null>; // Function to get bearer token for authenticated requests
   isSignedIn?: boolean; // Whether user is signed in
 }
@@ -63,6 +64,7 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
   accentColor = DEFAULT_ACCENT,
   backgroundGradient = DEFAULT_BACKGROUND,
   conversationId,
+  initialUserMessage,
   getToken,
   isSignedIn,
 }) => {
@@ -333,9 +335,13 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
     }
   };
 
-  const handleSendMessage = async (event?: React.FormEvent<HTMLFormElement>) => {
+  const handleSendMessage = async (
+    event?: React.FormEvent<HTMLFormElement>,
+    overrideContent?: string
+  ) => {
     event?.preventDefault();
-    if ((!inputValue.trim() && uploadedFileAttachments.length === 0) || isLoading) return;
+    const contentToSend = overrideContent !== undefined ? overrideContent : inputValue;
+    if ((!contentToSend.trim() && uploadedFileAttachments.length === 0) || isLoading) return;
 
     // Upload files if there are any pending attachments
     let filesToInclude = uploadedFileAttachments;
@@ -344,7 +350,8 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
       filesToInclude = uploaded;
     }
 
-    const messageContent = inputValue.trim() || (filesToInclude.length > 0 ? `Shared ${filesToInclude.length} file(s)` : '');
+    const messageContent =
+      contentToSend.trim() || (filesToInclude.length > 0 ? `Shared ${filesToInclude.length} file(s)` : '');
     
     const userMessage: Message = {
       id: `${Date.now()}`,
@@ -471,6 +478,19 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
       setIsLoading(false);
     }
   };
+
+  // Auto-send the starter user message when starting a brand new conversation
+  // (used by /ai-chat/[assistantId] page "Launch Conversation").
+  const autoSeedSentRef = useRef(false);
+  useEffect(() => {
+    if (conversationId) return; // only for new-conversation mode
+    if (!initialUserMessage || !initialUserMessage.trim()) return;
+    if (autoSeedSentRef.current) return;
+
+    autoSeedSentRef.current = true;
+    void handleSendMessage(undefined, initialUserMessage.trim());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, initialUserMessage]);
 
   return (
     <div
@@ -599,36 +619,50 @@ const AssistantChatWindow: React.FC<AssistantChatWindowProps> = ({
       >
         {messages.map((message) => {
           const isUser = message.role === 'user';
+          const hasHtml = containsHTML(message.content);
+
+          // Important: When using `dangerouslySetInnerHTML`, React forbids children on the same element.
+          // Render two separate branches to guarantee correctness.
+          // Shared bubble style factory
+          const bubbleStyle = (isHtml?: boolean): React.CSSProperties => ({
+            maxWidth: '70%',
+            padding: '14px 20px',
+            borderRadius: isUser ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
+            background: isUser ? '#1d4ed8' : '#ffffff',
+            color: isUser ? '#f0f7ff' : '#1e293b',
+            fontSize: '15px',
+            fontWeight: 400,
+            lineHeight: 1.65,
+            letterSpacing: '0.01em',
+            boxShadow: isUser
+              ? '0 6px 20px rgba(29, 78, 216, 0.38)'
+              : '0 2px 10px rgba(15, 23, 42, 0.06)',
+            whiteSpace: isHtml ? 'normal' : 'pre-wrap',
+            border: isUser ? 'none' : '1px solid rgba(148, 163, 184, 0.18)',
+          });
+
+          if (hasHtml) {
+            return (
+              <div
+                key={message.id}
+                style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}
+              >
+                <div
+                  className="chatbot-html-content"
+                  style={bubbleStyle(true)}
+                  dangerouslySetInnerHTML={{ __html: message.content }}
+                />
+              </div>
+            );
+          }
+
           return (
             <div
               key={message.id}
-              style={{
-                display: 'flex',
-                justifyContent: isUser ? 'flex-end' : 'flex-start',
-              }}
+              style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}
             >
-              <div
-                className={containsHTML(message.content) ? 'chatbot-html-content' : ''}
-                style={{
-                  maxWidth: '70%',
-                  padding: '16px 20px',
-                  borderRadius: isUser ? '20px 20px 8px 20px' : '20px 20px 20px 8px',
-                  background: isUser ? `linear-gradient(135deg, ${accentColor}, #3b82f6)` : '#ffffff',
-                  color: isUser ? '#ffffff' : '#1f2937',
-                  fontSize: '15px',
-                  lineHeight: 1.6,
-                  letterSpacing: '0.01em',
-                  boxShadow: isUser
-                    ? '0 16px 28px rgba(37, 99, 235, 0.2)'
-                    : '0 16px 28px rgba(15, 23, 42, 0.05)',
-                  whiteSpace: containsHTML(message.content) ? 'normal' : 'pre-wrap',
-                  border: isUser ? 'none' : '1px solid rgba(148, 163, 184, 0.2)',
-                }}
-                {...(containsHTML(message.content) ? {
-                  dangerouslySetInnerHTML: { __html: message.content }
-                } : {})}
-              >
-                {!containsHTML(message.content) && message.content}
+              <div style={bubbleStyle()}>
+                {message.content}
               </div>
             </div>
           );
