@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import LeftSidebar from "@/component/LeftSidebar";
+import { useRouter } from "next/navigation";
 
 /* ─── Gauge SVG ─────────────────────────────── */
 function GaugeChart({
@@ -81,6 +82,12 @@ const CHATBOT_ID = "plagiarism-checker";
 const CREDITS_BALANCE = 30;
 
 export default function PlagiarismPage() {
+  const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const handleDrawerStateChange = (_isOpen: boolean, _activeItem: string, collapsed?: boolean) => {
+    if (collapsed !== undefined) setSidebarCollapsed(collapsed);
+  };
 
   const [contentText, setContentText] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -191,12 +198,13 @@ ${contentText}`;
   const uniqueColor = "#22c55e";
 
   return (
-    <div
-      style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}
-    >
-      <LeftSidebar onDrawerStateChange={() => {}} onNavItemClick={() => {}} />
+    <div className="full-height-layout">
+      <LeftSidebar
+        onDrawerStateChange={handleDrawerStateChange}
+        onNavItemClick={(_, href) => { if (href && href !== "#") router.push(href); }}
+      />
 
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div className={`main-content ${sidebarCollapsed ? "collapsed" : ""}`} style={{ overflowY: "auto" }}>
         {/* Header */}
         <div
           style={{
@@ -592,8 +600,31 @@ ${contentText}`;
         </div>
       </div>
 
-      <style>{`
+      <style jsx>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .full-height-layout {
+          display: flex;
+          width: 100%;
+          min-height: 100vh;
+          position: relative;
+          background-color: #f8fafc;
+        }
+        .main-content {
+          flex: 1;
+          margin-left: 280px;
+          min-height: 100vh;
+          background-color: #ffffff;
+          transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          overflow-x: hidden;
+          position: relative;
+          z-index: 1;
+        }
+        .main-content.collapsed {
+          margin-left: 60px;
+        }
+        @media (max-width: 768px) {
+          .main-content { margin-left: 0; }
+        }
       `}</style>
     </div>
   );
