@@ -69,6 +69,13 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             ]
         },
         {
+            title: 'CONTENT ANALYSIS',
+            items: [
+                { name: 'Plagiarism', icon: 'file-alt', href: '/content-analysis/plagiarism' },
+                { name: 'AI Detector', icon: 'robot', href: '/content-analysis/ai-detector' },
+            ]
+        },
+        {
             title: 'ACCOUNT',
             items: [
                 { name: 'Subscription Plans', icon: 'credit-card', href: '/subscription' },
