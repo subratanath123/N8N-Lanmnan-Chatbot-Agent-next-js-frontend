@@ -9,18 +9,21 @@ interface SocialTarget {
   displayName: string;
 }
 
+interface PostMedia {
+  mediaId?: string;
+  mediaUrl?: string;
+  mimeType?: string;
+  fileName?: string;
+  sizeBytes?: number;
+}
+
 interface SocialPost {
   postId: string;
   content: string;
   status: string;
   scheduledAt: string | number | Date | null;
   targets: SocialTarget[];
-}
-
-interface EventPopup {
-  post: SocialPost;
-  x: number;
-  y: number;
+  media?: PostMedia[];
 }
 
 const PLATFORM_META: Record<string, { color: string; bg: string; label: string }> = {
@@ -90,7 +93,7 @@ export default function PostCalendarPage() {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [popup, setPopup] = useState<EventPopup | null>(null);
+  const [popup, setPopup] = useState<SocialPost | null>(null);
   const [overflowDate, setOverflowDate] = useState<string | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -168,11 +171,10 @@ export default function PostCalendarPage() {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
-  // Dismiss popup on outside click
+  // Dismiss overflow list on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setPopup(null);
         setOverflowDate(null);
       }
     };
@@ -236,8 +238,7 @@ export default function PostCalendarPage() {
 
   const openPopup = (e: React.MouseEvent, post: SocialPost) => {
     e.stopPropagation();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setPopup({ post, x: rect.left + window.scrollX, y: rect.bottom + window.scrollY + 4 });
+    setPopup(post);
     setOverflowDate(null);
   };
 
@@ -395,7 +396,8 @@ export default function PostCalendarPage() {
                     <div
                       key={p.postId}
                       className="gcal-day-event-card"
-                      style={{ borderLeft: `4px solid ${statusColor}` }}
+                      style={{ borderLeft: `4px solid ${statusColor}`, cursor: "pointer" }}
+                      onClick={() => setPopup(p)}
                     >
                       <div className="gcal-day-event-top">
                         <span className="gcal-day-event-time" style={{ color: statusColor }}>{fmtTime(p.scheduledAt)}</span>
@@ -405,6 +407,18 @@ export default function PostCalendarPage() {
                         <span className="gcal-day-event-status" style={{ color: statusColor }}>{p.status}</span>
                       </div>
                       <div className="gcal-day-event-content">{p.content}</div>
+                      {p.media && p.media.length > 0 && (
+                        <div className="gcal-day-media-row">
+                          {p.media.slice(0, 4).map((m, i) => (
+                            <div key={i} className="gcal-day-media-thumb">
+                              {m.mimeType?.startsWith("image/")
+                                ? <img src={m.mediaUrl} alt={m.fileName} />
+                                : <span>🎬</span>}
+                            </div>
+                          ))}
+                          {(p.media.length > 4) && <span className="gcal-media-more">+{p.media.length - 4}</span>}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -414,27 +428,108 @@ export default function PostCalendarPage() {
         </div>
       )}
 
-      {/* ─── Event detail popup ─── */}
+      {/* ─── Full Post Preview Modal ─── */}
       {popup && (
-        <div
-          ref={popupRef}
-          className="gcal-event-popup"
-          style={{ top: popup.y, left: Math.min(popup.x, typeof window !== "undefined" ? window.innerWidth - 320 : popup.x) }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="gcal-popup-header">
-            <div className="gcal-popup-status" style={{ background: STATUS_COLOR[popup.post.status] || "#2563eb" }} />
-            <span className="gcal-popup-time">{fmtTime(popup.post.scheduledAt)}</span>
-            <button type="button" className="gcal-close-btn" onClick={() => setPopup(null)}>×</button>
-          </div>
-          <div className="gcal-popup-content">{popup.post.content}</div>
-          <div className="gcal-popup-meta">
-            <span className="gcal-popup-platforms">
-              {popup.post.targets.map((t) => `${t.displayName} (${t.platform})`).join(" · ")}
-            </span>
-            <span className="gcal-popup-status-badge" style={{ color: STATUS_COLOR[popup.post.status] || "#2563eb" }}>
-              {popup.post.status}
-            </span>
+        <div className="gcal-modal-backdrop" onClick={() => setPopup(null)}>
+          <div className="gcal-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="gcal-modal-header">
+              <span className="gcal-modal-title">Post Preview</span>
+              <button type="button" className="gcal-close-btn" onClick={() => setPopup(null)}>×</button>
+            </div>
+
+            {/* Meta row */}
+            <div className="gcal-modal-meta">
+              <div className="gcal-modal-meta-left">
+                <div className="gcal-modal-platforms">
+                  {popup.targets.map((t) => {
+                    const m = platformMeta(t.platform.toLowerCase());
+                    return (
+                      <span key={t.targetId} className="gcal-modal-platform-chip" style={{ background: m.bg, color: m.color }}>
+                        {m.label} {t.displayName}
+                      </span>
+                    );
+                  })}
+                </div>
+                <span className="gcal-modal-datetime">
+                  {popup.scheduledAt ? new Date(toIsoString(popup.scheduledAt)).toLocaleString(undefined, {
+                    weekday: "short", month: "short", day: "numeric",
+                    year: "numeric", hour: "2-digit", minute: "2-digit"
+                  }) : "Unscheduled"}
+                </span>
+              </div>
+              <span className="gcal-modal-status-badge" style={{ color: STATUS_COLOR[popup.status] || "#2563eb", borderColor: STATUS_COLOR[popup.status] || "#2563eb" }}>
+                {popup.status.replace(/_/g, " ")}
+              </span>
+            </div>
+
+            {/* Social post preview card */}
+            <div className="gcal-modal-preview-card">
+              {/* Card header — mimic the primary platform */}
+              {(() => {
+                const plat = firstPlatform(popup);
+                const meta = platformMeta(plat);
+                const isTwitter = plat === "twitter";
+                return (
+                  <div className="gcal-preview-card-header">
+                    <div className="gcal-preview-avatar" style={{ background: meta.color }}>
+                      {meta.label}
+                    </div>
+                    <div>
+                      <div className="gcal-preview-name">{popup.targets[0]?.displayName || "Your Account"}</div>
+                      <div className="gcal-preview-handle">{isTwitter ? `@${popup.targets[0]?.displayName || "handle"}` : meta.label + " Page"} · {fmtTime(popup.scheduledAt)}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Post text */}
+              {popup.content && (
+                <div className="gcal-preview-body"
+                  dangerouslySetInnerHTML={{ __html: popup.content.replace(/\n/g, "<br>") }}
+                />
+              )}
+
+              {/* Media grid */}
+              {popup.media && popup.media.length > 0 && (
+                <div className={`gcal-preview-media-grid cols-${Math.min(popup.media.length, 2)}`}>
+                  {popup.media.map((m, i) => (
+                    <div key={i} className="gcal-preview-media-item">
+                      {m.mimeType?.startsWith("image/") ? (
+                        <img src={m.mediaUrl} alt={m.fileName || `media-${i}`} />
+                      ) : m.mimeType?.startsWith("video/") ? (
+                        <video src={m.mediaUrl} controls muted />
+                      ) : (
+                        <div className="gcal-preview-media-doc">📄 {m.fileName}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Engagement actions */}
+              <div className="gcal-preview-actions">
+                {firstPlatform(popup) === "twitter"
+                  ? <><span>💬 Reply</span><span>🔁 Repost</span><span>❤️ Like</span></>
+                  : <><span>👍 Like</span><span>💬 Comment</span><span>↗️ Share</span></>
+                }
+              </div>
+            </div>
+
+            {/* All targets */}
+            {popup.targets.length > 1 && (
+              <div className="gcal-modal-all-targets">
+                <span className="gcal-modal-targets-label">Publishing to:</span>
+                {popup.targets.map((t) => {
+                  const m = platformMeta(t.platform.toLowerCase());
+                  return (
+                    <span key={t.targetId} className="gcal-modal-platform-chip" style={{ background: m.bg, color: m.color }}>
+                      {m.label} {t.displayName}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -834,59 +929,212 @@ export default function PostCalendarPage() {
           white-space: pre-wrap;
         }
 
-        /* ── Event popup ── */
-        .gcal-event-popup {
-          position: absolute;
-          z-index: 9999;
-          width: 300px;
-          background: #fff;
-          border-radius: 14px;
-          border: 1px solid rgba(226, 232, 240, 0.9);
-          box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
-          padding: 14px 16px 16px;
+        /* ── Day view media ── */
+        .gcal-day-media-row {
+          display: flex;
+          gap: 6px;
+          margin-top: 10px;
+          flex-wrap: wrap;
+          align-items: center;
         }
-        .gcal-popup-header {
+        .gcal-day-media-thumb {
+          width: 56px;
+          height: 56px;
+          border-radius: 6px;
+          overflow: hidden;
+          border: 1px solid rgba(226,232,240,0.9);
+          background: #f1f5f9;
           display: flex;
           align-items: center;
-          gap: 8px;
-          margin-bottom: 10px;
+          justify-content: center;
+          font-size: 20px;
         }
-        .gcal-popup-status {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          flex-shrink: 0;
+        .gcal-day-media-thumb img,
+        .gcal-day-media-thumb video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
-        .gcal-popup-time {
-          font-size: 14px;
-          font-weight: 700;
-          color: #0f172a;
-          flex: 1;
+        .gcal-media-more {
+          font-size: 12px;
+          color: #64748b;
+          font-weight: 600;
         }
-        .gcal-popup-content {
-          font-size: 14px;
-          color: #334155;
-          line-height: 1.55;
-          margin-bottom: 12px;
-          white-space: pre-wrap;
-          max-height: 120px;
+
+        /* ── Post Preview Modal ── */
+        .gcal-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.5);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+        }
+        .gcal-modal {
+          background: #fff;
+          border-radius: 20px;
+          width: 100%;
+          max-width: 520px;
+          max-height: 90vh;
           overflow-y: auto;
-        }
-        .gcal-popup-meta {
+          box-shadow: 0 32px 80px rgba(15, 23, 42, 0.25);
           display: flex;
           flex-direction: column;
-          gap: 4px;
-          padding-top: 10px;
-          border-top: 1px solid rgba(226, 232, 240, 0.7);
         }
-        .gcal-popup-platforms {
+        .gcal-modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 20px 12px;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+          flex-shrink: 0;
+        }
+        .gcal-modal-title {
+          font-size: 16px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .gcal-modal-meta {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 14px 20px;
+          border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+          flex-shrink: 0;
+        }
+        .gcal-modal-meta-left {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .gcal-modal-platforms {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .gcal-modal-platform-chip {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 3px 9px;
+          border-radius: 999px;
+        }
+        .gcal-modal-datetime {
           font-size: 12px;
           color: #64748b;
         }
-        .gcal-popup-status-badge {
+        .gcal-modal-status-badge {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: capitalize;
+          padding: 4px 10px;
+          border-radius: 999px;
+          border: 1.5px solid;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        /* Preview card */
+        .gcal-modal-preview-card {
+          margin: 16px 20px;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          border-radius: 14px;
+          overflow: hidden;
+          background: #fff;
+          box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+        }
+        .gcal-preview-card-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 16px 10px;
+        }
+        .gcal-preview-avatar {
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 13px;
+          flex-shrink: 0;
+        }
+        .gcal-preview-name {
+          font-size: 14px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .gcal-preview-handle {
+          font-size: 12px;
+          color: #94a3b8;
+        }
+        .gcal-preview-body {
+          padding: 4px 16px 12px;
+          font-size: 14px;
+          color: #334155;
+          line-height: 1.6;
+          word-break: break-word;
+        }
+        .gcal-preview-body b, .gcal-preview-body strong { font-weight: 700; }
+        .gcal-preview-body i, .gcal-preview-body em    { font-style: italic; }
+        .gcal-preview-body u                            { text-decoration: underline; }
+
+        .gcal-preview-media-grid {
+          display: grid;
+          gap: 2px;
+          margin: 0 0 2px;
+        }
+        .gcal-preview-media-grid.cols-1 { grid-template-columns: 1fr; }
+        .gcal-preview-media-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+        .gcal-preview-media-item {
+          overflow: hidden;
+          background: #f1f5f9;
+          min-height: 140px;
+          max-height: 280px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .gcal-preview-media-item img,
+        .gcal-preview-media-item video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          min-height: 140px;
+          display: block;
+        }
+        .gcal-preview-media-doc {
+          padding: 24px;
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .gcal-preview-actions {
+          display: flex;
+          gap: 20px;
+          padding: 10px 16px 14px;
+          font-size: 13px;
+          color: #64748b;
+          border-top: 1px solid rgba(226, 232, 240, 0.7);
+        }
+
+        .gcal-modal-all-targets {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          align-items: center;
+          padding: 0 20px 18px;
+        }
+        .gcal-modal-targets-label {
           font-size: 12px;
           font-weight: 600;
-          text-transform: capitalize;
+          color: #64748b;
+          margin-right: 2px;
         }
       `}</style>
     </div>

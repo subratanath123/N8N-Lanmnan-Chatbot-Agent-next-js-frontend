@@ -71,7 +71,7 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
         {
             title: 'ACCOUNT',
             items: [
-                { name: 'Subscription Plans', icon: 'credit-card', href: '#' },
+                { name: 'Subscription Plans', icon: 'credit-card', href: '/subscription' },
             ]
         }
     ];
