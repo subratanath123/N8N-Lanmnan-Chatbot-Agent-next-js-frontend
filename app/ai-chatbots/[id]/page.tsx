@@ -2041,6 +2041,16 @@ export default function ChatbotDetailPage() {
                     </p>
                 </div>
                 <div className="d-flex flex-wrap gap-2">
+                    <MDBBtn
+                        color="dark"
+                        outline
+                        onClick={() => router.push(`/ai-chatbots/${chatbotId}/workflow`)}
+                        className="d-flex align-items-center gap-2"
+                        style={{ borderRadius: '999px', padding: '10px 20px', fontWeight: 600, fontSize: '14px' }}
+                    >
+                        <MDBIcon icon="project-diagram" />
+                        Workflow Config
+                    </MDBBtn>
                     <MDBBtn 
                         color="info" 
                         outline 
