@@ -2,7 +2,6 @@
 
 import React, { useState, useRef } from "react";
 import LeftSidebar from "@/component/LeftSidebar";
-import { useAuth, useUser } from "@clerk/nextjs";
 
 /* ─── Gauge SVG ─────────────────────────────── */
 function GaugeChart({
@@ -82,8 +81,6 @@ const CHATBOT_ID = "plagiarism-checker";
 const CREDITS_BALANCE = 30;
 
 export default function PlagiarismPage() {
-  const { getToken } = useAuth();
-  const { isSignedIn } = useUser();
 
   const [contentText, setContentText] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -116,24 +113,12 @@ Text to analyze:
 ${contentText}`;
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (isSignedIn && getToken) {
-        try {
-          const token = await getToken();
-          if (token) headers["Authorization"] = `Bearer ${token}`;
-        } catch {
-          // continue without token
-        }
-      }
-
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
       const response = await fetch(
-        `${backendUrl}/v1/api/n8n/authenticated/chat`,
+        `${backendUrl}/v1/api/n8n/anonymous/chat`,
         {
           method: "POST",
-          headers,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             role: "user",
             message: prompt,
