@@ -3443,19 +3443,11 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                             >
                                 <div className="d-flex align-items-center justify-content-between mb-3">
                                     <div className="d-flex align-items-center gap-3">
-                                        <div
-                                            style={{
-                                                width: '42px',
-                                                height: '42px',
-                                                borderRadius: '14px',
-                                                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                color: '#22C55E',
-                                            }}
-                                        >
-                                            <MDBIcon icon="whatsapp" />
+                                        <div style={{ width: '42px', height: '42px', borderRadius: '14px', overflow: 'hidden', flexShrink: 0 }}>
+                                            <svg width="42" height="42" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
+                                                <rect width="42" height="42" rx="14" fill="#25D366"/>
+                                                <path fill="white" d="M21 10.5C15.2 10.5 10.5 15.2 10.5 21c0 2 .55 3.88 1.5 5.5L10.5 31.5l5.2-1.46A10.42 10.42 0 0021 31.5c5.8 0 10.5-4.7 10.5-10.5S26.8 10.5 21 10.5zm5.13 14.56c-.22.62-1.28 1.18-1.76 1.22-.45.04-1.14.06-1.84-.12-.42-.11-.96-.28-1.65-.56-2.9-1.24-4.8-4.18-4.94-4.37-.15-.2-1.14-1.51-1.14-2.88s.72-2.04.98-2.32c.26-.28.56-.35.75-.35l.54.01c.17 0 .41-.07.64.49l.83 2c.07.17.12.36.01.54-.1.19-.15.3-.28.47l-.42.49c-.14.15-.29.32-.13.62.16.3.74 1.23 1.6 1.99 1.1.98 2.03 1.28 2.31 1.42.29.14.46.12.63-.07l.91-1.06c.2-.26.4-.17.68-.06l2 .94c.28.13.47.2.54.31.07.12.07.7-.15 1.34z"/>
+                                            </svg>
                                         </div>
                                         <div>
                                             <h6 className="mb-1" style={{ fontWeight: 600, color: '#111827' }}>WhatsApp</h6>
@@ -3565,19 +3557,17 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                             >
                                 <div className="d-flex align-items-center justify-content-between mb-3">
                                     <div className="d-flex align-items-center gap-3">
-                                        <div
-                                            style={{
-                                                width: '42px',
-                                                height: '42px',
-                                                borderRadius: '14px',
-                                                backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                color: '#3B82F6',
-                                            }}
-                                        >
-                                            <MDBIcon icon="facebook" />
+                                        <div style={{ width: '42px', height: '42px', borderRadius: '14px', overflow: 'hidden', flexShrink: 0 }}>
+                                            <svg width="42" height="42" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
+                                                <defs>
+                                                    <linearGradient id="fb-messenger-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                        <stop offset="0%" stopColor="#AE3DE2" />
+                                                        <stop offset="100%" stopColor="#0078FF" />
+                                                    </linearGradient>
+                                                </defs>
+                                                <rect width="42" height="42" rx="14" fill="url(#fb-messenger-grad)"/>
+                                                <path fill="white" d="M21 9C14.37 9 9 14.1 9 20.4c0 3.64 1.84 6.88 4.72 8.99V33l4.2-2.3c1.12.31 2.3.47 3.53.47 6.63 0 12-5.1 12-11.4C33 14.1 27.63 9 21 9zm1.19 15.37-3.05-3.26-5.96 3.26 6.56-6.97 3.12 3.26 5.89-3.26-6.56 6.97z"/>
+                                            </svg>
                                         </div>
                                         <div>
                                             <h6 className="mb-1" style={{ fontWeight: 600, color: '#111827' }}>Facebook Messenger</h6>
