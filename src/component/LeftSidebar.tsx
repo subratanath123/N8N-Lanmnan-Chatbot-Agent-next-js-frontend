@@ -11,6 +11,7 @@ import {
 import { usePathname, useRouter } from 'next/navigation';
 import './dashboard-sidebar.css';
 import { appConfig } from '@/lib/config';
+import TopBar from './TopBar';
 
 interface NavigationItem {
     name: string;
@@ -84,6 +85,8 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
     ];
 
     return (
+        <>
+        <TopBar />
         <div 
             className="dashboard-sidebar"
             style={{ 
@@ -153,6 +156,7 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             </div>
             
         </div>
+        </>
     );
 }
 

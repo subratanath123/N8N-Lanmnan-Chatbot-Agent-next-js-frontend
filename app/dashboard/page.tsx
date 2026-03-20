@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import DashboardLayout from '@/component/DashboardLayout';
 import LeftSidebar from '@/component/LeftSidebar';
 import { useAuth } from '@clerk/nextjs';
 
@@ -433,9 +432,9 @@ export default function DashboardPage() {
   );
 
   return (
-    <DashboardLayout>
-      <div className="dashboard-shell">
-        <LeftSidebar onDrawerStateChange={handleDrawerStateChange} onNavItemClick={handleNavItemClick} />
+    <>
+    <div className="dashboard-shell">
+      <LeftSidebar onDrawerStateChange={handleDrawerStateChange} onNavItemClick={handleNavItemClick} />
 
         <main className={`dashboard-main ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <>
@@ -866,6 +865,7 @@ export default function DashboardPage() {
           flex: 1;
           margin-left: 280px;
           padding: 2rem;
+          padding-top: calc(60px + 2rem);
           background: #ffffff;
           transition: margin-left 0.3s ease;
         }
@@ -1577,6 +1577,6 @@ export default function DashboardPage() {
           }
         }
       `}</style>
-    </DashboardLayout>
+    </>
   );
 }

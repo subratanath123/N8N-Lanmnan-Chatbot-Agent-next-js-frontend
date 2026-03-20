@@ -217,3 +217,20 @@ input:checked + .slider:before {
         width: 100% !important;
     }
 }
+
+/* ── TopBar spacing ── */
+/* All pages that use LeftSidebar get padding-top so content is not hidden behind the fixed TopBar */
+.main-content {
+    padding-top: 60px !important;
+}
+
+/* dashboard-sidebar header aligns with the TopBar height */
+.dashboard-sidebar-header {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding: 0 1.25rem;
+    flex-shrink: 0;
+}
