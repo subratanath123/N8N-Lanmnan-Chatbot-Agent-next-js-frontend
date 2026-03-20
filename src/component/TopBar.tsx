@@ -2,11 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useUser, SignOutButton } from "@clerk/nextjs";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { appConfig } from "@/lib/config";
 
-/* ─── constants ─── */
 const NAV_H = 60;
 const SIDEBAR_W = 280;
 
@@ -18,7 +15,6 @@ export default function TopBar() {
   const dropRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  /* close on outside click */
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropRef.current && !dropRef.current.contains(e.target as Node))
@@ -46,11 +42,13 @@ export default function TopBar() {
 
   const email = user?.emailAddresses[0]?.emailAddress || "";
 
+  /* skeleton while clerk loads */
   if (!isLoaded) {
     return (
       <div style={barStyle}>
-        <div style={{ flex: 1 }} />
-        <div style={{ width: 120, height: 20, borderRadius: 6, background: "#f1f5f9" }} />
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 12, background: "#f1f5f9" }} />
+        </div>
       </div>
     );
   }
@@ -59,30 +57,12 @@ export default function TopBar() {
 
   return (
     <div style={barStyle}>
-      {/* ── Search ── */}
-      <div style={searchWrap}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
-          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-        </svg>
-        <input
-          style={searchInput}
-          type="text"
-          placeholder="Search chatbots, posts, conversations…"
-        />
-      </div>
+      {/* spacer pushes everything to the right */}
+      <div style={{ flex: 1 }} />
 
-      {/* ── Right actions ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
 
-        {/* Upgrade pill */}
-        <button
-          onClick={() => router.push("/subscription")}
-          style={upgradePill}
-        >
-          ⚡ Upgrade
-        </button>
-
-        {/* Notification */}
+        {/* Notification bell */}
         <div ref={notifRef} style={{ position: "relative" }}>
           <button
             onClick={() => setNotifOpen(o => !o)}
@@ -95,31 +75,17 @@ export default function TopBar() {
             </svg>
             <span style={notifDot} />
           </button>
+
           {notifOpen && (
             <div style={{ ...dropMenu, width: 280, right: 0 }}>
               <div style={dropHeader}>Notifications</div>
-              <div style={{ padding: "24px 16px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>
-                <div style={{ fontSize: "28px", marginBottom: "8px" }}>🔔</div>
+              <div style={{ padding: "28px 16px", textAlign: "center", color: "#94a3b8", fontSize: "13px" }}>
+                <div style={{ fontSize: "30px", marginBottom: "8px" }}>🔔</div>
                 No new notifications
               </div>
             </div>
           )}
         </div>
-
-        {/* Help */}
-        <a
-          href="https://docs.yourapp.com"
-          target="_blank"
-          rel="noreferrer"
-          style={{ ...iconBtn, textDecoration: "none", color: "#64748b" }}
-          aria-label="Help"
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        </a>
 
         {/* Settings */}
         <button
@@ -134,53 +100,107 @@ export default function TopBar() {
         </button>
 
         {/* Divider */}
-        <div style={{ width: 1, height: 28, background: "#e2e8f0", margin: "0 4px" }} />
+        <div style={{ width: 1, height: 26, background: "#e2e8f0", margin: "0 4px" }} />
 
-        {/* User avatar + dropdown */}
+        {/* User profile chip + dropdown */}
         <div ref={dropRef} style={{ position: "relative" }}>
           <button
             onClick={() => setDropdownOpen(o => !o)}
-            style={avatarBtn}
+            style={profileChip}
             aria-label="User menu"
           >
-            {user?.imageUrl ? (
-              <img src={user.imageUrl} alt={displayName} style={{ width: "100%", height: "100%", borderRadius: "12px", objectFit: "cover" }} />
-            ) : (
-              <span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.5px" }}>{getInitials()}</span>
-            )}
+            {/* Avatar */}
+            <div style={avatarCircle}>
+              {user?.imageUrl ? (
+                <img
+                  src={user.imageUrl}
+                  alt={displayName}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "10px" }}
+                />
+              ) : (
+                <span style={{ fontSize: "13px", fontWeight: 700 }}>{getInitials()}</span>
+              )}
+            </div>
+
+            {/* Name + email */}
+            <div style={{ textAlign: "left", lineHeight: 1.3 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {displayName}
+              </div>
+              <div style={{ fontSize: "11px", color: "#94a3b8", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {email}
+              </div>
+            </div>
+
+            {/* Chevron */}
+            <svg
+              width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"
+              style={{ transition: "transform 0.2s", transform: dropdownOpen ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
 
           {dropdownOpen && (
-            <div style={{ ...dropMenu, width: 220, right: 0 }}>
-              {/* User info */}
-              <div style={{ padding: "12px 16px 10px", borderBottom: "1px solid #f1f5f9" }}>
-                <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{displayName}</div>
-                <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</div>
+            <div style={{ ...dropMenu, width: 260, right: 0 }}>
+              {/* Clerk user info header */}
+              <div style={{ padding: "16px", borderBottom: "1px solid #f1f5f9", display: "flex", gap: "12px", alignItems: "center" }}>
+                <div style={{ ...avatarCircle, width: 44, height: 44, borderRadius: "13px", fontSize: "16px", flexShrink: 0 }}>
+                  {user?.imageUrl ? (
+                    <img src={user.imageUrl} alt={displayName}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "13px" }} />
+                  ) : (
+                    <span style={{ fontWeight: 700 }}>{getInitials()}</span>
+                  )}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {displayName}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {email}
+                  </div>
+                  {user?.publicMetadata?.role && (
+                    <span style={{
+                      display: "inline-block", marginTop: "5px", fontSize: "10px", fontWeight: 700,
+                      padding: "2px 8px", borderRadius: "999px",
+                      background: "#dbeafe", color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.05em",
+                    }}>
+                      {String(user.publicMetadata.role)}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {[
-                { label: "Dashboard", icon: "🏠", href: "/dashboard" },
-                { label: "Settings", icon: "⚙️", href: "/settings" },
-                { label: "Subscription", icon: "💳", href: "/subscription" },
-              ].map(({ label, icon, href }) => (
-                <button key={label} onClick={() => { router.push(href); setDropdownOpen(false); }} style={dropItem}>
-                  <span style={{ fontSize: "15px" }}>{icon}</span>
-                  <span>{label}</span>
-                </button>
-              ))}
+              {/* Nav items */}
+              <div style={{ padding: "6px 0" }}>
+                {[
+                  { label: "Dashboard", icon: dashboardIcon, href: "/dashboard" },
+                  { label: "AI Chatbots", icon: botIcon, href: "/ai-chatbots" },
+                  { label: "Settings", icon: settingsIcon, href: "/settings" },
+                  { label: "Subscription", icon: cardIcon, href: "/subscription" },
+                ].map(({ label, icon, href }) => (
+                  <button
+                    key={label}
+                    onClick={() => { router.push(href); setDropdownOpen(false); }}
+                    style={dropItem}
+                  >
+                    <span style={{ color: "#64748b", flexShrink: 0 }}>{icon}</span>
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
 
-              <div style={{ height: 1, background: "#f1f5f9", margin: "4px 0" }} />
+              <div style={{ height: 1, background: "#f1f5f9" }} />
 
-              <SignOutButton>
-                <button style={{ ...dropItem, color: "#dc2626" }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                  <span>Sign Out</span>
-                </button>
-              </SignOutButton>
+              <div style={{ padding: "6px 0 4px" }}>
+                <SignOutButton>
+                  <button style={{ ...dropItem, color: "#dc2626" }}>
+                    <span style={{ flexShrink: 0 }}>{signOutIcon}</span>
+                    <span>Sign Out</span>
+                  </button>
+                </SignOutButton>
+              </div>
             </div>
           )}
         </div>
@@ -188,6 +208,42 @@ export default function TopBar() {
     </div>
   );
 }
+
+/* ── Inline SVG helpers ── */
+const dashboardIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+    <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+  </svg>
+);
+const botIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="11" width="18" height="11" rx="2" />
+    <path d="M12 11V5" /><circle cx="12" cy="4" r="1" />
+    <line x1="8" y1="15" x2="8" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+    <line x1="12" y1="15" x2="12" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+    <line x1="16" y1="15" x2="16" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+  </svg>
+);
+const settingsIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+const cardIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="1" y="4" width="22" height="16" rx="2" />
+    <line x1="1" y1="10" x2="23" y2="10" />
+  </svg>
+);
+const signOutIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
 
 /* ── Styles ── */
 const barStyle: React.CSSProperties = {
@@ -200,60 +256,19 @@ const barStyle: React.CSSProperties = {
   borderBottom: "1px solid #e2e8f0",
   display: "flex",
   alignItems: "center",
-  paddingLeft: "24px",
-  paddingRight: "20px",
-  gap: "14px",
+  paddingLeft: "20px",
+  paddingRight: "16px",
   zIndex: 999,
-  boxShadow: "0 1px 8px rgba(15,23,42,0.06)",
-};
-
-const searchWrap: React.CSSProperties = {
-  flex: 1,
-  maxWidth: 420,
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  background: "#f8fafc",
-  borderRadius: "999px",
-  padding: "0 14px",
-  height: 38,
-  border: "1.5px solid #e2e8f0",
-  transition: "border-color 0.15s",
-};
-
-const searchInput: React.CSSProperties = {
-  flex: 1,
-  border: "none",
-  background: "transparent",
-  outline: "none",
-  fontSize: "13.5px",
-  color: "#1e293b",
-};
-
-const upgradePill: React.CSSProperties = {
-  border: "none",
-  background: "#0f172a",
-  color: "#ffffff",
-  borderRadius: "999px",
-  padding: "7px 18px",
-  fontWeight: 700,
-  fontSize: "13px",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  letterSpacing: "-0.2px",
-  boxShadow: "0 4px 12px rgba(15,23,42,0.18)",
-  transition: "opacity 0.15s",
+  boxShadow: "0 1px 6px rgba(15,23,42,0.05)",
 };
 
 const iconBtn: React.CSSProperties = {
   border: "none",
   background: "#f8fafc",
   color: "#64748b",
-  width: 38,
-  height: 38,
-  borderRadius: "12px",
+  width: 36,
+  height: 36,
+  borderRadius: "10px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -265,8 +280,8 @@ const iconBtn: React.CSSProperties = {
 
 const notifDot: React.CSSProperties = {
   position: "absolute",
-  top: "8px",
-  right: "8px",
+  top: "7px",
+  right: "7px",
   width: "7px",
   height: "7px",
   borderRadius: "50%",
@@ -274,21 +289,31 @@ const notifDot: React.CSSProperties = {
   border: "1.5px solid #fff",
 };
 
-const avatarBtn: React.CSSProperties = {
-  border: "2px solid #e2e8f0",
+const profileChip: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  border: "1.5px solid #e2e8f0",
+  background: "#f8fafc",
+  borderRadius: "12px",
+  padding: "5px 10px 5px 5px",
+  cursor: "pointer",
+  transition: "border-color 0.15s, background 0.15s",
+  maxWidth: 260,
+};
+
+const avatarCircle: React.CSSProperties = {
+  width: 32,
+  height: 32,
+  borderRadius: "10px",
   background: "#1e293b",
   color: "#ffffff",
-  width: 38,
-  height: 38,
-  borderRadius: "12px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  cursor: "pointer",
-  overflow: "hidden",
-  padding: 0,
-  transition: "border-color 0.15s",
   flexShrink: 0,
+  overflow: "hidden",
+  fontSize: "12px",
 };
 
 const dropMenu: React.CSSProperties = {
@@ -320,9 +345,8 @@ const dropItem: React.CSSProperties = {
   border: "none",
   background: "transparent",
   color: "#374151",
-  fontSize: "13.5px",
+  fontSize: "13px",
   fontWeight: 500,
   cursor: "pointer",
   textAlign: "left",
-  transition: "background 0.12s",
 };
