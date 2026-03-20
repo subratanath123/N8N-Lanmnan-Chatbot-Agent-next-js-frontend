@@ -513,14 +513,23 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                 }
             `}</style>
             {/* Page Title */}
-            <h1 style={{ 
-                fontSize: '28px', 
-                fontWeight: '700', 
-                color: '#111827', 
-                margin: '0 0 32px 0' 
-            }}>
-                AI Chatbots
-            </h1>
+            <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '11.5px', color: '#94a3b8', marginBottom: '10px', letterSpacing: '0.04em', fontWeight: 500 }}>Home › AI Chatbots</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #dbeafe' }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M12 11V5" /><circle cx="12" cy="4" r="1" />
+                            <line x1="8" y1="15" x2="8" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+                            <line x1="12" y1="15" x2="12" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+                            <line x1="16" y1="15" x2="16" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, letterSpacing: '-0.025em', color: '#0f172a', lineHeight: 1.2 }}>AI Chatbots</h1>
+                        <p style={{ margin: '5px 0 0', fontSize: '13px', color: '#64748b' }}>Create, manage and deploy intelligent chatbots for your business.</p>
+                    </div>
+                </div>
+            </div>
 
             {/* Statistics Section */}
             <div className="ai-chatbots-stats" style={{

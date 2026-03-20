@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
+import PageHeader from "@/component/PageHeader";
 
 const PLATFORMS = [
   { id: "facebook",  name: "Facebook",    icon: "📘", supportsOAuth: true  },
@@ -183,10 +184,17 @@ export default function MyAccountsPage() {
 
   return (
     <div className="social-suite-content accounts-page">
-      <h2 className="page-title">Connected Social Media Accounts</h2>
-      <p className="page-desc">
-        Connect your Facebook, X (Twitter), or LinkedIn accounts. Tokens are stored securely in the backend for scheduling posts on your behalf.
-      </p>
+      <PageHeader
+        breadcrumb={["Home", "AI Social Media Suite", "My Accounts"]}
+        title="Connected Social Accounts"
+        subtitle="Connect your Facebook, X (Twitter), or LinkedIn accounts. Tokens are stored securely in the backend."
+        icon={
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        }
+      />
 
       <div className="accounts-stats-row">
         <div className="accounts-stat-card">

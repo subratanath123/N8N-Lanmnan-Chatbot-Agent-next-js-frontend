@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useUser } from '@clerk/nextjs';
 import LeftSidebar from '@/component/LeftSidebar';
+import PageHeader from '@/component/PageHeader';
 import {
     MDBContainer,
     MDBRow,
@@ -153,17 +154,25 @@ export default function ProjectsPage() {
         onNavItemClick={handleNavItemClick}
       />
       <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <PageHeader
+          breadcrumb={["Home", "Projects"]}
+          title="Website Training Projects"
+          subtitle="Train AI chatbots on your website content and get embeddable chat widgets."
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          }
+          actions={
+            <MDBBtn color="primary" onClick={() => setShowCreateModal(true)}>
+              <MDBIcon icon="plus" className="me-2" />
+              Train New Website
+            </MDBBtn>
+          }
+        />
         <MDBContainer fluid className="py-4">
-        <div className="mb-4 d-flex justify-content-between align-items-center">
-          <div>
-            <h1 className="h2 mb-1">Website Training Projects</h1>
-            <p className="text-muted">Train AI chatbots on your website content and get embeddable chat widgets.</p>
-          </div>
-          <MDBBtn color="primary" onClick={() => setShowCreateModal(true)}>
-            <MDBIcon icon="plus" className="me-2" />
-            Train New Website
-          </MDBBtn>
-        </div>
 
         {/* Quick Stats */}
         <MDBRow className="mb-4">

@@ -4,6 +4,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
 import { useAuth } from '@clerk/nextjs';
+import PageHeader from '@/component/PageHeader';
 
 // TypeScript interfaces for API responses
 interface OverallStats {
@@ -438,8 +439,20 @@ export default function DashboardPage() {
 
         <main className={`dashboard-main ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <>
+            <PageHeader
+              breadcrumb={['Home']}
+              title="Dashboard"
+              subtitle="Monitor your chatbots, conversations, and platform performance."
+              icon={
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+                </svg>
+              }
+            />
+
             {/* Platform Overview Section - Shows immediately if cached, otherwise shows loading */}
-            <section className="top-grid">
+            <section className="top-grid" style={{ marginTop: '24px' }}>
               <div className="plan-card">
                 <div className="plan-header">
                   <h2>Platform Overview</h2>

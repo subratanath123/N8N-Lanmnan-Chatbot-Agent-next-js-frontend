@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import { redirect, useRouter } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
 import AIAssistantsShowcase from '@/component/AIAssistantsShowcase';
+import PageHeader from '@/component/PageHeader';
 
 export default function AIChatPage() {
   const { isSignedIn, isLoaded } = useUser();
@@ -57,35 +58,17 @@ export default function AIChatPage() {
     <div className="full-height-layout">
       <LeftSidebar onDrawerStateChange={handleDrawerStateChange} onNavItemClick={handleNavItemClick} />
       <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
-        <section
-          style={{
-            background: '#ffffff',
-            borderRadius: '24px',
-            padding: '32px',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 18px 36px rgba(15, 23, 42, 0.08)',
-            marginBottom: '32px',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-            }}
-          >
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#6366f1', letterSpacing: '0.08em' }}>
-              AI CHAT ASSISTANTS
-            </span>
-            <h1 style={{ fontSize: '34px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-              Choose Your Assistant
-            </h1>
-            <p style={{ fontSize: '16px', color: '#6b7280', margin: 0, maxWidth: '640px' }}>
-              Browse our curated collection of AI companions. Click any assistant to launch the chat widget instantly
-              and start a conversation without leaving this page.
-            </p>
-          </div>
-        </section>
+        <PageHeader
+          breadcrumb={['Home', 'AI Chat']}
+          title="Choose Your Assistant"
+          subtitle="Browse our curated collection of AI companions. Click any assistant to start a conversation instantly."
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              <circle cx="9" cy="10" r="1" fill="#2563eb" /><circle cx="12" cy="10" r="1" fill="#2563eb" /><circle cx="15" cy="10" r="1" fill="#2563eb" />
+            </svg>
+          }
+        />
 
         <AIAssistantsShowcase />
       </div>

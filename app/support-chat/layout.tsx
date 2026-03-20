@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
+import PageHeader from '@/component/PageHeader';
 
 interface SupportChatLayoutProps {
   children: React.ReactNode;
@@ -85,29 +86,22 @@ export default function SupportChatLayout({ children }: SupportChatLayoutProps) 
     <div className="full-height-layout">
       <LeftSidebar onDrawerStateChange={handleDrawerStateChange} onNavItemClick={handleNavItemClick} />
       <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
-        <div className="support-chat-header">
-          <div className="support-chat-title">
-            <span>Support Chat</span>
-            <h1>Customer Messaging Hub</h1>
-            <p>Track conversations, evaluate agent performance, and stay ahead of customer requests.</p>
-          </div>
-          <div className="support-chat-actions">
-            <button
-              type="button"
-              className="support-action-btn primary"
-              onClick={() => handleOpenDrawer('new')}
-            >
-              New Conversation
-            </button>
-            <button
-              type="button"
-              className="support-action-btn"
-              onClick={() => handleOpenDrawer('history')}
-            >
-              Conversation History
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          breadcrumb={['Home', 'Support Chat']}
+          title="Customer Messaging Hub"
+          subtitle="Track conversations, evaluate agent performance, and stay ahead of customer requests."
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          }
+          actions={
+            <>
+              <button type="button" className="support-action-btn primary" onClick={() => handleOpenDrawer('new')}>New Conversation</button>
+              <button type="button" className="support-action-btn" onClick={() => handleOpenDrawer('history')}>Conversation History</button>
+            </>
+          }
+        />
 
         <div className="support-tab-bar">
           {subTabs.map((tab) => {
@@ -228,42 +222,6 @@ export default function SupportChatLayout({ children }: SupportChatLayoutProps) 
 
         .main-content.collapsed {
           margin-left: 60px;
-        }
-
-        .support-chat-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          padding: 28px;
-          border-radius: 24px;
-          background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.06) 100%);
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          margin-bottom: 24px;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-
-        .support-chat-title span {
-          display: inline-block;
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #2563eb;
-        }
-
-        .support-chat-title h1 {
-          margin: 8px 0 12px;
-          font-size: 32px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-
-        .support-chat-title p {
-          margin: 0;
-          color: #64748b;
-          max-width: 540px;
-          font-size: 15px;
         }
 
         .support-chat-actions {

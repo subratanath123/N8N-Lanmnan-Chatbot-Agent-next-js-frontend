@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@clerk/nextjs';
 import LeftSidebar from '@/component/LeftSidebar';
-import DashboardNav from '@/component/DashboardNav';
 import AssistantChatWindow from '@/component/AssistantChatWindow';
 import { assistants } from '@/component/AIAssistantsShowcase';
 import { redirect } from 'next/navigation';
@@ -256,7 +255,6 @@ export default function AssistantChatPage() {
 
   return (
     <div className="assistant-page">
-      <DashboardNav />
       <div className="layout-body">
         <LeftSidebar onDrawerStateChange={handleDrawerStateChange} onNavItemClick={handleNavItemClick} />
         <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>

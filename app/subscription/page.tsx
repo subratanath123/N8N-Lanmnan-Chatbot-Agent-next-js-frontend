@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import LeftSidebar from "@/component/LeftSidebar";
 import { useAuth } from "@clerk/nextjs";
+import PageHeader from "@/component/PageHeader";
 
 /* ─────────────────────────────────────────────
    Plan definitions
@@ -231,99 +232,27 @@ export default function SubscriptionPage() {
         onNavItemClick={() => {}}
       />
 
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {/* ── Hero ───────────────────────────────────────── */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #7c3aed 100%)",
-            padding: "64px 32px 56px",
-            textAlign: "center",
-            color: "#fff",
-          }}
-        >
-          <div
-            style={{
-              display: "inline-block",
-              background: "rgba(255,255,255,0.15)",
-              borderRadius: 20,
-              padding: "4px 16px",
-              fontSize: 12,
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              marginBottom: 16,
-            }}
-          >
-            Pricing
-          </div>
-          <h1 style={{ fontSize: 40, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
-            Simple, transparent pricing
-          </h1>
-          <p style={{ fontSize: 17, opacity: 0.85, margin: "0 auto 32px", maxWidth: 480 }}>
-            Scale your AI chatbots and social media automation. Cancel or change plans any time.
-          </p>
-
-          {/* Billing toggle */}
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              background: "rgba(255,255,255,0.15)",
-              borderRadius: 40,
-              padding: "5px 6px",
-              gap: 4,
-            }}
-          >
-            <button
-              onClick={() => setAnnual(false)}
-              style={{
-                background: !annual ? "#fff" : "transparent",
-                color: !annual ? "#1e3a8a" : "#ffffffcc",
-                border: "none",
-                borderRadius: 32,
-                padding: "7px 22px",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              style={{
-                background: annual ? "#fff" : "transparent",
-                color: annual ? "#1e3a8a" : "#ffffffcc",
-                border: "none",
-                borderRadius: 32,
-                padding: "7px 22px",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.2s",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              Annual
-              <span
-                style={{
-                  background: "#f59e0b",
-                  color: "#fff",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "2px 7px",
-                  borderRadius: 10,
-                  letterSpacing: "0.04em",
-                }}
-              >
-                SAVE 20%
-              </span>
-            </button>
-          </div>
-        </div>
+      <div className={`main-content ${sidebarCollapsed ? "collapsed" : ""}`} style={{ overflowY: "auto", background: "#f8fafc" }}>
+        <PageHeader
+          breadcrumb={["Home", "Subscription"]}
+          title="Subscription Plans"
+          subtitle="Scale your AI chatbots and social media automation. Cancel or change plans any time."
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+              <rect x="1" y="4" width="22" height="16" rx="2" />
+              <line x1="1" y1="10" x2="23" y2="10" />
+            </svg>
+          }
+          actions={
+            <div style={{ display: "inline-flex", alignItems: "center", background: "#f1f5f9", borderRadius: 40, padding: "4px", gap: 2, border: "1px solid #e2e8f0" }}>
+              <button onClick={() => setAnnual(false)} style={{ background: !annual ? "#fff" : "transparent", color: !annual ? "#1e3a8a" : "#64748b", border: "none", borderRadius: 32, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s", boxShadow: !annual ? "0 2px 8px rgba(15,23,42,0.08)" : "none" }}>Monthly</button>
+              <button onClick={() => setAnnual(true)} style={{ background: annual ? "#fff" : "transparent", color: annual ? "#1e3a8a" : "#64748b", border: "none", borderRadius: 32, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6, boxShadow: annual ? "0 2px 8px rgba(15,23,42,0.08)" : "none" }}>
+                Annual
+                <span style={{ background: "#f59e0b", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10 }}>SAVE 20%</span>
+              </button>
+            </div>
+          }
+        />
 
         {/* ── Plan cards ─────────────────────────────────── */}
         <div

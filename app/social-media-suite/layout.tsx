@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import LeftSidebar from "@/component/LeftSidebar";
+import PageHeader from "@/component/PageHeader";
 
 interface SubTab {
   id: string;
@@ -55,15 +56,18 @@ export default function SocialMediaSuiteLayout({
     <div className="full-height-layout">
       <LeftSidebar onDrawerStateChange={handleDrawerStateChange} onNavItemClick={handleNavItemClick} />
       <div className={`main-content ${sidebarCollapsed ? "collapsed" : ""}`}>
-        <div className="social-suite-header">
-          <div className="social-suite-title">
-            <span>AI Social Media</span>
-            <h1>AI Social Media Suite</h1>
-            <p>Schedule your next viral post with just a few clicks.</p>
-          </div>
-        </div>
-
-        <div className="social-suite-breadcrumb">User &gt;&gt; AI Social Media Suite</div>
+        <PageHeader
+          breadcrumb={["Home", "AI Social Media Suite"]}
+          title="AI Social Media Suite"
+          subtitle="Schedule your next viral post with just a few clicks."
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+          }
+        />
 
         <div className="social-suite-body">
           <aside className="social-suite-nav">
@@ -111,42 +115,6 @@ export default function SocialMediaSuiteLayout({
           margin-left: 60px;
         }
 
-        .social-suite-header {
-          padding: 28px;
-          border-radius: 24px;
-          background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.06) 100%);
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          margin-bottom: 16px;
-        }
-
-        .social-suite-title span {
-          display: inline-block;
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #2563eb;
-        }
-
-        .social-suite-title h1 {
-          margin: 8px 0 12px;
-          font-size: 32px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-
-        .social-suite-title p {
-          margin: 0;
-          color: #64748b;
-          max-width: 540px;
-          font-size: 15px;
-        }
-
-        .social-suite-breadcrumb {
-          font-size: 13px;
-          color: #64748b;
-          margin: 16px 0 20px;
-        }
 
         .social-suite-body {
           display: grid;

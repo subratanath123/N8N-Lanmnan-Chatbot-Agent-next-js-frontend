@@ -27,6 +27,7 @@ import {
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useParams, useRouter } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
+import PageHeader from '@/component/PageHeader';
 
 interface KnowledgeFile {
     id: string;
@@ -2033,84 +2034,50 @@ export default function ChatbotDetailPage() {
                 onNavItemClick={handleNavItemClick}
             />
             <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
-                <MDBContainer className="mt-5">
-            <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
-                <div>
-                    <h2 className="mb-1">Chatbot Details</h2>
-                    <p className="mb-0 text-muted" style={{ fontSize: '14px' }}>
-                    </p>
-                </div>
-                <div className="d-flex flex-wrap gap-2">
-                    <MDBBtn
-                        color="dark"
-                        outline
-                        onClick={() => router.push(`/ai-chatbots/${chatbotId}/workflow`)}
-                        className="d-flex align-items-center gap-2"
-                        style={{ borderRadius: '999px', padding: '10px 20px', fontWeight: 600, fontSize: '14px' }}
-                    >
-                        <MDBIcon icon="project-diagram" />
-                        Workflow Config
-                    </MDBBtn>
-                    <MDBBtn 
-                        color="info" 
-                        outline 
-                        onClick={handleKnowledgeModalOpen}
-                        className="d-flex align-items-center gap-2"
-                    >
-                        <MDBIcon icon="database" />
-                        Knowledge Base
-                    </MDBBtn>
-                                <MDBBtn
-                                    color="secondary"
-                                    outline
-                                    onClick={() => handleOpenConversationDrawer('history')}
-                                    className="d-flex align-items-center gap-2"
-                                    style={{
-                                        borderRadius: '999px',
-                                        padding: '10px 20px',
-                                        fontWeight: 600,
-                                        fontSize: '14px',
-                                    }}
-                                >
-                                    <MDBIcon icon="history" />
-                                    Conversation History
-                                </MDBBtn>
-                                <MDBBtn
-                                    color="primary"
-                                    onClick={() => handleOpenConversationDrawer('new')}
-                                    className="d-flex align-items-center gap-2"
-                                    style={{
-                                        borderRadius: '999px',
-                                        padding: '10px 20px',
-                                        fontWeight: 600,
-                                        fontSize: '14px',
-                                    }}
-                                >
-                                    <MDBIcon icon="plus" />
-                                    New Conversation
-                                </MDBBtn>
-                    {!isEditing ? (
-                        <MDBBtn onClick={() => {
-                            setEditedChatbot(chatbot);
-                            setIsEditing(true);
-                        }} color="primary" className="d-flex align-items-center gap-2">
-                            <MDBIcon icon="edit" />
-                            Edit
+                <MDBContainer className="mt-3">
+            <PageHeader
+                breadcrumb={['Home', 'AI Chatbots', chatbot?.name || chatbotId]}
+                title={chatbot?.name || 'Chatbot Details'}
+                subtitle={chatbot?.title || 'Configure, train and deploy your AI chatbot.'}
+                icon={
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M12 11V5" /><circle cx="12" cy="4" r="1" />
+                        <line x1="8" y1="15" x2="8" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+                        <line x1="12" y1="15" x2="12" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+                        <line x1="16" y1="15" x2="16" y2="15" strokeLinecap="round" strokeWidth="2.5" />
+                    </svg>
+                }
+                actions={
+                    <>
+                        <MDBBtn color="dark" outline onClick={() => router.push(`/ai-chatbots/${chatbotId}/workflow`)} className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
+                            <MDBIcon icon="project-diagram" /> Workflow
                         </MDBBtn>
-                    ) : (
-                        <>
-                            <MDBBtn onClick={handleCancel} color="secondary" className="d-flex align-items-center gap-2">
-                                <MDBIcon icon="undo" />
-                                Cancel
+                        <MDBBtn color="info" outline onClick={handleKnowledgeModalOpen} className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
+                            <MDBIcon icon="database" /> Knowledge Base
+                        </MDBBtn>
+                        <MDBBtn color="secondary" outline onClick={() => handleOpenConversationDrawer('history')} className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
+                            <MDBIcon icon="history" /> History
+                        </MDBBtn>
+                        <MDBBtn color="primary" onClick={() => handleOpenConversationDrawer('new')} className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
+                            <MDBIcon icon="plus" /> New Chat
+                        </MDBBtn>
+                        {!isEditing ? (
+                            <MDBBtn onClick={() => { setEditedChatbot(chatbot); setIsEditing(true); }} color="primary" className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
+                                <MDBIcon icon="edit" /> Edit
                             </MDBBtn>
-                            <MDBBtn onClick={handleSave} color="success" className="d-flex align-items-center gap-2">
-                                <MDBIcon icon="save" />
-                                Save Changes
-                            </MDBBtn>
-                        </>
-                    )}
-                </div>
-            </div>
+                        ) : (
+                            <>
+                                <MDBBtn onClick={handleCancel} color="secondary" className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
+                                    <MDBIcon icon="undo" /> Cancel
+                                </MDBBtn>
+                                <MDBBtn onClick={handleSave} color="success" className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
+                                    <MDBIcon icon="save" /> Save
+                                </MDBBtn>
+                            </>
+                        )}
+                    </>
+                }
+            />
 
             {/* Getting Started / Onboarding strip */}
             {/* Floating animated hand guide */}

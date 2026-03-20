@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
+import PageHeader from "@/component/PageHeader";
 
 const ACCEPTED = "image/*,video/*";
 const PER_PAGE = 20;
@@ -178,18 +179,22 @@ export default function AssetsPage() {
   return (
     <div className="ap">
 
-      {/* Header */}
-      <div className="ap-header">
-        <div>
-          <h2 className="ap-title">Media Assets</h2>
-          <p className="ap-desc">
-            Upload images and videos. Your backend stores them in Supabase and tracks them per account.
-          </p>
-        </div>
-        <button className="ap-upload-btn" onClick={() => fileInputRef.current?.click()}>
-          <UploadIcon /> Upload Files
-        </button>
-      </div>
+      <PageHeader
+        breadcrumb={["Home", "AI Social Media Suite", "Assets"]}
+        title="Media Assets"
+        subtitle="Upload images and videos. Your backend stores them in Supabase and tracks them per account."
+        icon={
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+        }
+        actions={
+          <button className="ap-upload-btn" onClick={() => fileInputRef.current?.click()}>
+            <UploadIcon /> Upload Files
+          </button>
+        }
+      />
 
       {/* Hidden file input */}
       <input

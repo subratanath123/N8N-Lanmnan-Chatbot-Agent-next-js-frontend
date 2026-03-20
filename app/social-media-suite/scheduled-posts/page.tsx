@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import PageHeader from "@/component/PageHeader";
 
 interface Target {
   targetId: string;
@@ -121,8 +122,17 @@ export default function ScheduledPostsPage() {
 
   return (
     <div className="scheduled-page">
-      <h2 className="page-title">Scheduled Posts</h2>
-      <p className="page-desc">Manage your queued posts and edit or cancel before they go live.</p>
+      <PageHeader
+        breadcrumb={["Home", "AI Social Media Suite", "Scheduled Posts"]}
+        title="Scheduled Posts"
+        subtitle="Manage your queued posts and edit or cancel before they go live."
+        icon={
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        }
+      />
       <div className="filters-row">
         <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value as "all" | "facebook" | "twitter")}>
           <option value="all">All platforms</option>

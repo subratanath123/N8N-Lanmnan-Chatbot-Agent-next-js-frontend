@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import LeftSidebar from '@/component/LeftSidebar';
+import PageHeader from '@/component/PageHeader';
 import {
     MDBContainer,
     MDBRow,
@@ -85,11 +86,17 @@ export default function HistoryPage() {
         onNavItemClick={handleNavItemClick}
       />
       <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <PageHeader
+          breadcrumb={["Home", "Chat History"]}
+          title="Chat History"
+          subtitle="View and manage your previous conversations."
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          }
+        />
         <MDBContainer fluid className="py-4">
-        <div className="mb-4">
-          <h1 className="h2 mb-1">Chat History</h1>
-          <p className="text-muted">View and manage your previous conversations.</p>
-        </div>
 
         <MDBRow>
           <MDBCol>
