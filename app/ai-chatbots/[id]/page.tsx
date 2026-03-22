@@ -3267,15 +3267,30 @@ export default function ChatbotDetailPage() {
                                                     wordBreak: 'break-word'
                                                 }}
                                             >
-{`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/widget-dist/chat-widget.iife.js"></script>
-<script>
-  window.initChatWidget({
-    chatbotId: "${chatbotId}",
-    apiUrl: "${process.env.NEXT_PUBLIC_BACKEND_URL || ''}",
-    width: ${(isEditing ? editedChatbot?.width : chatbot?.width) ?? 380},
-    height: ${(isEditing ? editedChatbot?.height : chatbot?.height) ?? 600}
-  });
-</script>`}
+{/* render as segments so we can colour the comment lines */}
+{(() => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const width  = (isEditing ? editedChatbot?.width  : chatbot?.width)  ?? 380;
+  const height = (isEditing ? editedChatbot?.height : chatbot?.height) ?? 600;
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+  return (
+    <>
+      <span style={{ color: '#93c5fd' }}>{`<script src="${origin}/widget-dist/chat-widget.iife.js"></script>`}</span>{'\n'}
+      <span style={{ color: '#93c5fd' }}>{`<script>`}</span>{'\n'}
+      {'  '}<span style={{ color: '#c4b5fd' }}>window.ChatWidgetConfig</span>{' = '}<span style={{ color: '#e2e8f0' }}>{'{'}</span>{'\n'}
+      {'    '}<span style={{ color: '#86efac' }}>chatbotId</span><span style={{ color: '#e2e8f0' }}>: </span><span style={{ color: '#fcd34d' }}>{`"${chatbotId}"`}</span><span style={{ color: '#e2e8f0' }}>,</span>{'\n'}
+      {'    '}<span style={{ color: '#86efac' }}>apiUrl</span><span style={{ color: '#e2e8f0' }}>: </span><span style={{ color: '#fcd34d' }}>{`"${backendUrl}"`}</span><span style={{ color: '#e2e8f0' }}>,</span>{'\n'}
+      {'    '}<span style={{ color: '#86efac' }}>width</span><span style={{ color: '#e2e8f0' }}>: </span><span style={{ color: '#fb923c' }}>{width}</span><span style={{ color: '#e2e8f0' }}>,</span>{'\n'}
+      {'    '}<span style={{ color: '#86efac' }}>height</span><span style={{ color: '#e2e8f0' }}>: </span><span style={{ color: '#fb923c' }}>{height}</span><span style={{ color: '#e2e8f0' }}>,</span>{'\n'}
+      {'\n'}
+      {'    '}<span style={{ color: '#6ee7b7', fontStyle: 'italic' }}>{'// Optional: pass your logged-in user\'s token so workflow'}</span>{'\n'}
+      {'    '}<span style={{ color: '#6ee7b7', fontStyle: 'italic' }}>{'// actions can identify who triggered them (orders, bookings…)'}</span>{'\n'}
+      {'    '}<span style={{ color: '#fde68a', fontStyle: 'italic' }}>{'// userToken: getCurrentUserJWT()'}</span>{'\n'}
+      {'  '}<span style={{ color: '#e2e8f0' }}>{'};'}</span>{'\n'}
+      <span style={{ color: '#93c5fd' }}>{`</script>`}</span>
+    </>
+  );
+})()}
                                             </pre>
                                             <MDBBtn
                                                 color="primary"
@@ -3288,12 +3303,16 @@ export default function ChatbotDetailPage() {
                                                     const height = (isEditing ? editedChatbot?.height : chatbot?.height) ?? 600;
                                                     const embedCode = `<script src="${origin}/widget-dist/chat-widget.iife.js"></script>
 <script>
-  window.initChatWidget({
+  window.ChatWidgetConfig = {
     chatbotId: "${chatbotId}",
     apiUrl: "${process.env.NEXT_PUBLIC_BACKEND_URL || ''}",
     width: ${width},
-    height: ${height}
-  });
+    height: ${height},
+
+    // Optional: pass your logged-in user's auth token so workflow
+    // actions (orders, bookings, etc.) can identify who triggered them.
+    // userToken: getCurrentUserJWT()
+  };
 </script>`;
                                                     if (typeof navigator !== 'undefined' && navigator.clipboard) {
                                                         try {

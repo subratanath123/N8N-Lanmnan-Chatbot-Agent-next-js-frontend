@@ -6,12 +6,39 @@ interface ChatbotWidgetConfig {
   chatbotId: string;
   apiUrl: string;
   authToken?: string;
-  frontendUrl?: string; // Optional frontend URL for OAuth endpoints (defaults to auto-detect from script source)
-  width?: number; // Optional widget width in pixels (default: 380)
-  height?: number; // Optional widget height in pixels (default: 600)
+  /**
+   * Token identifying the currently logged-in user on the *embedding website*.
+   * Forwarded with every message so workflow action endpoints can identify the user.
+   *
+   * @example — server-rendered page
+   *   window.ChatWidgetConfig = {
+   *     chatbotId: 'support-bot',
+   *     apiUrl:    'https://api.yourplatform.com',
+   *     userToken: '<?php echo $user->getJWT() ?>'
+   *   };
+   *
+   * @example — SPA / React
+   *   window.ChatWidgetConfig = {
+   *     chatbotId: 'support-bot',
+   *     apiUrl:    'https://api.yourplatform.com',
+   *     userToken: localStorage.getItem('auth_token') ?? undefined
+   *   };
+   *
+   * @example — dynamically refreshed token
+   *   window.initChatWidget({
+   *     chatbotId: 'support-bot',
+   *     apiUrl:    'https://api.yourplatform.com',
+   *     userToken: await getAccessToken()
+   *   });
+   */
+  userToken?: string;
+  frontendUrl?: string;
+  width?: number;
+  height?: number;
+  model?: string;
 }
 
-// Helper function to wait for DOM to be ready
+// Helper: wait for DOM to be ready
 function waitForDOM(callback: () => void) {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', callback);
@@ -20,45 +47,75 @@ function waitForDOM(callback: () => void) {
   }
 }
 
-// Global function to initialize the widget
-(window as any).initChatWidget = function(config: ChatbotWidgetConfig) {
-  try {
-    if (!config || !config.chatbotId || !config.apiUrl) {
-      console.error('ChatWidget: chatbotId and apiUrl are required');
-      return;
-    }
+function mountWidget(config: ChatbotWidgetConfig) {
+  if (!config || !config.chatbotId || !config.apiUrl) {
+    console.error('[ChatWidget] chatbotId and apiUrl are required');
+    return;
+  }
 
+  // Remove existing widget if present (allows re-init with updated userToken)
+  const existing = document.getElementById('chat-widget-root');
+  if (existing) existing.remove();
+
+  const container = document.createElement('div');
+  container.id = 'chat-widget-root';
+  document.body.appendChild(container);
+
+  ReactDOM.createRoot(container).render(
+    React.createElement(ChatbotWidget, { config })
+  );
+}
+
+/**
+ * Imperative init — call this directly from JavaScript.
+ *
+ * @example
+ *   window.initChatWidget({
+ *     chatbotId: 'support-bot',
+ *     apiUrl:    'https://api.yourplatform.com',
+ *     userToken: getUserJWT()   // optional: your site's logged-in user token
+ *   });
+ */
+(window as any).initChatWidget = function (config: ChatbotWidgetConfig) {
+  try {
     waitForDOM(() => {
       try {
-        // Remove existing widget if present
-        const existingContainer = document.getElementById('chat-widget-root');
-        if (existingContainer) {
-          existingContainer.remove();
-        }
-
-        // Create container
-        const container = document.createElement("div");
-        container.id = "chat-widget-root";
-        document.body.appendChild(container);
-
-        // Render widget
-        const root = ReactDOM.createRoot(container);
-        root.render(
-          React.createElement(ChatbotWidget, { config: config })
-        );
-      } catch (error) {
-        console.error('ChatWidget: Error initializing widget:', error);
+        mountWidget(config);
+      } catch (err) {
+        console.error('[ChatWidget] mount error:', err);
       }
     });
-  } catch (error) {
-    console.error('ChatWidget: Error in initChatWidget:', error);
+  } catch (err) {
+    console.error('[ChatWidget] init error:', err);
   }
 };
 
-// Auto-initialize if config is already available
+/**
+ * Declarative init — set window.ChatWidgetConfig before the script loads.
+ * Supports both naming conventions:
+ *   - window.ChatWidgetConfig          ← preferred (matches our docs)
+ *   - window.__CHAT_WIDGET_CONFIG__    ← legacy
+ *
+ * @example
+ *   <script>
+ *     window.ChatWidgetConfig = {
+ *       chatbotId: 'support-bot',
+ *       apiUrl:    'https://api.yourplatform.com',
+ *       userToken: '<?php echo $currentUser->jwt ?>'
+ *     };
+ *   </script>
+ *   <script src="https://yourplatform.com/widget/chat-widget.iife.js"></script>
+ */
 waitForDOM(() => {
-  const existingConfig = (window as any).__CHAT_WIDGET_CONFIG__;
-  if (existingConfig && existingConfig.chatbotId && existingConfig.apiUrl) {
-    (window as any).initChatWidget(existingConfig);
+  const config =
+    (window as any).ChatWidgetConfig ||
+    (window as any).__CHAT_WIDGET_CONFIG__;
+
+  if (config?.chatbotId && config?.apiUrl) {
+    try {
+      mountWidget(config);
+    } catch (err) {
+      console.error('[ChatWidget] auto-init error:', err);
+    }
   }
 });

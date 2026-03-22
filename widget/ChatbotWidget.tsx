@@ -1,6 +1,7 @@
 "use client";
 import React, {useEffect, useRef, useState} from 'react';
 import sanitizeHtml from "sanitize-html";
+import { marked } from "marked";
 
 interface Message {
   id: string;
@@ -59,6 +60,20 @@ interface ChatbotWidgetConfig {
   chatbotId: string;
   apiUrl: string;
   authToken?: string; // Optional bearer token for authenticated requests
+  /**
+   * Token identifying the currently logged-in user on the *embedding website*.
+   * Passed with every message so the backend can forward it to workflow action
+   * endpoints via {{userToken}} in body templates.
+   * Can be a JWT, session token, or any string your backend can verify.
+   *
+   * @example
+   * window.ChatWidgetConfig = {
+   *   chatbotId: 'support-bot',
+   *   apiUrl: 'https://api.yourplatform.com',
+   *   userToken: getUserJWT()   // ← your site's logged-in user token
+   * };
+   */
+  userToken?: string;
   frontendUrl?: string; // Optional frontend URL for OAuth endpoints (defaults to window.location.origin)
   width?: number; // Optional widget width in pixels (default: 380)
   height?: number; // Optional widget height in pixels (default: 600)
@@ -794,21 +809,27 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     try {
 
       // Build JSON payload with fileAttachments
-      const payload = {
+      const payload: Record<string, unknown> = {
         role: 'user',
         message: userMessage.content,
         chatbotId: config.chatbotId,
         sessionId: sessionIdRef.current,
-        fileAttachments: fileAttachments, // Use pre-uploaded files
-        model: config.model || 'gpt-4o', // Include AI model (default: gpt-4o)
+        fileAttachments: fileAttachments,
+        model: config.model || 'gpt-4o',
       };
+
+      // Forward the embedding website's user token so workflow action endpoints
+      // can identify who is making the request (e.g. to place an order on their behalf).
+      if (config.userToken) {
+        payload.userToken = config.userToken;
+      }
 
       // Add Google OAuth tokens if available
       if (googleTokens?.accessToken) {
-        (payload as any).googleAccessToken = googleTokens.accessToken;
+        payload.googleAccessToken = googleTokens.accessToken;
       }
       if (googleTokens?.refreshToken) {
-        (payload as any).googleRefreshToken = googleTokens.refreshToken;
+        payload.googleRefreshToken = googleTokens.refreshToken;
       }
 
       // Determine endpoint based on authentication
@@ -968,47 +989,75 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
     );
   }
 
+  /**
+   * Convert Markdown OR raw HTML to safe HTML for rendering.
+   *
+   * Pipeline:
+   *   1. marked.parse()  — converts Markdown → HTML (passes raw HTML through unchanged)
+   *   2. sanitizeHtml()  — strips dangerous tags / attributes / JS
+   *   3. post-process    — open links in new tab, wrap image grids
+   */
+  const renderSafe = (raw: string): string => {
+    // Configure marked: don't mangle HTML that's already there, use GFM (tables, strikethrough, etc.)
+    marked.use({
+      gfm: true,
+      breaks: true,   // single newline → <br> inside paragraphs
+    });
+
+    const html = marked.parse(raw) as string;
+
+    const clean = sanitizeHtml(html, {
+      allowedTags: [
+        "p", "br", "strong", "b", "em", "i", "u", "s", "del",
+        "code", "pre",
+        "ul", "ol", "li",
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "blockquote",
+        "table", "thead", "tbody", "tr", "th", "td",
+        "a", "img",
+        "div", "span",
+        "hr",
+      ],
+      allowedAttributes: {
+        a:    ["href", "target", "rel", "title"],
+        img:  ["src", "alt", "class", "style", "width", "height"],
+        div:  ["class", "style"],
+        span: ["class", "style"],
+        code: ["class"],   // for language-* classes from markdown fenced blocks
+        pre:  ["class"],
+        th:   ["align"],
+        td:   ["align"],
+      },
+      allowedSchemes: ["http", "https", "mailto"],   // no data: URIs
+      allowedSchemesByTag: {
+        img: ["http", "https"],                       // no data: images either
+      },
+      // Never allow inline event handlers or javascript: hrefs
+      disallowedTagsMode: "discard",
+      transformTags: {
+        // Force all links to open safely in a new tab
+        a: sanitizeHtml.simpleTransform("a", {
+          target: "_blank",
+          rel: "noopener noreferrer",
+        }),
+      },
+    });
+
+    // Wrap consecutive img tags in a scrollable catalog when backend hasn't done so
+    return clean.replace(
+      /(<img[^>]*>)(\s*<img[^>]*>)+/g,
+      (match) => `<div class="image-catalog">${match}</div>`
+    );
+  };
+
   const MessageContent = ({ content }: { content: string }) => {
-    const hasHTML = /<\/?[a-z][\s\S]*>/i.test(content);
-
-    if (hasHTML) {
-      const clean = sanitizeHtml(content, {
-        allowedTags: [
-          "p", "br", "strong", "em", "code", "pre",
-          "ul", "ol", "li",
-          "h1", "h2", "h3",
-          "blockquote", "table", "thead", "tbody", "tr", "th", "td",
-          "a", "img", "div"
-        ],
-        allowedAttributes: {
-          a: ["href", "target", "rel"],
-          img: ["src", "alt", "class", "style"],
-          div: ["class", "style"],
-        },
-        allowedSchemes: ["http", "https", "mailto", "data"],
-        transformTags: {
-          a: sanitizeHtml.simpleTransform("a", {
-            target: "_blank",
-            rel: "noopener noreferrer",
-          }),
-        },
-      });
-
-      // Wrap consecutive img tags in a scrollable catalog div when backend doesn't provide one
-      const withCatalogWrap = clean.replace(
-        /(<img[^>]*>)(\s*<img[^>]*>)+/g,
-        (match) => `<div class="image-catalog">${match}</div>`
-      );
-
-      return (
-          <div
-              className="chatbot-html-content"
-              dangerouslySetInnerHTML={{ __html: withCatalogWrap }}
-          />
-      );
-    }
-
-    return <span className="chatbot-text">{content}</span>;
+    const html = renderSafe(content);
+    return (
+      <div
+        className="chatbot-html-content"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
   };
 
   return (
@@ -1020,72 +1069,126 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           font-family: "Poppins", sans-serif;
         }
         
-        .chatbot-html-content h1, .chatbot-html-content h2, .chatbot-html-content h3 {
-          margin: 0.5em 0;
-          font-weight: 600;
-          line-height: 1.3;
-          font-family: "Poppins", sans-serif;
+        /* ── Markdown / HTML rendered content ── */
+        .chatbot-html-content {
+          line-height: 1.65;
+          word-break: break-word;
         }
-        .chatbot-html-content h1 { font-size: 1.5em; }
-        .chatbot-html-content h2 { font-size: 1.3em; }
-        .chatbot-html-content h3 { font-size: 1.1em; }
-        .chatbot-html-content ul, .chatbot-html-content ol {
-          margin: 0.5em 0;
-          padding-left: 1.5em;
-          font-family: "Poppins", sans-serif;
+        .chatbot-html-content > *:first-child { margin-top: 0 !important; }
+        .chatbot-html-content > *:last-child  { margin-bottom: 0 !important; }
+
+        .chatbot-html-content h1,
+        .chatbot-html-content h2,
+        .chatbot-html-content h3,
+        .chatbot-html-content h4 {
+          margin: 0.75em 0 0.35em;
+          font-weight: 700;
+          line-height: 1.3;
+        }
+        .chatbot-html-content h1 { font-size: 1.35em; }
+        .chatbot-html-content h2 { font-size: 1.2em; }
+        .chatbot-html-content h3 { font-size: 1.08em; }
+        .chatbot-html-content h4 { font-size: 1em; }
+
+        .chatbot-html-content p {
+          margin: 0.45em 0;
+          line-height: 1.65;
+        }
+        .chatbot-html-content ul,
+        .chatbot-html-content ol {
+          margin: 0.45em 0;
+          padding-left: 1.4em;
         }
         .chatbot-html-content li {
-          margin: 0.3em 0;
-          line-height: 1.5;
-          font-family: "Poppins", sans-serif;
+          margin: 0.25em 0;
+          line-height: 1.55;
         }
-        .chatbot-html-content p {
-          margin: 0.5em 0;
-          line-height: 1.6;
-          font-family: "Poppins", sans-serif;
+        .chatbot-html-content li > ul,
+        .chatbot-html-content li > ol {
+          margin: 0.2em 0;
         }
+
         .chatbot-html-content a {
           color: inherit;
           text-decoration: underline;
-          font-family: "Poppins", sans-serif;
+          text-underline-offset: 2px;
         }
+        .chatbot-html-content a:hover { opacity: 0.8; }
+
+        /* inline code */
         .chatbot-html-content code {
-          background: rgba(0, 0, 0, 0.1);
-          padding: 0.2em 0.4em;
-          border-radius: 3px;
-          font-size: 0.9em;
-          font-family: "Poppins", monospace;
+          background: rgba(0, 0, 0, 0.08);
+          padding: 0.15em 0.45em;
+          border-radius: 4px;
+          font-size: 0.88em;
+          font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
         }
+
+        /* fenced code blocks — marked wraps in <pre><code> */
         .chatbot-html-content pre {
-          background: rgba(0, 0, 0, 0.05);
-          padding: 0.8em;
-          border-radius: 6px;
+          background: rgba(0, 0, 0, 0.06);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          padding: 0.85em 1em;
+          border-radius: 8px;
           overflow-x: auto;
-          margin: 0.5em 0;
-          font-family: "Poppins", monospace;
+          margin: 0.6em 0;
+          font-size: 0.86em;
+          line-height: 1.6;
         }
+        .chatbot-html-content pre code {
+          background: none;
+          padding: 0;
+          border-radius: 0;
+          font-size: inherit;
+          font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+        }
+
+        /* blockquote */
         .chatbot-html-content blockquote {
-          border-left: 3px solid rgba(0, 0, 0, 0.2);
-          padding-left: 1em;
+          border-left: 3px solid rgba(0, 0, 0, 0.25);
+          padding: 0.2em 0 0.2em 0.85em;
           margin: 0.5em 0;
+          opacity: 0.85;
           font-style: italic;
-          font-family: "Poppins", sans-serif;
         }
+        .chatbot-html-content blockquote p { margin: 0; }
+
+        /* horizontal rule */
+        .chatbot-html-content hr {
+          border: none;
+          border-top: 1px solid rgba(0, 0, 0, 0.12);
+          margin: 0.75em 0;
+        }
+
+        /* strikethrough */
+        .chatbot-html-content del,
+        .chatbot-html-content s { opacity: 0.6; }
+
+        /* bold / italic */
+        .chatbot-html-content strong { font-weight: 700; }
+        .chatbot-html-content em     { font-style: italic; }
+
+        /* tables */
         .chatbot-html-content table {
           width: 100%;
           border-collapse: collapse;
-          margin: 0.5em 0;
-          font-family: "Poppins", sans-serif;
+          margin: 0.6em 0;
+          font-size: 0.9em;
+          overflow-x: auto;
+          display: block;
         }
-        .chatbot-html-content th, .chatbot-html-content td {
-          padding: 0.5em;
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          font-family: "Poppins", sans-serif;
+        .chatbot-html-content th,
+        .chatbot-html-content td {
+          padding: 0.45em 0.7em;
+          border: 1px solid rgba(0, 0, 0, 0.12);
+          text-align: left;
         }
         .chatbot-html-content th {
-          background: rgba(0, 0, 0, 0.05);
-          font-weight: 600;
-          font-family: "Poppins", sans-serif;
+          background: rgba(0, 0, 0, 0.06);
+          font-weight: 700;
+        }
+        .chatbot-html-content tr:nth-child(even) td {
+          background: rgba(0, 0, 0, 0.02);
         }
         /* Image catalog / product catalog in chatbot reply - scrollbar support */
         .chatbot-html-content img {
