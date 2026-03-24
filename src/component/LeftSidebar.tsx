@@ -102,8 +102,26 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
         {
             title: 'AI PANEL',
             items: [
-                { name: 'Dashboard',   icon: 'home',  href: '/dashboard' },
+                { name: 'Dashboard', icon: 'home', href: '/dashboard' },
+            ]
+        },
+        {
+            title: 'YOUR CHATBOTS',
+            items: [
                 { name: 'AI Chatbots', icon: 'robot', href: '/ai-chatbots' },
+            ]
+        },
+        {
+            title: 'CONTENT CREATION',
+            items: [
+                { name: 'All Templates', icon: 'magic', href: '/content-creation/templates' },
+                { name: 'Ads & Marketing', icon: 'trending-up', href: '/content-creation/templates?category=Ads%20%26%20Marketing' },
+                { name: 'Articles & Blogs', icon: 'file-text', href: '/content-creation/templates?category=Articles%20%26%20Blogs' },
+                { name: 'E-commerce', icon: 'shopping-cart', href: '/content-creation/templates?category=E-commerce' },
+                { name: 'General Writing', icon: 'edit', href: '/content-creation/templates?category=General%20Writing' },
+                { name: 'Jobs & Companies', icon: 'briefcase', href: '/content-creation/templates?category=Jobs%20%26%20Companies' },
+                { name: 'Profile & Bio', icon: 'user', href: '/content-creation/templates?category=Profile%20%26%20Bio' },
+                { name: 'SEO & Web', icon: 'globe', href: '/content-creation/templates?category=SEO%20%26%20Web' },
             ]
         },
         {
@@ -116,6 +134,7 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             title: 'AI SOCIAL MEDIA',
             items: [
                 { name: 'Social Media Suite', icon: 'share-alt', href: '/social-media-suite' },
+                { name: 'Assets', icon: 'image', href: '/social-media-suite/assets' },
             ]
         },
         {

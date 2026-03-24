@@ -161,7 +161,7 @@ export default function HomePage() {
   useEffect(() => {
     if (isLoaded && isSignedIn && !isChatbotOnlyMode()) {
       // Only redirect to dashboard if NOT in chatbot-only mode
-      router.replace('/dashboard');
+        router.replace('/dashboard');
     }
   }, [isLoaded, isSignedIn, router]);
 
@@ -487,14 +487,14 @@ export default function HomePage() {
   };
 
   if (!isLoaded && !isSignedIn) {
-    return (
+  return (
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
           backgroundColor: '#0b1120',
           color: 'white',
           fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -516,7 +516,7 @@ export default function HomePage() {
           minHeight: '100vh',
           backgroundColor: '#0b1120',
           color: 'white',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
         }}
       >
         <p style={{ color: '#9ca3af' }}>Redirecting to your dashboard...</p>
@@ -547,8 +547,8 @@ export default function HomePage() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img
-            src="/favicon.png"
+          <img 
+            src="/favicon.png" 
             alt={chatbotName}
             style={{
               width: 32,
@@ -909,7 +909,7 @@ export default function HomePage() {
             <div>
               <h1
                 style={{
-                  margin: 0,
+          margin: 0,
                   fontSize: 22,
                   fontWeight: 700,
                   color: '#064e3b',
@@ -926,8 +926,8 @@ export default function HomePage() {
                 }}
               >
                 Ask anything about {chatbotName}, social media suite, or automation.
-              </p>
-            </div>
+        </p>
+      </div>
           </div>
 
           <div
@@ -1318,16 +1318,16 @@ export default function HomePage() {
                   </>
                 )}
               </button>
-              <style jsx>{`
-                @keyframes spin {
+      <style jsx>{`
+        @keyframes spin {
                   from {
                     transform: rotate(0deg);
                   }
-                  to {
-                    transform: rotate(360deg);
-                  }
-                }
-              `}</style>
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
               <style jsx global>{`
                 .assistant-message-content h1,
                 .assistant-message-content h2,

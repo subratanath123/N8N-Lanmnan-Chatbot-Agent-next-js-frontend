@@ -232,7 +232,7 @@ export default function SubscriptionPage() {
         onNavItemClick={() => {}}
       />
 
-      <div className={`main-content ${sidebarCollapsed ? "collapsed" : ""}`} style={{ overflowY: "auto", background: "#f8fafc" }}>
+      <div className={`main-content ${sidebarCollapsed ? "collapsed" : ""}`} style={{ flex: 1, marginLeft: sidebarCollapsed ? "60px" : "280px", overflowY: "auto", background: "#f8fafc", transition: "margin-left 0.3s ease" }}>
         <PageHeader
           breadcrumb={["Home", "Subscription"]}
           title="Subscription Plans"

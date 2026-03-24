@@ -28,6 +28,11 @@
     background: var(--sb-bg) !important;
     color: var(--sb-text) !important;
 
+    /* enable flex column so nav area can scroll independently */
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+
     /* right-edge sheen */
     box-shadow:
         1px 0 0 rgba(255,255,255,0.06),
@@ -68,12 +73,12 @@
 
 .dashboard-sidebar-header {
     height: 60px;
+    flex-shrink: 0 !important;
     display: flex;
     align-items: center;
     justify-content: center;
     border-bottom: 1px solid var(--sb-border);
     padding: 0 1.25rem;
-    flex-shrink: 0;
 }
 
 .dashboard-sidebar-header h5 {
@@ -125,6 +130,34 @@
     font-weight: 600 !important;
 }
 
+/* ── Nav area — fills remaining height and scrolls ── */
+.sidebar-navigation {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-top: 0.5rem;
+    /* thin scrollbar on dark background */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+.sidebar-navigation::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sidebar-navigation::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-navigation::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.12);
+    border-radius: 4px;
+}
+
+.sidebar-navigation::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.25);
+}
+
 /* ── Section labels ── */
 .navigation-section {
     margin-bottom: 0.5rem;
@@ -156,6 +189,7 @@
 
 /* ── Footer ── */
 .dashboard-sidebar-footer {
+    flex-shrink: 0 !important;
     padding: 1.25rem 1rem;
     border-top: 1px solid var(--sb-border);
     background: transparent !important;
