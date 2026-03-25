@@ -27,7 +27,8 @@ export default function PageHeader({
   return (
     <div
       style={{
-        padding: "24px 36px 22px",
+        padding: "18px 36px 16px",
+        paddingTop: "60px",
         borderBottom: "1px solid #e2e8f0",
         background: "#fff",
         display: "flex",
@@ -42,9 +43,9 @@ export default function PageHeader({
         {breadcrumb.length > 0 && (
           <div
             style={{
-              fontSize: "11.5px",
+              fontSize: "11px",
               color: "#94a3b8",
-              marginBottom: "10px",
+              marginBottom: "6px",
               letterSpacing: "0.04em",
               fontWeight: 500,
             }}
@@ -52,19 +53,20 @@ export default function PageHeader({
             {breadcrumb.join(" › ")}
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
           {icon && (
             <div
               style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "14px",
+                width: "36px",
+                height: "36px",
+                borderRadius: "10px",
                 background: "#eff6ff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
                 border: "1px solid #dbeafe",
+                marginTop: "2px",
               }}
             >
               {icon}
@@ -74,7 +76,7 @@ export default function PageHeader({
             <h1
               style={{
                 margin: 0,
-                fontSize: "24px",
+                fontSize: "20px",
                 fontWeight: 800,
                 letterSpacing: "-0.025em",
                 color: "#0f172a",
@@ -86,10 +88,10 @@ export default function PageHeader({
             {subtitle && (
               <p
                 style={{
-                  margin: "5px 0 0",
-                  fontSize: "13px",
+                  margin: "3px 0 0",
+                  fontSize: "12px",
                   color: "#64748b",
-                  lineHeight: 1.5,
+                  lineHeight: 1.4,
                 }}
               >
                 {subtitle}

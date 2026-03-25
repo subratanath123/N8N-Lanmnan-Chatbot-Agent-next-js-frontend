@@ -12,6 +12,7 @@ export default function TopBar() {
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -22,8 +23,11 @@ export default function TopBar() {
       if (notifRef.current && !notifRef.current.contains(e.target as Node))
         setNotifOpen(false);
     }
+
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+    };
   }, []);
 
   const getInitials = () => {
@@ -56,7 +60,27 @@ export default function TopBar() {
   if (!isSignedIn) return null;
 
   return (
-    <div style={barStyle}>
+    <div style={barStyle} className="topbar">
+        {/* Hamburger button for mobile */}
+        <button
+          onClick={() => {
+            setSidebarOpen(o => !o);
+            const sidebar = document.querySelector('.dashboard-sidebar');
+            if (sidebar) {
+              sidebar.classList.toggle('open', !sidebarOpen);
+            }
+          }}
+          className="topbar-hamburger"
+          aria-label="Toggle menu"
+          style={hamburgerBtnStyle}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+
       {/* spacer pushes everything to the right */}
       <div style={{ flex: 1 }} />
 
@@ -258,8 +282,22 @@ const barStyle: React.CSSProperties = {
   alignItems: "center",
   paddingLeft: "20px",
   paddingRight: "16px",
-  zIndex: 999,
+  zIndex: 1001,
   boxShadow: "0 1px 6px rgba(15,23,42,0.05)",
+};
+
+const hamburgerBtnStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  color: '#0f172a',
+  padding: '8px 12px',
+  borderRadius: '8px',
+  marginLeft: '8px',
+  display: 'none',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'background 0.2s',
 };
 
 const iconBtn: React.CSSProperties = {

@@ -10,6 +10,7 @@ import {
 } from 'mdb-react-ui-kit';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@clerk/nextjs';
+import { useSearchParams } from 'next/navigation';
 import './dashboard-sidebar.css';
 import { appConfig } from '@/lib/config';
 import TopBar from './TopBar';
@@ -38,6 +39,7 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
     const [darkMode, setDarkMode] = useState(false);
     const pathname = usePathname() || '';
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { getToken } = useAuth();
     const { isSignedIn } = useUser();
 
@@ -49,6 +51,29 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
     const fetchedRef = useRef(false);
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+    const overlayRef = useRef<HTMLDivElement>(null);
+
+    // Track sidebar open/close and show/hide overlay on mobile
+    useEffect(() => {
+        const handleSidebarChange = () => {
+            if (overlayRef.current && window.innerWidth <= 768) {
+                const sidebar = document.querySelector('.dashboard-sidebar');
+                const isOpen = sidebar?.classList.contains('open');
+                overlayRef.current.style.display = isOpen ? 'block' : 'none';
+            }
+        };
+
+        const sidebar = document.querySelector('.dashboard-sidebar');
+        if (sidebar) {
+            const observer = new MutationObserver(handleSidebarChange);
+            observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+            
+            // Initial state
+            handleSidebarChange();
+
+            return () => observer.disconnect();
+        }
+    }, []);
 
     const fetchChatbots = useCallback(async () => {
         if (fetchedRef.current) return;        // only fetch once per mount
@@ -115,7 +140,7 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             title: 'CONTENT CREATION',
             items: [
                 { name: 'All Templates', icon: 'magic', href: '/content-creation/templates' },
-                { name: 'Ads & Marketing', icon: 'trending-up', href: '/content-creation/templates?category=Ads%20%26%20Marketing' },
+                { name: 'Ads & Marketing', icon: 'bullhorn', href: '/content-creation/templates?category=Ads%20%26%20Marketing' },
                 { name: 'Articles & Blogs', icon: 'file-text', href: '/content-creation/templates?category=Articles%20%26%20Blogs' },
                 { name: 'E-commerce', icon: 'shopping-cart', href: '/content-creation/templates?category=E-commerce' },
                 { name: 'General Writing', icon: 'edit', href: '/content-creation/templates?category=General%20Writing' },
@@ -134,7 +159,13 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             title: 'AI SOCIAL MEDIA',
             items: [
                 { name: 'Social Media Suite', icon: 'share-alt', href: '/social-media-suite' },
-                { name: 'Assets', icon: 'image', href: '/social-media-suite/assets' },
+                { name: 'AI Images', icon: 'palette', href: '/ai-images' },
+                { name: 'AI Videos', icon: 'video', href: '/ai-videos' },
+                { name: 'AI Photo Studio', icon: 'adjust', href: '/ai-photo-studio' },
+                { name: 'AI Product Photo', icon: 'camera', href: '/ai-product-photo' },
+                { name: 'AI Product Studio', icon: 'cube', href: '/ai-product-studio' },
+                { name: 'Face Swap', icon: 'user-friends', href: '/face-swap' },
+                { name: 'Assets', icon: 'image', href: '/assets' },
             ]
         },
         {
@@ -147,6 +178,8 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
         {
             title: 'ACCOUNT',
             items: [
+                { name: 'My Account', icon: 'user-circle', href: '/account' },
+                { name: 'Team Members', icon: 'users', href: '/team-members' },
                 { name: 'Subscription Plans', icon: 'credit-card', href: '/subscription' },
             ]
         }
@@ -155,6 +188,15 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
     return (
         <>
         <TopBar />
+        <div 
+            ref={overlayRef}
+            className="sidebar-overlay-mobile"
+            onClick={() => {
+                const sidebar = document.querySelector('.dashboard-sidebar');
+                if (sidebar) sidebar.classList.remove('open');
+            }}
+            style={{ display: 'none' }}
+        />
         <div 
             className="dashboard-sidebar"
             style={{ 
@@ -173,7 +215,19 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
                             <div className="section-title">{section.title}</div>
 
                             {section.items.map((item, index) => {
-                                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                                // For category links, check both pathname AND the category query param
+                                let isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                                
+                                // Special handling for category links with ?category=X
+                                if (item.href.includes('?category=')) {
+                                    const hrefCategory = new URL(item.href, 'https://dummy.com').searchParams.get('category');
+                                    const currentCategory = searchParams.get('category');
+                                    isActive = pathname === '/content-creation/templates' && hrefCategory === currentCategory;
+                                } else if (pathname === '/content-creation/templates') {
+                                    // "All Templates" link is active when on /content-creation/templates with no query param
+                                    const currentCategory = searchParams.get('category');
+                                    isActive = item.name === 'All Templates' && !currentCategory;
+                                }
 
                                 return (
                                     <React.Fragment key={index}>
@@ -183,6 +237,11 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
                                             onClick={() => {
                                                 router.push(item.href);
                                                 if (onNavItemClick) onNavItemClick(item.name, item.href);
+                                                // Close sidebar on mobile after nav click
+                                                if (window.innerWidth <= 768) {
+                                                    const sidebar = document.querySelector('.dashboard-sidebar');
+                                                    if (sidebar) sidebar.classList.remove('open');
+                                                }
                                             }}
                                             style={{
                                                 backgroundColor: isActive ? 'rgba(99, 145, 255, 0.15)' : 'transparent',

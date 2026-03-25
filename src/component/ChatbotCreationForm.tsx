@@ -2160,6 +2160,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         <div style={{ 
             backgroundColor: '#ffffff'
         }}>
+            <br/>
             <MDBContainer fluid="md">
                 <MDBRow className="justify-content-center">
                     <MDBCol md="12" lg="11" xl="10">

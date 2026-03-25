@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
 import PageHeader from '@/component/PageHeader';
 import { CONTENT_TEMPLATES, TEMPLATE_CATEGORIES, ContentTemplate } from '@/lib/content-templates';
@@ -84,8 +84,19 @@ function TemplateCard({ template, onClick }: { template: ContentTemplate; onClic
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeCategory, setActiveCategory] = useState('All');
   const [search, setSearch] = useState('');
+
+  // Read category from URL query param on mount and when it changes
+  useEffect(() => {
+    const categoryFromUrl = searchParams.get('category');
+    if (categoryFromUrl) {
+      setActiveCategory(decodeURIComponent(categoryFromUrl));
+    } else {
+      setActiveCategory('All');
+    }
+  }, [searchParams]);
 
   const filtered = useMemo(() => {
     let list = activeCategory === 'All' ? CONTENT_TEMPLATES : CONTENT_TEMPLATES.filter(t => t.category === activeCategory);
@@ -117,7 +128,7 @@ export default function TemplatesPage() {
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px 60px' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: '28px' }}>
+        <div style={{ margin: '50px' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '6px' }}>
             TEMPLATE CATEGORY
           </div>
@@ -150,7 +161,16 @@ export default function TemplatesPage() {
             return (
               <button
                 key={cat}
-                onClick={() => { setActiveCategory(cat); setSearch(''); }}
+                onClick={() => {
+                  setActiveCategory(cat);
+                  setSearch('');
+                  // Update URL to match the category
+                  if (cat === 'All') {
+                    router.push('/content-creation/templates');
+                  } else {
+                    router.push(`/content-creation/templates?category=${encodeURIComponent(cat)}`);
+                  }
+                }}
                 style={{
                   padding: '6px 14px', borderRadius: '20px', border: 'none', cursor: 'pointer',
                   fontSize: '13px', fontWeight: isActive ? 700 : 500, fontFamily: 'inherit',
