@@ -684,8 +684,12 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
         // Ignore blob URLs (invalid, e.g. from legacy data) - treat as no avatar
         const isValidAvatarUrl = (url: string) => url && !url.startsWith('blob:') && (url.startsWith('http://') || url.startsWith('https://'));
         let aiAvatarUrl: string | undefined = undefined;
-        if (isValidAvatarUrl(themeSource.aiAvatar || '') || isValidAvatarUrl(themeSource.avatarUrl || '')) {
-          aiAvatarUrl = themeSource.aiAvatar || themeSource.avatarUrl;
+        const rawAvatar = (themeSource.aiAvatar || themeSource.avatarUrl || '').trim();
+        if (rawAvatar.startsWith('/') && !rawAvatar.startsWith('//')) {
+          const origin = getFrontendUrl().replace(/\/$/, '');
+          aiAvatarUrl = `${origin}${rawAvatar}`;
+        } else if (isValidAvatarUrl(rawAvatar)) {
+          aiAvatarUrl = rawAvatar;
         }
         let aiAvatarFallback: string | undefined;
         if (!aiAvatarUrl && avatarFileId) {
@@ -1797,22 +1801,38 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           <button
             type="submit"
             disabled={isLoading || (!inputValue.trim() && attachments.length === 0)}
+            aria-label="Send message"
             style={{
+              width: '36px',
+              height: '36px',
+              minWidth: '36px',
+              flexShrink: 0,
               background: isLoading || (!inputValue.trim() && attachments.length === 0)
-                ? 'transparent' 
+                ? 'transparent'
                 : widgetTheme.userBackground,
               color: widgetTheme.userText,
               border: 'none',
-              borderRadius: '16px',
-              padding: '12px 18px',
+              borderRadius: '50%',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               cursor: isLoading || (!inputValue.trim() && attachments.length === 0) ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
               opacity: isLoading || (!inputValue.trim() && attachments.length === 0) ? 0.5 : 1,
               transition: 'opacity 0.2s ease',
             }}
           >
-            ➤
+            {/* Paper plane — matches Live Preview (MDB paper-plane) */}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              width={16}
+              height={16}
+              aria-hidden
+            >
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
           </button>
         </form>
         </>

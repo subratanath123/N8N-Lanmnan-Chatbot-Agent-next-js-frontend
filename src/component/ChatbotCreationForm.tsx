@@ -18,6 +18,13 @@ import {
 } from 'mdb-react-ui-kit';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { appConfig } from '@/lib/config';
+import {
+    AVATAR_FALLBACK_DATA_URI,
+    DEFAULT_AI_AVATAR_URL,
+    PRESET_AI_AVATARS,
+    isBundledPresetAvatarUrl,
+    toAbsoluteAvatarUrlIfNeeded,
+} from '@/lib/chatbotAvatarPresets';
 
 interface ChatbotCreationFormProps {
     onCancel: () => void;
@@ -104,8 +111,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         aiText: '#1A202C',
         userBackground: '#3B82F6',
         userText: '#FFFFFF',
-        // Default preset avatar: friendly chatbot icon
-        aiAvatar: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80',
+        aiAvatar: DEFAULT_AI_AVATAR_URL,
         hideMainBannerLogo: false,
         avatarFileId: undefined
     });
@@ -325,7 +331,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             
             // Sanitize avatar: never send blob URLs. Use avatarFileId for custom, preset URL for presets.
             const isBlobUrl = (url: string) => typeof url === 'string' && url.startsWith('blob:');
-            const isPresetAvatar = (url: string) => availableAvatars.some((a) => a.url === url);
             let aiAvatarToSend: string | undefined = formData.aiAvatar;
             let avatarFileIdToSend: string | undefined = formData.avatarFileId;
             if (formData.avatarFileId) {
@@ -334,17 +339,19 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                 avatarFileIdToSend = formData.avatarFileId;
             } else if (isBlobUrl(formData.aiAvatar)) {
                 // Legacy blob URL: use default preset
-                aiAvatarToSend = availableAvatars[0].url;
+                aiAvatarToSend = DEFAULT_AI_AVATAR_URL;
                 avatarFileIdToSend = undefined;
-            } else if (isPresetAvatar(formData.aiAvatar)) {
+            } else if (isBundledPresetAvatarUrl(formData.aiAvatar)) {
                 avatarFileIdToSend = undefined;
             } else if (!formData.aiAvatar || isBlobUrl(formData.aiAvatar)) {
-                aiAvatarToSend = availableAvatars[0].url;
+                aiAvatarToSend = DEFAULT_AI_AVATAR_URL;
             }
             
             const submissionData = {
                 ...formData,
-                aiAvatar: aiAvatarToSend,
+                aiAvatar: formData.avatarFileId
+                    ? ''
+                    : toAbsoluteAvatarUrlIfNeeded(aiAvatarToSend ?? DEFAULT_AI_AVATAR_URL),
                 avatarFileId: avatarFileIdToSend,
                 qaPairs: qaPairs,
                 selectedDataSource: selectedDataSource,
@@ -640,17 +647,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    const AVATAR_FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e2e8f0"/><text x="50" y="68" font-size="52" text-anchor="middle">🤖</text></svg>')}`;
-
-    const availableAvatars = [
-        { id: 'bot1', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80', label: 'Chatbot 1' },
-        { id: 'bot2', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot2&size=80', label: 'Chatbot 2' },
-        { id: 'bot3', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot3&size=80', label: 'Chatbot 3' },
-        { id: 'bot4', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support1&size=80', label: 'Support 1' },
-        { id: 'bot5', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support2&size=80', label: 'Support 2' },
-        { id: 'bot6', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Assistant&size=80', label: 'Assistant' },
-    ];
-
     const availableModels = [
         { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable, latest model' },
         { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and efficient' },
@@ -728,7 +724,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                 alignItems: 'center',
                             }}
                         >
-                            {availableAvatars.map((avatar) => (
+                            {PRESET_AI_AVATARS.map((avatar) => (
                                 <div
                                     key={avatar.id}
                                     onClick={() => {
@@ -739,11 +735,11 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                         width: '36px',
                                         height: '36px',
                                         borderRadius: '50%',
-                                        border: formData.aiAvatar === avatar.url ? '3px solid #3b82f6' : '2px solid #e2e8f0',
+                                        border: (formData.aiAvatar === avatar.url || (formData.aiAvatar && formData.aiAvatar.endsWith(avatar.url))) ? '3px solid #3b82f6' : '2px solid #e2e8f0',
                                         cursor: 'pointer',
                                         overflow: 'hidden',
                                         transition: 'all 0.2s ease',
-                                        boxShadow: formData.aiAvatar === avatar.url ? '0 4px 12px rgba(59,130,246,0.3)' : 'none'
+                                        boxShadow: (formData.aiAvatar === avatar.url || (formData.aiAvatar && formData.aiAvatar.endsWith(avatar.url))) ? '0 4px 12px rgba(59,130,246,0.3)' : 'none'
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.transform = 'scale(1.1)';
@@ -756,7 +752,6 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                         src={avatar.url}
                                         alt={avatar.label}
                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK; }}
                                     />
                                 </div>
                             ))}
@@ -919,13 +914,12 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                                     transition: 'all 0.15s',
                                                 }}
                                             >
-                                                {/* Mini chat preview */}
+                                                {/* Mini chat preview — colors only (no fake avatar circles) */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '46px' }}>
                                                     {/* Header bar */}
                                                     <div style={{ height: '10px', borderRadius: '4px 4px 0 0', background: skin.headerBackground }} />
-                                                    {/* AI bubble */}
+                                                    {/* AI message row */}
                                                     <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
-                                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: skin.headerBackground, flexShrink: 0 }} />
                                                         <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: skin.aiBackground, border: '1px solid rgba(0,0,0,0.07)' }} />
                                                     </div>
                                                     {/* User bubble */}
@@ -1286,7 +1280,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                         display: 'flex',
                         flexDirection: 'column'
                     }}>
-                        {/* Header */}
+                        {/* Header — same pattern as embedded widget: logo = aiAvatar or initial */}
                         <div style={{
                             backgroundColor: formData.headerBackground,
                             color: formData.headerText,
@@ -1296,7 +1290,30 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                             gap: '12px'
                         }}>
                             {!formData.hideMainBannerLogo && (
-                                <MDBIcon icon="robot" size="lg" />
+                                <div style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    overflow: 'hidden',
+                                    flexShrink: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: formData.aiAvatar ? 'transparent' : 'rgba(255, 255, 255, 0.2)',
+                                    fontSize: '16px',
+                                    fontWeight: 600,
+                                }}>
+                                    {formData.aiAvatar ? (
+                                        <img
+                                            src={formData.aiAvatar}
+                                            alt=""
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }}
+                                        />
+                                    ) : (
+                                        (formData.name?.charAt(0).toUpperCase() ?? 'C')
+                                    )}
+                                </div>
                             )}
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: '700', fontSize: '16px' }}>{formData.title}</div>
@@ -1322,6 +1339,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                             borderRadius: '50%',
                                             flexShrink: 0
                                         }}
+                                        onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }}
                                     />
                                 )}
                                 <div style={{
@@ -1362,6 +1380,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                             borderRadius: '50%',
                                             flexShrink: 0
                                         }}
+                                        onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }}
                                     />
                                 )}
                                 <div style={{
@@ -2161,7 +2180,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
             backgroundColor: '#ffffff'
         }}>
             <br/>
-            <MDBContainer fluid="md">
+            <MDBContainer fluid>
                 <MDBRow className="justify-content-center">
                     <MDBCol md="12" lg="11" xl="10">
                         <MDBCard className="shadow-lg" style={{
@@ -2291,7 +2310,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                                             flexDirection: 'column',
                                                         }}
                                                     >
-                                                        {/* Header */}
+                                                        {/* Header — matches embedded widget */}
                                                         <div
                                                             style={{
                                                                 backgroundColor: formData.headerBackground,
@@ -2303,7 +2322,32 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                                             }}
                                                         >
                                                             {!formData.hideMainBannerLogo && (
-                                                                <MDBIcon icon="robot" size="lg" />
+                                                                <div
+                                                                    style={{
+                                                                        width: '32px',
+                                                                        height: '32px',
+                                                                        borderRadius: '50%',
+                                                                        overflow: 'hidden',
+                                                                        flexShrink: 0,
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        background: formData.aiAvatar ? 'transparent' : 'rgba(255, 255, 255, 0.2)',
+                                                                        fontSize: '16px',
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    {formData.aiAvatar ? (
+                                                                        <img
+                                                                            src={formData.aiAvatar}
+                                                                            alt=""
+                                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                            onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }}
+                                                                        />
+                                                                    ) : (
+                                                                        (formData.name?.charAt(0).toUpperCase() ?? 'C')
+                                                                    )}
+                                                                </div>
                                                             )}
                                                             <div style={{ flex: 1 }}>
                                                                 <div
@@ -2344,6 +2388,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                                                             borderRadius: '50%',
                                                                             flexShrink: 0,
                                                                         }}
+                                                                        onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }}
                                                                     />
                                                                 )}
                                                                 <div
@@ -2394,6 +2439,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                                                                             borderRadius: '50%',
                                                                             flexShrink: 0,
                                                                         }}
+                                                                        onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }}
                                                                     />
                                                                 )}
                                                                 <div

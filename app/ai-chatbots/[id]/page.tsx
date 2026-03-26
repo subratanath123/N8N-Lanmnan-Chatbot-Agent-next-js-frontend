@@ -28,6 +28,13 @@ import { useAuth, useUser } from '@clerk/nextjs';
 import { useParams, useRouter } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
 import PageHeader from '@/component/PageHeader';
+import {
+    AVATAR_FALLBACK_DATA_URI,
+    DEFAULT_AI_AVATAR_URL,
+    PRESET_AI_AVATARS,
+    isBundledPresetAvatarUrl,
+    toAbsoluteAvatarUrlIfNeeded,
+} from '@/lib/chatbotAvatarPresets';
 
 interface KnowledgeFile {
     id: string;
@@ -107,6 +114,8 @@ interface Chatbot {
     aiAvatar?: string;
     avatarFileId?: string;
     hideMainBannerLogo?: boolean;
+    /** When true, AI avatars are hidden next to message bubbles (matches embedded widget). */
+    hideName?: boolean;
 }
 
 export default function ChatbotDetailPage() {
@@ -1316,26 +1325,25 @@ export default function ChatbotDetailPage() {
 
             // Sanitize avatar: never send blob URLs. Use avatarFileId for custom, preset URL for presets.
             const isBlobUrl = (url: string) => typeof url === 'string' && url.startsWith('blob:');
-            const isPresetAvatar = (url: string) => availableAvatars.some((a) => a.url === url);
             let aiAvatarToSend: string | undefined = editedChatbot.aiAvatar;
             let avatarFileIdToSend: string | undefined = editedChatbot.avatarFileId;
             if (editedChatbot.avatarFileId) {
                 aiAvatarToSend = undefined;
                 avatarFileIdToSend = editedChatbot.avatarFileId;
             } else if (editedChatbot.aiAvatar && isBlobUrl(editedChatbot.aiAvatar)) {
-                aiAvatarToSend = availableAvatars[0].url;
+                aiAvatarToSend = DEFAULT_AI_AVATAR_URL;
                 avatarFileIdToSend = undefined;
-            } else if (editedChatbot.aiAvatar && isPresetAvatar(editedChatbot.aiAvatar)) {
+            } else if (editedChatbot.aiAvatar && isBundledPresetAvatarUrl(editedChatbot.aiAvatar)) {
                 avatarFileIdToSend = undefined;
             } else if (!editedChatbot.aiAvatar || isBlobUrl(editedChatbot.aiAvatar)) {
-                aiAvatarToSend = availableAvatars[0].url;
+                aiAvatarToSend = DEFAULT_AI_AVATAR_URL;
             }
 
             // Ensure width and height are included from current preview values
             // Explicitly send avatarFileId: null when using preset so backend clears any previous custom avatar
             const chatbotToSave = {
                 ...editedChatbot,
-                aiAvatar: aiAvatarToSend,
+                aiAvatar: editedChatbot.avatarFileId ? undefined : toAbsoluteAvatarUrlIfNeeded(aiAvatarToSend ?? DEFAULT_AI_AVATAR_URL),
                 avatarFileId: avatarFileIdToSend ?? null,
                 width: previewWidth,
                 height: previewHeight,
@@ -1387,17 +1395,6 @@ export default function ChatbotDetailPage() {
         setUploadedAvatarUrl(null);
         setAvatarError(null);
     };
-
-    const AVATAR_FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#e2e8f0"/><text x="50" y="68" font-size="52" text-anchor="middle">🤖</text></svg>')}`;
-
-    const availableAvatars = [
-        { id: 'bot1', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80', label: 'Chatbot 1' },
-        { id: 'bot2', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot2&size=80', label: 'Chatbot 2' },
-        { id: 'bot3', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot3&size=80', label: 'Chatbot 3' },
-        { id: 'bot4', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support1&size=80', label: 'Support 1' },
-        { id: 'bot5', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Support2&size=80', label: 'Support 2' },
-        { id: 'bot6', url: 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Assistant&size=80', label: 'Assistant' },
-    ];
 
     const CHAT_SKINS = [
         { id: 'midnight', label: 'Midnight',   headerBackground: '#2D3748', headerText: '#FFFFFF', aiBackground: '#F7FAFC', aiText: '#1A202C', userBackground: '#3B82F6', userText: '#FFFFFF' },
@@ -2325,7 +2322,10 @@ export default function ChatbotDetailPage() {
                                         <div className="mb-3">
                                             <label className="form-label" style={{ fontSize: '14px', fontWeight: '600' }}>AI Avatar</label>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                                                {availableAvatars.map((avatar) => (
+                                                {PRESET_AI_AVATARS.map((avatar) => {
+                                                    const u = editedChatbot?.aiAvatar;
+                                                    const presetSelected = !editedChatbot?.avatarFileId && !!(u && (u === avatar.url || u.endsWith(avatar.url)));
+                                                    return (
                                                     <div
                                                         key={avatar.id}
                                                         onClick={() => {
@@ -2334,19 +2334,19 @@ export default function ChatbotDetailPage() {
                                                         }}
                                                         style={{
                                                             width: '36px', height: '36px', borderRadius: '50%',
-                                                            border: (editedChatbot?.avatarFileId ? false : editedChatbot?.aiAvatar === avatar.url) ? '3px solid #3b82f6' : '2px solid #e2e8f0',
+                                                            border: presetSelected ? '3px solid #3b82f6' : '2px solid #e2e8f0',
                                                             cursor: 'pointer', overflow: 'hidden', transition: 'all 0.2s ease',
-                                                            boxShadow: (editedChatbot?.avatarFileId ? false : editedChatbot?.aiAvatar === avatar.url) ? '0 4px 12px rgba(59,130,246,0.3)' : 'none',
+                                                            boxShadow: presetSelected ? '0 4px 12px rgba(59,130,246,0.3)' : 'none',
                                                         }}
                                                     >
                                                         <img
                                                             src={avatar.url}
                                                             alt={avatar.label}
                                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                            onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK; }}
                                                         />
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                                 {(editedChatbot?.avatarFileId) && (uploadedAvatarUrl || (typeof window !== 'undefined' && `${window.location.origin}/api/attachments/download/${editedChatbot.avatarFileId}?chatbotId=${chatbotId}`)) && (
                                                     <div
                                                         onClick={() => setEditedChatbot((prev) => prev ? { ...prev, aiAvatar: uploadedAvatarUrl || `${window.location.origin}/api/attachments/download/${editedChatbot.avatarFileId}?chatbotId=${chatbotId}` } : null)}
@@ -2397,6 +2397,14 @@ export default function ChatbotDetailPage() {
                                                     onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, hideMainBannerLogo: e.target.checked } : null)}
                                                 />
                                             </div>
+                                            <div className="mt-2">
+                                                <MDBSwitch
+                                                    id="hideName"
+                                                    label="Hide AI avatar in chat messages"
+                                                    checked={editedChatbot?.hideName || false}
+                                                    onChange={(e) => setEditedChatbot((prev) => prev ? { ...prev, hideName: e.target.checked } : null)}
+                                                />
+                                            </div>
                                         </div>
                                         {/* Skin + Colors */}
                                         <div className="mb-3">
@@ -2426,7 +2434,6 @@ export default function ChatbotDetailPage() {
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '46px' }}>
                                                                 <div style={{ height: '10px', borderRadius: '4px 4px 0 0', background: skin.headerBackground }} />
                                                                 <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
-                                                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: skin.headerBackground, flexShrink: 0 }} />
                                                                     <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: skin.aiBackground, border: '1px solid rgba(0,0,0,0.07)' }} />
                                                                 </div>
                                                                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -3093,7 +3100,41 @@ export default function ChatbotDetailPage() {
                                         gap: '12px',
                                     }}>
                                         {!((isEditing ? editedChatbot?.hideMainBannerLogo : chatbot?.hideMainBannerLogo)) && (
-                                            <MDBIcon icon="robot" size="lg" />
+                                            (() => {
+                                                const data = isEditing ? editedChatbot : chatbot;
+                                                const headerAvatarUrl = (isEditing && uploadedAvatarUrl) || data?.aiAvatar ||
+                                                    (data?.avatarFileId && typeof window !== 'undefined'
+                                                        ? `${window.location.origin}/api/attachments/download/${data.avatarFileId}?chatbotId=${chatbotId}`
+                                                        : DEFAULT_AI_AVATAR_URL);
+                                                const canShow = headerAvatarUrl && (headerAvatarUrl.startsWith('http') || headerAvatarUrl.startsWith('/') || headerAvatarUrl.startsWith('blob:'));
+                                                return (
+                                                    <div style={{
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        borderRadius: '50%',
+                                                        overflow: 'hidden',
+                                                        flexShrink: 0,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        background: canShow ? 'transparent' : 'rgba(255, 255, 255, 0.2)',
+                                                        color: (isEditing ? editedChatbot?.headerText : chatbot?.headerText) ?? '#FFFFFF',
+                                                        fontSize: '16px',
+                                                        fontWeight: 600,
+                                                    }}>
+                                                        {canShow ? (
+                                                            <img
+                                                                src={headerAvatarUrl}
+                                                                alt=""
+                                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }}
+                                                            />
+                                                        ) : (
+                                                            (data?.name || 'C').charAt(0).toUpperCase()
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()
                                         )}
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontWeight: '700', fontSize: '16px' }}>{(isEditing ? editedChatbot?.title : chatbot?.title) || 'Chatbot'}</div>
@@ -3108,16 +3149,16 @@ export default function ChatbotDetailPage() {
                                         overflowY: 'auto',
                                     }}>
                                         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                                            {!((isEditing ? editedChatbot?.hideMainBannerLogo : chatbot?.hideMainBannerLogo)) && (
+                                            {!((isEditing ? editedChatbot?.hideName : chatbot?.hideName) ?? false) && (
                                                 (() => {
                                                     const data = isEditing ? editedChatbot : chatbot;
                                                     const avatarUrl = (isEditing && uploadedAvatarUrl) || data?.aiAvatar ||
                                                         (data?.avatarFileId && typeof window !== 'undefined'
                                                             ? `${window.location.origin}/api/attachments/download/${data.avatarFileId}?chatbotId=${chatbotId}`
-                                                            : 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80');
+                                                            : DEFAULT_AI_AVATAR_URL);
                                                     const canShowImage = avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('/') || avatarUrl.startsWith('blob:'));
                                                     return canShowImage ? (
-                                                        <img src={avatarUrl} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />
+                                                        <img src={avatarUrl} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }} />
                                                     ) : (
                                                         <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, flexShrink: 0 }}>
                                                             {(data?.name || 'C').charAt(0).toUpperCase()}
@@ -3149,16 +3190,16 @@ export default function ChatbotDetailPage() {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px' }}>
-                                            {!((isEditing ? editedChatbot?.hideMainBannerLogo : chatbot?.hideMainBannerLogo)) && (
+                                            {!((isEditing ? editedChatbot?.hideName : chatbot?.hideName) ?? false) && (
                                                 (() => {
                                                     const data = isEditing ? editedChatbot : chatbot;
                                                     const avatarUrl = (isEditing && uploadedAvatarUrl) || data?.aiAvatar ||
                                                         (data?.avatarFileId && typeof window !== 'undefined'
                                                             ? `${window.location.origin}/api/attachments/download/${data.avatarFileId}?chatbotId=${chatbotId}`
-                                                            : 'https://api.dicebear.com/9.x/bottts-neutral/png?seed=Chatbot1&size=80');
+                                                            : DEFAULT_AI_AVATAR_URL);
                                                     const canShowImage = avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('/') || avatarUrl.startsWith('blob:'));
                                                     return canShowImage ? (
-                                                        <img src={avatarUrl} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />
+                                                        <img src={avatarUrl} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = AVATAR_FALLBACK_DATA_URI; }} />
                                                     ) : (
                                                         <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, flexShrink: 0 }}>
                                                             {(data?.name || 'C').charAt(0).toUpperCase()}
