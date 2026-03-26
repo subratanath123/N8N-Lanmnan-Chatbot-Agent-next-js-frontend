@@ -18,6 +18,16 @@ interface EditJob {
     createdAt: string;
 }
 
+const parseResponseBodySafely = async (res: Response): Promise<any | null> => {
+    const raw = await res.text();
+    if (!raw) return null;
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return { message: raw };
+    }
+};
+
 export default function AIPhotoStudioPage() {
     const router = useRouter();
     const { getToken } = useAuth();
@@ -83,8 +93,10 @@ export default function AIPhotoStudioPage() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                const data = await res.json();
-                setJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...data } : j));
+                const data = await parseResponseBodySafely(res);
+                if (data) {
+                    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...data } : j));
+                }
             }
         } catch (err) {
             console.error('Status check failed:', err);
@@ -134,11 +146,14 @@ export default function AIPhotoStudioPage() {
             });
 
             if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.message || 'Edit failed');
+                const errorBody = await parseResponseBodySafely(res);
+                throw new Error(errorBody?.message || `Edit failed (${res.status})`);
             }
 
-            const data = await res.json();
+            const data = await parseResponseBodySafely(res);
+            if (!data?.jobId) {
+                throw new Error('Edit request succeeded but response was invalid.');
+            }
             const newJob: EditJob = {
                 id: data.jobId,
                 originalImageUrl: previewUrl,
@@ -205,6 +220,25 @@ export default function AIPhotoStudioPage() {
                             </div>
                             <div style={{ fontSize: '13px', color: '#64748b' }}>
                                 Upload an image and describe how you want to edit it
+                            </div>
+                            <div style={{
+                                marginTop: '12px',
+                                padding: '10px 14px',
+                                background: '#fef3c7',
+                                border: '1px solid #fde68a',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                color: '#92400e',
+                                display: 'flex',
+                                gap: '8px',
+                                alignItems: 'start'
+                            }}>
+                                <MDBIcon fas icon="exclamation-triangle" style={{ marginTop: '2px', flexShrink: 0 }} />
+                                <div>
+                                    <strong>Note:</strong> OpenAI DALL-E 2 outputs images at 1024×1024 resolution. 
+                                    Original dimensions and aspect ratios are not preserved. 
+                                    For better quality preservation, consider using Stability AI or specialized editing services.
+                                </div>
                             </div>
                         </div>
 

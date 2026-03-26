@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import {
     MDBListGroup,
@@ -35,7 +35,7 @@ interface LeftSidebarProps {
 
 interface Chatbot { chatbotId: string; name: string; }
 
-export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: LeftSidebarProps) {
+function SidebarContent({ onDrawerStateChange, onNavItemClick }: LeftSidebarProps) {
     const [darkMode, setDarkMode] = useState(false);
     const pathname = usePathname() || '';
     const router = useRouter();
@@ -159,13 +159,18 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             title: 'AI SOCIAL MEDIA',
             items: [
                 { name: 'Social Media Suite', icon: 'share-alt', href: '/social-media-suite' },
+                { name: 'Assets', icon: 'image', href: '/assets' },
+            ]
+        },
+        {
+            title: 'AI IMAGE',
+            items: [
                 { name: 'AI Images', icon: 'palette', href: '/ai-images' },
                 { name: 'AI Videos', icon: 'video', href: '/ai-videos' },
                 { name: 'AI Photo Studio', icon: 'adjust', href: '/ai-photo-studio' },
                 { name: 'AI Product Photo', icon: 'camera', href: '/ai-product-photo' },
                 { name: 'AI Product Studio', icon: 'cube', href: '/ai-product-studio' },
-                { name: 'Face Swap', icon: 'user-friends', href: '/face-swap' },
-                { name: 'Assets', icon: 'image', href: '/assets' },
+                { name: 'Face Swap', icon: 'user-friends', href: '/face-swap' }
             ]
         },
         {
@@ -404,6 +409,20 @@ export default function LeftSidebar({ onDrawerStateChange, onNavItemClick }: Lef
             
         </div>
         </>
+    );
+}
+
+export default function LeftSidebar(props: LeftSidebarProps) {
+    return (
+        <Suspense fallback={
+            <div className="dashboard-sidebar" style={{ width: '280px', border: 'none' }}>
+                <div className="dashboard-sidebar-header">
+                    <h5 className="fw-bold mb-0 text-center">{appConfig.chatbotName}</h5>
+                </div>
+            </div>
+        }>
+            <SidebarContent {...props} />
+        </Suspense>
     );
 }
 

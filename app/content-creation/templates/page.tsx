@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LeftSidebar from '@/component/LeftSidebar';
 import PageHeader from '@/component/PageHeader';
@@ -82,7 +82,7 @@ function TemplateCard({ template, onClick }: { template: ContentTemplate; onClic
   );
 }
 
-export default function TemplatesPage() {
+function TemplatesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeCategory, setActiveCategory] = useState('All');
@@ -221,5 +221,22 @@ export default function TemplatesPage() {
       </div>
       </main>
     </div>
+  );
+}
+
+export default function TemplatesPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', width: '100%', minHeight: '100vh', background: '#f8f9fa' }}>
+        <LeftSidebar />
+        <main style={{ flex: 1, marginLeft: '280px', paddingTop: '60px', background: '#f8f9fa', minHeight: '100vh' }}>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#9ca3af' }}>
+            Loading templates...
+          </div>
+        </main>
+      </div>
+    }>
+      <TemplatesPageContent />
+    </Suspense>
   );
 }

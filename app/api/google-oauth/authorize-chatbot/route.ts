@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Google OAuth authorization endpoint for chatbot owners
  * This generates the Google OAuth URL for the chatbot owner to connect their Google Calendar

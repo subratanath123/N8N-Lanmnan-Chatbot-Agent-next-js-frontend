@@ -3,6 +3,42 @@
 ## Overview
 AI Photo Studio enables users to edit and enhance images using AI. Features include custom edits with instructions, quality enhancement, background removal, and AI recoloring.
 
+## ⚠️ Important Limitations
+
+### OpenAI DALL-E 2 Edit API Constraints:
+1. **Fixed Output Size**: Only supports 256x256, 512x512, or 1024x1024
+2. **Quality Loss**: Images are resized to 1024x1024 maximum
+3. **No Dimension Preservation**: Cannot maintain original aspect ratio or size
+4. **Model Limitation**: DALL-E 3 does NOT support image editing
+
+### Recommended Alternatives for Production:
+
+For better quality and dimension preservation:
+
+1. **Stability AI Inpainting** ✅ Best for editing
+   - Preserves original dimensions
+   - Better quality
+   - More precise edits
+   - API: `https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image`
+
+2. **Replicate Models** ✅ Best for flexibility
+   - Many specialized models
+   - Various resolutions supported
+   - Cost effective
+   - Models: `stability-ai/sdxl`, `lucataco/animate-diff`
+
+3. **ClipDrop API** ✅ Best for background removal
+   - Specialized in product/portrait editing
+   - High quality background removal
+   - Maintains dimensions
+   - API: `https://clipdrop.co/apis`
+
+4. **Remove.bg** ✅ Best for background removal only
+   - Industry standard
+   - Preserves full resolution
+   - Very accurate
+   - API: `https://api.remove.bg/v1.0/removebg`
+
 ## Architecture
 
 ### Frontend
@@ -58,6 +94,63 @@ The service currently uses **OpenAI's Image Edit API**:
 2. **Replicate** - Various image editing models
 3. **ClipDrop** - Background removal and enhancement
 4. **Remove.bg** - Specialized background removal
+
+## Recommended: Stability AI Integration
+
+For production use with dimension preservation, use Stability AI:
+
+```java
+// Add to application.properties
+stability.api.key=sk-your-stability-api-key
+
+// Update AIPhotoStudioService.java
+@Value("${stability.api.key:}")
+private String stabilityApiKey;
+
+private static final String STABILITY_INPAINT_URL = 
+    "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image";
+
+private String callStabilityAI(MultipartFile imageFile, String instruction) throws Exception {
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+    headers.set("Authorization", "Bearer " + stabilityApiKey);
+
+    MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+    
+    body.add("init_image", new ByteArrayResource(imageFile.getBytes()) {
+        @Override
+        public String getFilename() {
+            return imageFile.getOriginalFilename();
+        }
+    });
+    
+    body.add("text_prompts[0][text]", instruction);
+    body.add("text_prompts[0][weight]", 1.0);
+    body.add("init_image_mode", "IMAGE_STRENGTH");
+    body.add("image_strength", 0.35);  // Lower = preserve more of original
+    body.add("cfg_scale", 7);
+    body.add("samples", 1);
+
+    HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+
+    ResponseEntity<Map> response = restTemplate.exchange(
+            STABILITY_INPAINT_URL,
+            HttpMethod.POST,
+            request,
+            Map.class
+    );
+
+    // Parse response and get image URL or base64
+    Map<String, Object> responseBody = response.getBody();
+    List<Map<String, Object>> artifacts = 
+        (List<Map<String, Object>>) responseBody.get("artifacts");
+    
+    String base64Image = (String) artifacts.get(0).get("base64");
+    
+    // Upload base64 to your storage and return URL
+    return uploadBase64ToStorage(base64Image);
+}
+```
 
 ## Edit Types
 
