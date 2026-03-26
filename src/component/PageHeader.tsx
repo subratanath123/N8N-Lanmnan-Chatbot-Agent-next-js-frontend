@@ -1,14 +1,15 @@
 "use client";
 
 import React from "react";
+import { MDBIcon } from "mdb-react-ui-kit";
 
 interface PageHeaderProps {
   /** e.g. ["Home", "AI Chatbots"] — joined with › */
   breadcrumb: string[];
   title: string;
   subtitle?: string;
-  /** SVG or emoji element rendered inside the 48×48 icon box */
-  icon?: React.ReactNode;
+  /** SVG or emoji element, or Font Awesome name (e.g. "user-circle") rendered inside the icon box */
+  icon?: React.ReactNode | string;
   /** Buttons / controls rendered on the right side */
   actions?: React.ReactNode;
 }
@@ -24,6 +25,13 @@ export default function PageHeader({
   icon,
   actions,
 }: PageHeaderProps) {
+  const iconEl =
+    icon == null ? null : typeof icon === "string" ? (
+      <MDBIcon fas icon={icon} style={{ color: "#2563eb", fontSize: "18px" }} />
+    ) : (
+      icon
+    );
+
   return (
     <div
       style={{
@@ -54,7 +62,7 @@ export default function PageHeader({
           </div>
         )}
         <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-          {icon && (
+          {iconEl && (
             <div
               style={{
                 width: "36px",
@@ -69,7 +77,7 @@ export default function PageHeader({
                 marginTop: "2px",
               }}
             >
-              {icon}
+              {iconEl}
             </div>
           )}
           <div>

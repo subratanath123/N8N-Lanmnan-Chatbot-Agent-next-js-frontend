@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import PageHeader from '@/component/PageHeader';
+import LeftSidebar from '@/component/LeftSidebar';
 import { MDBBtn, MDBCard, MDBCardBody, MDBIcon, MDBInput, MDBTable, MDBTableHead, MDBTableBody } from 'mdb-react-ui-kit';
 import { useAuth, useUser } from '@clerk/nextjs';
 
@@ -14,8 +15,9 @@ interface TeamMember {
 }
 
 export default function TeamMembersPage() {
-    const { user } = useUser();
+    const { isSignedIn, isLoaded } = useUser();
     const { getToken } = useAuth();
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [members, setMembers] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -25,8 +27,21 @@ export default function TeamMembersPage() {
     const [inviting, setInviting] = useState(false);
 
     useEffect(() => {
+        if (!isLoaded || !isSignedIn) return;
         loadTeamMembers();
-    }, []);
+    }, [isLoaded, isSignedIn]);
+
+    const handleDrawerStateChange = (_isOpen: boolean, _activeItem: string, collapsed?: boolean) => {
+        if (collapsed !== undefined) {
+            setSidebarCollapsed(collapsed);
+        }
+    };
+
+    const handleNavItemClick = (_itemName: string, itemHref: string) => {
+        if (itemHref && itemHref !== '#' && itemHref.startsWith('/')) {
+            window.location.href = itemHref;
+        }
+    };
 
     const loadTeamMembers = async () => {
         try {
@@ -123,9 +138,64 @@ export default function TeamMembersPage() {
         }
     };
 
+    if (!isLoaded) {
+        return (
+            <div className="full-height-layout">
+                <LeftSidebar
+                    onDrawerStateChange={handleDrawerStateChange}
+                    onNavItemClick={handleNavItemClick}
+                />
+                <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100vh',
+                        }}
+                    >
+                        <div>Loading...</div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isSignedIn) {
+        return (
+            <div className="full-height-layout">
+                <LeftSidebar
+                    onDrawerStateChange={handleDrawerStateChange}
+                    onNavItemClick={handleNavItemClick}
+                />
+                <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100vh',
+                            flexDirection: 'column',
+                            gap: '16px',
+                        }}
+                    >
+                        <h2>Please sign in to manage team members</h2>
+                        <a href="/">
+                            <MDBBtn color="primary">Go to Home</MDBBtn>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div style={{ display: 'flex', width: '100%', minHeight: '100vh', background: '#f8f9fa' }}>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="full-height-layout">
+            <LeftSidebar
+                onDrawerStateChange={handleDrawerStateChange}
+                onNavItemClick={handleNavItemClick}
+            />
+            <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
                 <PageHeader
                     title="Team Members"
                     subtitle="Manage your team and invite new members"
@@ -133,7 +203,7 @@ export default function TeamMembersPage() {
                     breadcrumb={['Account']}
                 />
 
-                <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '24px' }}>
+                <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '24px', background: '#f8f9fa', flex: 1, width: '100%', minWidth: 0 }}>
                     {/* Invite Button */}
                     <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
                         <MDBBtn

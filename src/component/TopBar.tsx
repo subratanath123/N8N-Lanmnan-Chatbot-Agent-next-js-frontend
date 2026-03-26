@@ -13,6 +13,7 @@ export default function TopBar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +30,10 @@ export default function TopBar() {
       document.removeEventListener("mousedown", handleClick);
     };
   }, []);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [user?.imageUrl, user?.id]);
 
   const getInitials = () => {
     if (!user) return "U";
@@ -135,10 +140,14 @@ export default function TopBar() {
           >
             {/* Avatar */}
             <div style={avatarCircle}>
-              {user?.imageUrl ? (
+              {user?.imageUrl && !avatarFailed ? (
                 <img
                   src={user.imageUrl}
                   alt={displayName}
+                  referrerPolicy="no-referrer"
+                  loading="eager"
+                  decoding="async"
+                  onError={() => setAvatarFailed(true)}
                   style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "10px" }}
                 />
               ) : (
@@ -170,9 +179,16 @@ export default function TopBar() {
               {/* Clerk user info header */}
               <div style={{ padding: "16px", borderBottom: "1px solid #f1f5f9", display: "flex", gap: "12px", alignItems: "center" }}>
                 <div style={{ ...avatarCircle, width: 44, height: 44, borderRadius: "13px", fontSize: "16px", flexShrink: 0 }}>
-                  {user?.imageUrl ? (
-                    <img src={user.imageUrl} alt={displayName}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "13px" }} />
+                  {user?.imageUrl && !avatarFailed ? (
+                    <img
+                      src={user.imageUrl}
+                      alt={displayName}
+                      referrerPolicy="no-referrer"
+                      loading="eager"
+                      decoding="async"
+                      onError={() => setAvatarFailed(true)}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "13px" }}
+                    />
                   ) : (
                     <span style={{ fontWeight: 700 }}>{getInitials()}</span>
                   )}
@@ -184,7 +200,7 @@ export default function TopBar() {
                   <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {email}
                   </div>
-                  {user?.publicMetadata?.role && (
+                  {user?.publicMetadata?.role != null && String(user.publicMetadata.role).trim() !== "" && (
                     <span style={{
                       display: "inline-block", marginTop: "5px", fontSize: "10px", fontWeight: 700,
                       padding: "2px 8px", borderRadius: "999px",
@@ -200,6 +216,7 @@ export default function TopBar() {
               <div style={{ padding: "6px 0" }}>
                 {[
                   { label: "Dashboard", icon: dashboardIcon, href: "/dashboard" },
+                  { label: "My Account", icon: accountIcon, href: "/account" },
                   { label: "AI Chatbots", icon: botIcon, href: "/ai-chatbots" },
                   { label: "Settings", icon: settingsIcon, href: "/settings" },
                   { label: "Subscription", icon: cardIcon, href: "/subscription" },
@@ -238,6 +255,12 @@ const dashboardIcon = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
     <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+  </svg>
+);
+const accountIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
   </svg>
 );
 const botIcon = (
@@ -338,6 +361,7 @@ const profileChip: React.CSSProperties = {
   cursor: "pointer",
   transition: "border-color 0.15s, background 0.15s",
   maxWidth: 260,
+  flexShrink: 0,
 };
 
 const avatarCircle: React.CSSProperties = {
