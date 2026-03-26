@@ -164,6 +164,7 @@ export default function TemplatePage({ params }: { params: { slug: string } }) {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [variantCount, setVariantCount] = useState(1);
+  const [improvementScope, setImprovementScope] = useState('');
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview');
   const outputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -214,9 +215,72 @@ export default function TemplatePage({ params }: { params: { slug: string } }) {
       const reply = extractContent(data);
       if (!reply?.trim()) throw new Error('AI did not return usable content. Please try again.');
       setOutput(reply.trim());
+      setImprovementScope('');
       setViewMode('preview');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Generation failed');
+    }
+    setLoading(false);
+  };
+
+  const appendImprovementHint = (hint: string) => {
+    setImprovementScope(prev => {
+      const t = prev.trim();
+      if (!t) return hint;
+      if (t.toLowerCase().includes(hint.toLowerCase())) return prev;
+      return `${t}; ${hint}`;
+    });
+  };
+
+  const handleRefine = async () => {
+    if (!template || !output.trim() || !improvementScope.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) throw new Error('Backend URL is not configured (NEXT_PUBLIC_BACKEND_URL).');
+
+      const baseContext = template.buildPrompt(values);
+      const refinePrompt =
+        `${baseContext}\n\n` +
+        '---\n' +
+        'Below is the draft you (the assistant) should revise. The user was not fully satisfied and described what to improve.\n' +
+        'Output only the full revised content in the same format (e.g. markdown) as the draft. Do not add a preamble or meta-commentary.\n\n' +
+        'DRAFT TO REVISE:\n' +
+        `${output.trim()}\n\n` +
+        'USER FEEDBACK (improvement scope):\n' +
+        `${improvementScope.trim()}\n` +
+        '---';
+
+      const sessionId = `content_${template.id}_refine_${Date.now()}`;
+      const res = await fetch(`${backendUrl}/v1/api/n8n/anonymous/chat/generic`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'user',
+          message: refinePrompt,
+          sessionId,
+          model: 'gpt-4o',
+        }),
+      });
+
+      const rawText = await res.text();
+      let data: Record<string, unknown>;
+      try { data = rawText ? JSON.parse(rawText) : {}; } catch { data = { message: rawText }; }
+
+      if (!res.ok || (data && data.success === false)) {
+        throw new Error(
+          (data && ((data.errorMessage as string) || (data.message as string))) ||
+          `AI error: ${res.status}`
+        );
+      }
+
+      const reply = extractContent(data);
+      if (!reply?.trim()) throw new Error('AI did not return usable content. Please try again.');
+      setOutput(reply.trim());
+      setViewMode('preview');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Refinement failed');
     }
     setLoading(false);
   };
@@ -384,6 +448,119 @@ export default function TemplatePage({ params }: { params: { slug: string } }) {
               )}
             </button>
 
+            {/* Refine with feedback — uses last generated content + improvement scope */}
+            {output.trim() !== '' && (
+              <div
+                style={{
+                  marginTop: '20px',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #e0e7ff',
+                  background: 'linear-gradient(180deg, #f8faff 0%, #fff 100%)',
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#4f46e5', marginBottom: '6px', letterSpacing: '0.02em' }}>
+                  Not quite right?
+                </div>
+                <p style={{ margin: '0 0 10px', fontSize: '12.5px', color: '#64748b', lineHeight: 1.55 }}>
+                  Describe what to change. We send this together with your current draft so the AI can revise it.
+                </p>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                  Improvement scope
+                </label>
+                <textarea
+                  value={improvementScope}
+                  onChange={e => setImprovementScope(e.target.value)}
+                  placeholder="e.g. Shorter opening, more formal tone, add bullet points, stronger call to action…"
+                  rows={4}
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    borderRadius: '8px',
+                    border: '1.5px solid #e5e7eb',
+                    padding: '10px 12px',
+                    fontSize: '13px',
+                    color: '#111827',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    lineHeight: 1.55,
+                    background: '#fff',
+                    marginBottom: '10px',
+                  }}
+                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                  {[
+                    'Make it shorter',
+                    'More professional tone',
+                    'Add more detail',
+                    'Simpler language',
+                  ].map(hint => (
+                    <button
+                      key={hint}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => appendImprovementHint(hint)}
+                      style={{
+                        fontSize: '11px',
+                        padding: '5px 10px',
+                        borderRadius: '999px',
+                        border: '1px solid #c7d2fe',
+                        background: '#fff',
+                        color: '#4338ca',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontWeight: 600,
+                        fontFamily: 'inherit',
+                        opacity: loading ? 0.6 : 1,
+                      }}
+                    >
+                      + {hint}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRefine}
+                  disabled={loading || !improvementScope.trim()}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #6366f1',
+                    background: !loading && improvementScope.trim() ? '#fff' : '#f3f4f6',
+                    color: !loading && improvementScope.trim() ? '#4f46e5' : '#9ca3af',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    cursor: !loading && improvementScope.trim() ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        style={{ animation: 'spin 1s linear infinite' }}>
+                        <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                        <path d="M12 2a10 10 0 0 1 10 10" />
+                      </svg>
+                      Refining…
+                    </>
+                  ) : (
+                    <>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                      </svg>
+                      Refine with AI
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
 
@@ -445,7 +622,7 @@ export default function TemplatePage({ params }: { params: { slug: string } }) {
                   <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg><span>Download</span></>
                 } />
                 {output && (
-                  <ToolBtn title="Clear output" onClick={() => setOutput('')} icon={
+                  <ToolBtn title="Clear output" onClick={() => { setOutput(''); setImprovementScope(''); }} icon={
                     <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg><span>Clear</span></>
                   } />
                 )}

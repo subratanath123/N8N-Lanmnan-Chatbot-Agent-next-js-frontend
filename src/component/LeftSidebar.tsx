@@ -425,4 +425,3 @@ export default function LeftSidebar(props: LeftSidebarProps) {
         </Suspense>
     );
 }
-
