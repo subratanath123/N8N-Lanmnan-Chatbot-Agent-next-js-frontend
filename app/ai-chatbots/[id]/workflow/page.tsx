@@ -443,6 +443,8 @@ export default function WorkflowPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [chatbotName, setChatbotName] = useState("");
+  /** Only true when GET /chatbot/{id} returns canConfigure: true (owner or team Admin/Editor). */
+  const [canConfigure, setCanConfigure] = useState(false);
   const [activeTab, setActiveTab] = useState<"actions" | "test">("actions");
   const [actions, setActions] = useState<ActionEndpoint[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -479,7 +481,13 @@ export default function WorkflowPage() {
       const h = await authHeaders();
       try {
         const cb = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}`, { headers: h });
-        if (cb.ok) { const d = await cb.json(); setChatbotName(d.name || d.chatbotId || chatbotId); }
+        if (cb.ok) {
+          const d = await cb.json();
+          setChatbotName(d.name || d.chatbotId || chatbotId);
+          setCanConfigure(d.canConfigure === true);
+        } else {
+          setCanConfigure(false);
+        }
         const wf = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}/workflow`, { headers: h });
         if (wf.ok) {
           const d = await wf.json();
@@ -515,6 +523,7 @@ export default function WorkflowPage() {
 
   /* save */
   const handleSave = async () => {
+    if (!canConfigure) return;
     setIsSaving(true); setSaveStatus("idle");
     try {
       const h = await authHeaders();
@@ -528,9 +537,12 @@ export default function WorkflowPage() {
   };
 
   /* action CRUD */
-  const updateAction = (id: string, field: keyof ActionEndpoint, val: unknown) =>
+  const updateAction = (id: string, field: keyof ActionEndpoint, val: unknown) => {
+    if (!canConfigure) return;
     setActions(prev => prev.map(a => a.id === id ? { ...a, [field]: val } : a));
+  };
   const removeAction = (id: string) => {
+    if (!canConfigure) return;
     setActions(prev => prev.filter(a => a.id !== id));
     setAuthSourceByActionId(prev => {
       const next = { ...prev };
@@ -539,6 +551,7 @@ export default function WorkflowPage() {
     });
   };
   const addAction = () => {
+    if (!canConfigure) return;
     const a = newAction();
     setActions(prev => [...prev, a]);
     setAuthSourceByActionId(prev => ({ ...prev, [a.id]: "userToken" }));
@@ -553,6 +566,7 @@ export default function WorkflowPage() {
 
   /* test */
   const handleTest = async () => {
+    if (!canConfigure) return;
     const action = actions.find(a => a.id === testActionId);
     if (!action?.url?.trim()) {
       setTestResult({ status: null, ok: false, requestSent: "", responseBody: "", durationMs: null, error: !action ? "Select an action." : "This action has no URL configured." });
@@ -644,11 +658,14 @@ export default function WorkflowPage() {
                 </p>
               </div>
             </div>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
               {saveStatus === "saved" && <span style={{ fontSize: "13px", color: "#16a34a", fontWeight: 600 }}>✅ Saved</span>}
               {saveStatus === "error" && <span style={{ fontSize: "13px", color: "#dc2626", fontWeight: 600 }}>⚠️ Save failed</span>}
+              {!canConfigure && (
+                <span style={{ fontSize: "13px", color: "#64748b", fontWeight: 600 }}>View only (shared as Viewer)</span>
+              )}
               <button onClick={() => router.push(`/ai-chatbots/${chatbotId}`)} style={btnOutline}>← Back</button>
-              <button onClick={handleSave} disabled={isSaving} style={{ ...btnPrimary, opacity: isSaving ? 0.7 : 1 }}>
+              <button onClick={handleSave} disabled={isSaving || !canConfigure} style={{ ...btnPrimary, opacity: isSaving || !canConfigure ? 0.6 : 1 }}>
                 {isSaving ? <><SpinIcon /> Saving…</> : <><SaveIcon /> Save Config</>}
               </button>
             </div>
@@ -724,7 +741,7 @@ export default function WorkflowPage() {
                 <div style={{ fontSize: "44px", marginBottom: "12px" }}>🔌</div>
                 <h3 style={{ margin: 0, color: "#0f172a", fontWeight: 700 }}>No actions yet</h3>
                 <p style={{ color: "#64748b", fontSize: "14px", margin: "8px 0 20px" }}>Add your first action — e.g. "Place Order", "Check Stock", "Book Appointment".</p>
-                <button onClick={addAction} style={btnPrimary}>+ Add First Action</button>
+                <button onClick={addAction} disabled={!canConfigure} style={{ ...btnPrimary, opacity: !canConfigure ? 0.6 : 1 }}>+ Add First Action</button>
               </div>
             )}
 
@@ -762,7 +779,7 @@ export default function WorkflowPage() {
                     <div
                       onClick={e => { e.stopPropagation(); updateAction(action.id, "enabled", !action.enabled); }}
                       title={action.enabled ? "Enabled" : "Disabled"}
-                      style={{ width: 36, height: 20, borderRadius: 999, background: action.enabled ? "#2563eb" : "#d1d5db", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}
+                      style={{ width: 36, height: 20, borderRadius: 999, background: action.enabled ? "#2563eb" : "#d1d5db", position: "relative", cursor: canConfigure ? "pointer" : "not-allowed", transition: "background 0.2s", flexShrink: 0, opacity: canConfigure ? 1 : 0.55 }}
                     >
                       <div style={{ position: "absolute", top: 2, left: action.enabled ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                     </div>
@@ -840,7 +857,9 @@ export default function WorkflowPage() {
                             <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "12px", alignItems: "start" }}>
                               <Row label="Auth Type">
                                 <select style={selectStyle} value={action.authType}
+                                  disabled={!canConfigure}
                                   onChange={e => {
+                                    if (!canConfigure) return;
                                     const nextType = e.target.value as AuthType;
                                     updateAction(action.id, "authType", nextType);
                                     if (nextType === "none") {
@@ -871,6 +890,7 @@ export default function WorkflowPage() {
                                         <button
                                           type="button"
                                           onClick={() => {
+                                            if (!canConfigure) return;
                                             setAuthSourceByActionId(prev => ({ ...prev, [action.id]: "userToken" }));
                                             updateAction(action.id, "authValue", USER_TOKEN_EXPR);
                                           }}
@@ -891,6 +911,7 @@ export default function WorkflowPage() {
                                         <button
                                           type="button"
                                           onClick={() => {
+                                            if (!canConfigure) return;
                                             setAuthSourceByActionId(prev => ({ ...prev, [action.id]: "static" }));
                                             if (isUserTokenAuthValue(action.authValue || "")) {
                                               updateAction(action.id, "authValue", "");
@@ -1125,7 +1146,7 @@ export default function WorkflowPage() {
                         )}
 
                         <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: "12px", marginTop: "4px", borderTop: "1px solid #f1f5f9" }}>
-                          <button onClick={() => removeAction(action.id)} style={btnDanger}>🗑 Remove Action</button>
+                          <button type="button" onClick={() => removeAction(action.id)} disabled={!canConfigure} style={{ ...btnDanger, opacity: !canConfigure ? 0.6 : 1 }}>🗑 Remove Action</button>
                         </div>
                       </div>
                     </div>
@@ -1135,7 +1156,7 @@ export default function WorkflowPage() {
             })}
 
             {actions.length > 0 && (
-              <button onClick={addAction} style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px dashed #bfdbfe", background: "#f8faff", color: "#2563eb", fontWeight: 700, fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+              <button type="button" onClick={addAction} disabled={!canConfigure} style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px dashed #bfdbfe", background: "#f8faff", color: "#2563eb", fontWeight: 700, fontSize: "14px", cursor: !canConfigure ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", opacity: !canConfigure ? 0.6 : 1 }}>
                 + Add Another Action
               </button>
             )}
@@ -1244,8 +1265,8 @@ export default function WorkflowPage() {
                         </>
                       )}
 
-                      <button onClick={handleTest} disabled={isTesting || !testActionId}
-                        style={{ ...btnPrimary, width: "100%", justifyContent: "center", opacity: isTesting || !testActionId ? 0.6 : 1 }}>
+                      <button onClick={handleTest} disabled={isTesting || !testActionId || !canConfigure}
+                        style={{ ...btnPrimary, width: "100%", justifyContent: "center", opacity: isTesting || !testActionId || !canConfigure ? 0.6 : 1 }}>
                         {isTesting ? <><SpinIcon /> Sending…</> : "▶ Send Request"}
                       </button>
                     </>

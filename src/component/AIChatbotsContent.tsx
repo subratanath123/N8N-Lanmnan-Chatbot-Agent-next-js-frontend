@@ -71,8 +71,14 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
     }, [openMenuId]);
     
     // Clerk Authentication
-    const { isSignedIn } = useUser();
+    const { isSignedIn, user } = useUser();
     const { getToken } = useAuth();
+
+    const isChatbotOwner = (c: { createdBy?: string }) => {
+        const me = user?.primaryEmailAddress?.emailAddress;
+        if (!me || !c?.createdBy) return false;
+        return me.toLowerCase() === String(c.createdBy).toLowerCase();
+    };
 
     // Close delete confirmation on Esc
     useEffect(() => {
@@ -451,6 +457,8 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
 
     // Handle enable/disable toggle
     const handleToggleEnabled = async (chatbotId: string, currentStatus: string) => {
+        const bot = chatbots.find((b) => b.id === chatbotId);
+        if (bot?.canConfigure !== true) return;
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
             const newStatus = currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
@@ -732,6 +740,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                                     >
                                                         Copy Embed
                                                     </button>
+                                                    {isChatbotOwner(chatbot) && (
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -752,6 +761,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                                     >
                                                         Delete
                                                     </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -760,8 +770,22 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                     {/* Info: Name, Date, Toggle */}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '20px' }}>
                                         <div>
-                                            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>
+                                            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                                 {chatbot.title || chatbot.name || `Chatbot ${index + 1}`}
+                                                {!isChatbotOwner(chatbot) && (
+                                                    <span style={{
+                                                        fontSize: '10px',
+                                                        fontWeight: 700,
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.06em',
+                                                        color: '#4f46e5',
+                                                        background: '#eef2ff',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '6px',
+                                                    }}>
+                                                        Shared
+                                                    </span>
+                                                )}
                                             </h3>
                                             <p style={{ margin: 0, color: '#6b7280', fontSize: '13px' }}>
                                                 Created on {chatbot.createdAt
@@ -774,6 +798,7 @@ export default function AIChatbotsContent({ activeItem, embedOrigin: externalOri
                                             <span style={{ fontSize: '12px', color: '#6b7280' }}>{chatbot.status === 'ACTIVE' ? 'Active' : 'Inactive'}</span>
                                             <MDBSwitch
                                                 checked={chatbot.status === 'ACTIVE'}
+                                                disabled={chatbot.canConfigure !== true}
                                                 onChange={(e) => {
                                                     e.stopPropagation();
                                                     handleToggleEnabled(chatbot.id, chatbot.status);

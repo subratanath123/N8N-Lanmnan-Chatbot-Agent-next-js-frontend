@@ -101,8 +101,10 @@ export default function TeamMembersPage() {
                 setShowInviteModal(false);
                 await loadTeamMembers();
             } else {
-                const data = await res.json();
-                setError(data.message || 'Failed to send invite');
+                const data = await res.json().catch(() => ({}));
+                setError((data as { message?: string; error?: string }).message
+                    || (data as { error?: string }).error
+                    || 'Failed to send invite');
             }
         } catch (err) {
             console.error('Error inviting member:', err);
@@ -198,7 +200,7 @@ export default function TeamMembersPage() {
             <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
                 <PageHeader
                     title="Team Members"
-                    subtitle="Manage your team and invite new members"
+                    subtitle="Invite colleagues by email. Admin and Editor roles can configure your chatbots; Viewers can open them read-only."
                     icon="users"
                     breadcrumb={['Account']}
                 />

@@ -116,6 +116,8 @@ interface Chatbot {
     hideMainBannerLogo?: boolean;
     /** When true, AI avatars are hidden next to message bubbles (matches embedded widget). */
     hideName?: boolean;
+    /** From API: false for team Viewers on shared chatbots */
+    canConfigure?: boolean;
 }
 
 export default function ChatbotDetailPage() {
@@ -126,6 +128,8 @@ export default function ChatbotDetailPage() {
     const [chatbot, setChatbot] = useState<Chatbot | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
+    /** Owner or team Admin/Editor; require explicit true from API (missing/false = read-only). */
+    const canConfigure = chatbot?.canConfigure === true;
     const [editedChatbot, setEditedChatbot] = useState<Chatbot | null>(null);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showEmbedCode, setShowEmbedCode] = useState(false);
@@ -796,6 +800,12 @@ export default function ChatbotDetailPage() {
         }
     }, [chatbotId, isLoaded]);
 
+    useEffect(() => {
+        if (chatbot?.canConfigure !== true && isEditing) {
+            setIsEditing(false);
+        }
+    }, [chatbot?.canConfigure, isEditing]);
+
     const fetchChatbotDetails = async () => {
         setIsLoading(true);
         try {
@@ -1286,6 +1296,7 @@ export default function ChatbotDetailPage() {
     };
 
     const handleSave = async () => {
+        if (!canConfigure) return;
         if (!editedChatbot) return;
 
         try {
@@ -2046,9 +2057,11 @@ export default function ChatbotDetailPage() {
                 }
                 actions={
                     <>
+                        {canConfigure && (
                         <MDBBtn color="dark" outline onClick={() => router.push(`/ai-chatbots/${chatbotId}/workflow`)} className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
                             <MDBIcon icon="project-diagram" /> Workflow
                         </MDBBtn>
+                        )}
                         <MDBBtn color="info" outline onClick={handleKnowledgeModalOpen} className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
                             <MDBIcon icon="database" /> Knowledge Base
                         </MDBBtn>
@@ -2058,7 +2071,7 @@ export default function ChatbotDetailPage() {
                         <MDBBtn color="primary" onClick={() => handleOpenConversationDrawer('new')} className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
                             <MDBIcon icon="plus" /> New Chat
                         </MDBBtn>
-                        {!isEditing ? (
+                        {canConfigure && (!isEditing ? (
                             <MDBBtn onClick={() => { setEditedChatbot(chatbot); setIsEditing(true); }} color="primary" className="d-flex align-items-center gap-2" style={{ borderRadius: '999px', padding: '8px 16px', fontWeight: 600, fontSize: '13px' }}>
                                 <MDBIcon icon="edit" /> Edit
                             </MDBBtn>
@@ -2071,7 +2084,7 @@ export default function ChatbotDetailPage() {
                                     <MDBIcon icon="save" /> Save
                                 </MDBBtn>
                             </>
-                        )}
+                        ))}
                     </>
                 }
             />
@@ -3439,6 +3452,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                                 size="sm"
                                                 outline
                                                 onClick={disconnectGoogleCalendar}
+                                                disabled={!canConfigure}
                                             >
                                                 Disconnect
                                             </MDBBtn>
@@ -3448,7 +3462,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                             color="primary"
                                             outline
                                             onClick={initiateGoogleCalendarAuth}
-                                            disabled={isConnectingGoogleCalendar}
+                                            disabled={!canConfigure || isConnectingGoogleCalendar}
                                         >
                                             {isConnectingGoogleCalendar ? (
                                                 <>
@@ -3495,6 +3509,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                         id="whatsapp" 
                                         label=""
                                         checked={!!chatbot?.enableWhatsappIntegration}
+                                        disabled={!canConfigure}
                                         onChange={async (e) => {
                                             const enabled = e.target.checked;
                                             
@@ -3565,7 +3580,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                             : 'Toggle to enable WhatsApp Business integration for this chatbot.'}
                                     </div>
                                     <MDBBtn
-                                        disabled={!chatbot?.enableWhatsappIntegration}
+                                        disabled={!canConfigure || !chatbot?.enableWhatsappIntegration}
                                         color="success"
                                         outline={!chatbot?.enableWhatsappIntegration}
                                         onClick={handleOpenWhatsappModal}
@@ -3615,6 +3630,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                         id="facebook" 
                                         label=""
                                         checked={!!chatbot?.enableFacebookIntegration}
+                                        disabled={!canConfigure}
                                         onChange={async (e) => {
                                             const enabled = e.target.checked;
                                             
@@ -3685,7 +3701,7 @@ Body: { "message": "Hello", "sessionId": "optional" }`;
                                             : 'Toggle to connect your Facebook page for Messenger automation.'}
                                     </div>
                                     <MDBBtn
-                                        disabled={!chatbot?.enableFacebookIntegration}
+                                        disabled={!canConfigure || !chatbot?.enableFacebookIntegration}
                                         color="primary"
                                         outline={!chatbot?.enableFacebookIntegration}
                                       onClick={handleOpenFacebookModal}
