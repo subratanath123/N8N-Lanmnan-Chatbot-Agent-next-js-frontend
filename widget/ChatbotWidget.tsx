@@ -62,8 +62,9 @@ interface ChatbotWidgetConfig {
   authToken?: string; // Optional bearer token for authenticated requests
   /**
    * Token identifying the currently logged-in user on the *embedding website*.
-   * Passed with every message so the backend can forward it to workflow action
-   * endpoints via {{userToken}} in body templates.
+   * Sent on every chat request as:
+   * - JSON body field `userToken` (for backends that read the body)
+   * - HTTP header `userToken` (for N8N / workflow forwarding — same as server-side chat routes)
    * Can be a JWT, session token, or any string your backend can verify.
    *
    * @example
@@ -162,6 +163,15 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
   };
   
   const sessionIdRef = useRef<string>(getSessionId());
+
+  /** Merge `userToken` into request headers when configured (backend forwards to N8N as `userToken`). */
+  const withUserTokenHeader = (headers: Record<string, string>): Record<string, string> => {
+    const t = config.userToken;
+    if (t != null && String(t).trim() !== "") {
+      return { ...headers, userToken: String(t).trim() };
+    }
+    return headers;
+  };
 
   const scrollToBottom = () => {
     // Use setTimeout to ensure DOM has updated
@@ -540,7 +550,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
 
       const response = await fetch(`${config.apiUrl}${endpoint}`, {
         method: 'GET',
-        headers,
+        headers: withUserTokenHeader(headers),
       });
 
       if (!response.ok) {
@@ -848,7 +858,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
 
       const response = await fetch(`${config.apiUrl}${endpoint}`, {
         method: 'POST',
-        headers,
+        headers: withUserTokenHeader(headers),
         body: JSON.stringify(payload),
       });
 

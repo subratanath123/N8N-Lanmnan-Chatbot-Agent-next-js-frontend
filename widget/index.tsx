@@ -8,7 +8,8 @@ interface ChatbotWidgetConfig {
   authToken?: string;
   /**
    * Token identifying the currently logged-in user on the *embedding website*.
-   * Forwarded with every message so workflow action endpoints can identify the user.
+   * Sent with each chat request as JSON `userToken` and HTTP header `userToken`
+   * so the API can forward it to N8N / workflows.
    *
    * @example — server-rendered page
    *   window.ChatWidgetConfig = {

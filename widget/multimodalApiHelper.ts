@@ -104,7 +104,9 @@ export async function sendMultimodalMessageFormData(
   chatbotId: string,
   sessionId: string,
   authToken?: string,
-  googleTokens?: { accessToken: string; refreshToken: string }
+  googleTokens?: { accessToken: string; refreshToken: string },
+  /** Visitor token forwarded to N8N as `userToken` header (same as chat widget). */
+  userToken?: string
 ): Promise<MultimodalChatResponse> {
   const endpoint = authToken
     ? `/v1/api/n8n/multimodal/authenticated/multipart/chat`
@@ -134,6 +136,9 @@ export async function sendMultimodalMessageFormData(
 
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  if (userToken != null && String(userToken).trim() !== '') {
+    headers['userToken'] = String(userToken).trim();
   }
 
   // Don't set Content-Type - browser will set it with boundary
@@ -167,7 +172,8 @@ export async function sendMultimodalMessageFormData(
 export async function sendMultimodalMessage(
   apiUrl: string,
   request: MultimodalChatRequest,
-  authToken?: string
+  authToken?: string,
+  userToken?: string
 ): Promise<MultimodalChatResponse> {
   const endpoint = authToken
     ? `/v1/api/n8n/multimodal/authenticated/chat`
@@ -179,6 +185,9 @@ export async function sendMultimodalMessage(
 
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  if (userToken != null && String(userToken).trim() !== '') {
+    headers['userToken'] = String(userToken).trim();
   }
 
   const response = await fetch(`${apiUrl}${endpoint}`, {

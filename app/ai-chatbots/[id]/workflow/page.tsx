@@ -84,6 +84,7 @@ interface TestResult {
    Defaults
 ══════════════════════════════════════════════ */
 const SYSTEM_VARS = ["{{actionName}}", "{{message}}", "{{sessionId}}", "{{userId}}", "{{chatbotId}}", "{{userToken}}"];
+const USER_TOKEN_EXPR = "{{userToken}}";
 
 const DEFAULT_BODY = `{
   "action": "{{actionName}}",
@@ -114,6 +115,8 @@ const newAction = (): ActionEndpoint => ({
   failureMessage: "Sorry, I couldn't complete that action. Please try again.",
   enabled: true,
 });
+
+const isUserTokenAuthValue = (value: string) => value.trim() === USER_TOKEN_EXPR;
 
 /* ══════════════════════════════════════════════
    Helpers
@@ -447,6 +450,8 @@ export default function WorkflowPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [authSourceByActionId, setAuthSourceByActionId] = useState<Record<string, "userToken" | "static">>({});
+  const [showAuthValueByActionId, setShowAuthValueByActionId] = useState<Record<string, boolean>>({});
 
   /* test console */
   const [testActionId, setTestActionId] = useState("");
@@ -478,12 +483,18 @@ export default function WorkflowPage() {
         const wf = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}/workflow`, { headers: h });
         if (wf.ok) {
           const d = await wf.json();
-          setActions((d.actions || []).map((a: ActionEndpoint) => ({
+          const loadedActions = (d.actions || []).map((a: ActionEndpoint) => ({
             ...newAction(), ...a,
             params: a.params ?? [],
             responseMode: a.responseMode ?? "static",
             responsePath: a.responsePath ?? "message",
-          })));
+          }));
+          setActions(loadedActions);
+          const authSourceMap: Record<string, "userToken" | "static"> = {};
+          for (const action of loadedActions) {
+            authSourceMap[action.id] = isUserTokenAuthValue(action.authValue || "") ? "userToken" : "static";
+          }
+          setAuthSourceByActionId(authSourceMap);
         }
       } catch { /* first time */ }
       setIsLoading(false);
@@ -519,10 +530,18 @@ export default function WorkflowPage() {
   /* action CRUD */
   const updateAction = (id: string, field: keyof ActionEndpoint, val: unknown) =>
     setActions(prev => prev.map(a => a.id === id ? { ...a, [field]: val } : a));
-  const removeAction = (id: string) => setActions(prev => prev.filter(a => a.id !== id));
+  const removeAction = (id: string) => {
+    setActions(prev => prev.filter(a => a.id !== id));
+    setAuthSourceByActionId(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
   const addAction = () => {
     const a = newAction();
     setActions(prev => [...prev, a]);
+    setAuthSourceByActionId(prev => ({ ...prev, [a.id]: "userToken" }));
     setExpandedId(a.id);
     setExpandedSection(prev => ({ ...prev, [a.id]: "basic" }));
     setActiveTab("actions");
@@ -541,15 +560,39 @@ export default function WorkflowPage() {
     }
     setIsTesting(true); setTestResult(null);
     const body = interpolate(action.bodyTemplate, action, testMessage, testParams, chatbotId as string);
-    const reqH: Record<string, string> = { "Content-Type": "application/json" };
-    if (action.authType === "bearer") reqH["Authorization"] = `Bearer ${action.authValue}`;
-    if (action.authType === "apikey") reqH[action.apiKeyHeader || "X-API-Key"] = action.authValue;
-    if (action.authType === "basic")  reqH["Authorization"] = `Basic ${action.authValue}`;
     const t0 = Date.now();
     try {
-      const res = await fetch(action.url, { method: action.method, headers: reqH, body: action.method !== "GET" ? body : undefined });
-      const responseBody = await res.text();
-      setTestResult({ status: res.status, ok: res.ok, requestSent: body, responseBody, durationMs: Date.now() - t0, error: "" });
+      const h = await authHeaders();
+      const userTokenForTest = (isSignedIn && getToken) ? (await getToken()) || "" : "";
+      const res = await fetch(`${backendUrl}/v1/api/chatbot/${chatbotId}/workflow/test`, {
+        method: "POST",
+        headers: {
+          ...h,
+          ...(userTokenForTest ? { userToken: userTokenForTest } : {}),
+        },
+        body: JSON.stringify({
+          url: action.url,
+          method: action.method,
+          authType: action.authType,
+          authValue: action.authValue,
+          apiKeyHeader: action.apiKeyHeader,
+          body,
+          userToken: userTokenForTest,
+        }),
+      });
+
+      const text = await res.text();
+      let proxyResult: { status?: number; ok?: boolean; responseBody?: string; error?: string } = {};
+      try { proxyResult = text ? JSON.parse(text) : {}; } catch { proxyResult = { error: text || "Invalid proxy response" }; }
+
+      setTestResult({
+        status: typeof proxyResult.status === "number" ? proxyResult.status : (res.ok ? 200 : null),
+        ok: Boolean(proxyResult.ok),
+        requestSent: body,
+        responseBody: proxyResult.responseBody ?? "",
+        durationMs: Date.now() - t0,
+        error: proxyResult.error || "",
+      });
     } catch (e) {
       setTestResult({ status: null, ok: false, requestSent: body, responseBody: "", durationMs: Date.now() - t0, error: e instanceof Error ? e.message : String(e) });
     }
@@ -669,7 +712,8 @@ export default function WorkflowPage() {
                   </div>
                 </div>
                 <p style={{ margin: "8px 0 0", fontSize: "11.5px", color: "#92400e" }}>
-                  The token is forwarded as-is to your action endpoint — use it however your backend expects (verify as JWT, look up session, etc.).
+                  The token can be forwarded in request body (<code style={{ background: "#fef3c7", padding: "1px 5px", borderRadius: 3 }}>{"{{userToken}}"}</code>)
+                  and now also in auth credentials (set Bearer/API key value to <code style={{ background: "#fef3c7", padding: "1px 5px", borderRadius: 3 }}>{"{{userToken}}"}</code>).
                 </p>
               </div>
             </div>
@@ -689,6 +733,7 @@ export default function WorkflowPage() {
               const paramVars = action.params.filter(p => p.name.trim()).map(p => `{{${p.name}}}`);
               const allVars = [...SYSTEM_VARS, ...paramVars];
               const sec = expandedSection[action.id] ?? "basic";
+              const authSource = authSourceByActionId[action.id] ?? (isUserTokenAuthValue(action.authValue || "") ? "userToken" : "static");
 
               return (
                 <div key={action.id} style={{ background: "#fff", borderRadius: "16px", border: "1px solid #e2e8f0", marginBottom: "12px", overflow: "hidden", boxShadow: "0 1px 6px rgba(15,23,42,0.05)" }}>
@@ -795,15 +840,84 @@ export default function WorkflowPage() {
                             <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "12px", alignItems: "start" }}>
                               <Row label="Auth Type">
                                 <select style={selectStyle} value={action.authType}
-                                  onChange={e => updateAction(action.id, "authType", e.target.value as AuthType)}>
+                                  onChange={e => {
+                                    const nextType = e.target.value as AuthType;
+                                    updateAction(action.id, "authType", nextType);
+                                    if (nextType === "none") {
+                                      updateAction(action.id, "authValue", "");
+                                      return;
+                                    }
+                                    // Default to userToken expression for bearer/apikey unless user already set static.
+                                    if ((nextType === "bearer" || nextType === "apikey") && (!action.authValue || action.authValue === "••••••")) {
+                                      setAuthSourceByActionId(prev => ({ ...prev, [action.id]: "userToken" }));
+                                      updateAction(action.id, "authValue", USER_TOKEN_EXPR);
+                                    }
+                                    if (nextType === "basic") {
+                                      setAuthSourceByActionId(prev => ({ ...prev, [action.id]: "static" }));
+                                    }
+                                  }}>
                                   <option value="none">None</option>
                                   <option value="bearer">Bearer Token</option>
-                                  <option value="apikey">API Key (Header)</option>
+                                  <option value="apikey">API Key Header</option>
                                   <option value="basic">Basic Auth</option>
                                 </select>
                               </Row>
                               {action.authType !== "none" && (
                                 <div>
+                                  {(action.authType === "bearer" || action.authType === "apikey") && (
+                                    <div style={{ marginBottom: "10px" }}>
+                                      <div style={{ fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "6px" }}>Credential Source</div>
+                                      <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "8px", padding: "3px", gap: "2px", width: "fit-content" }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setAuthSourceByActionId(prev => ({ ...prev, [action.id]: "userToken" }));
+                                            updateAction(action.id, "authValue", USER_TOKEN_EXPR);
+                                          }}
+                                          style={{
+                                            padding: "6px 12px",
+                                            borderRadius: "6px",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            fontWeight: 600,
+                                            background: authSource === "userToken" ? "#fff" : "transparent",
+                                            color: authSource === "userToken" ? "#2563eb" : "#64748b",
+                                            boxShadow: authSource === "userToken" ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                                          }}
+                                        >
+                                          Use Chat User Token
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setAuthSourceByActionId(prev => ({ ...prev, [action.id]: "static" }));
+                                            if (isUserTokenAuthValue(action.authValue || "")) {
+                                              updateAction(action.id, "authValue", "");
+                                            }
+                                          }}
+                                          style={{
+                                            padding: "6px 12px",
+                                            borderRadius: "6px",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            fontWeight: 600,
+                                            background: authSource === "static" ? "#fff" : "transparent",
+                                            color: authSource === "static" ? "#2563eb" : "#64748b",
+                                            boxShadow: authSource === "static" ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                                          }}
+                                        >
+                                          Use Static Credential
+                                        </button>
+                                      </div>
+                                      {authSource === "userToken" && (
+                                        <div style={{ marginTop: "8px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "8px 10px", fontSize: "12px", color: "#1d4ed8" }}>
+                                          Per-user auth mode enabled. Credential expression: <code style={{ background: "#dbeafe", padding: "1px 5px", borderRadius: 4 }}>{USER_TOKEN_EXPR}</code>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   {action.authType === "apikey" && (
                                     <Row label="Header Name">
                                       <input style={inputStyle} value={action.apiKeyHeader} placeholder="X-API-Key"
@@ -811,10 +925,48 @@ export default function WorkflowPage() {
                                     </Row>
                                   )}
                                   <Row label={action.authType === "bearer" ? "Bearer Token" : action.authType === "basic" ? "Base64 Credentials (user:pass)" : "API Key Value"}>
-                                    <input style={inputStyle} type="password" value={action.authValue}
-                                      placeholder={action.authType === "bearer" ? "eyJ..." : "••••••••"}
-                                      onChange={e => updateAction(action.id, "authValue", e.target.value)} />
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                      <input
+                                        style={inputStyle}
+                                        type={
+                                          authSource === "userToken"
+                                            ? "text"
+                                            : (showAuthValueByActionId[action.id] ? "text" : "password")
+                                        }
+                                        value={action.authValue}
+                                        readOnly={(action.authType === "bearer" || action.authType === "apikey") && authSource === "userToken"}
+                                        placeholder={action.authType === "bearer" ? "{{userToken}} or static token" : "••••••••"}
+                                        onChange={e => updateAction(action.id, "authValue", e.target.value)}
+                                      />
+                                      {authSource !== "userToken" && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setShowAuthValueByActionId(prev => ({ ...prev, [action.id]: !prev[action.id] }))
+                                          }
+                                          style={{
+                                            border: "1.5px solid #e2e8f0",
+                                            background: "#fff",
+                                            borderRadius: "9px",
+                                            height: "38px",
+                                            minWidth: "38px",
+                                            cursor: "pointer",
+                                            color: "#64748b",
+                                            fontSize: "14px",
+                                          }}
+                                          title={showAuthValueByActionId[action.id] ? "Hide credential" : "Show credential"}
+                                          aria-label={showAuthValueByActionId[action.id] ? "Hide credential" : "Show credential"}
+                                        >
+                                          {showAuthValueByActionId[action.id] ? "🙈" : "👁️"}
+                                        </button>
+                                      )}
+                                    </div>
                                   </Row>
+                                  {(action.authType === "bearer" || action.authType === "apikey") && authSource === "static" && (
+                                    <div style={{ marginTop: "-4px", fontSize: "11px", color: "#94a3b8" }}>
+                                      Static mode: one shared credential for all users.
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
