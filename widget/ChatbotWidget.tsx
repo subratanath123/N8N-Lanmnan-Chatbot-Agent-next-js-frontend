@@ -1625,9 +1625,9 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
       {/* Google OAuth Status */}
       
       <div style={{
-        padding: '14px 18px',
-        borderTop: '1px solid rgba(148, 163, 184, 0.25)',
-        backgroundColor: '#f1f5f9',
+        padding: '12px',
+        borderTop: '1px solid #e5e7eb',
+        backgroundColor: '#ffffff',
       }}>
         {isChatbotDisabled ? (
           <div style={{
@@ -1732,17 +1732,17 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
 
         <form onSubmit={sendMessage} style={{
           display: 'flex',
-          gap: '12px',
-          alignItems: 'flex-end'
+          gap: '8px',
+          alignItems: 'center',
         }}>
           {/* Attachment Button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             style={{
-              padding: '12px',
+              padding: '8px',
               backgroundColor: 'white',
-              border: '1px solid #e9ecef',
+              border: '1px solid #e5e7eb',
               borderRadius: '12px',
               cursor: 'pointer',
               color: '#6c757d',
@@ -1751,8 +1751,9 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              minWidth: '44px',
-              height: '44px'
+              minWidth: '36px',
+              height: '36px',
+              flexShrink: 0,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = '#f8f9fa';
@@ -1768,7 +1769,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
             📎
           </button>
 
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
             <input
               ref={inputRef}
               type="text"
@@ -1785,14 +1786,13 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
               autoComplete="off"
               style={{
                 width: '100%',
-                padding: '12px 14px',
-                border: '1px solid #e9ecef',
-                borderRadius: '16px',
+                boxSizing: 'border-box',
+                padding: '8px 12px',
+                border: '1px solid #e5e7eb',
+                borderRadius: '20px',
                 fontSize: '14px',
                 backgroundColor: 'white',
                 outline: 'none',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                transition: 'all 0.2s ease',
                 fontFamily: '"Poppins", sans-serif',
               }}
             />
@@ -1801,15 +1801,15 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
           <button
             type="submit"
             disabled={isLoading || (!inputValue.trim() && attachments.length === 0)}
+            title="Send"
             aria-label="Send message"
             style={{
               width: '36px',
               height: '36px',
               minWidth: '36px',
               flexShrink: 0,
-              background: isLoading || (!inputValue.trim() && attachments.length === 0)
-                ? 'transparent'
-                : widgetTheme.userBackground,
+              /* Always show filled circle like chatbot details Live Preview (never transparent) */
+              backgroundColor: widgetTheme.userBackground,
               color: widgetTheme.userText,
               border: 'none',
               borderRadius: '50%',
@@ -1822,7 +1822,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ config, onClose, startOpe
               transition: 'opacity 0.2s ease',
             }}
           >
-            {/* Paper plane — matches Live Preview (MDB paper-plane) */}
+            {/* Paper plane — matches Live Preview */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"

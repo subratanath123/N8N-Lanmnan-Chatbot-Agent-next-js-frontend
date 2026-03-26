@@ -120,6 +120,15 @@ interface Chatbot {
     canConfigure?: boolean;
 }
 
+/** Same as embedded widget header (`widget/ChatbotWidget.tsx`): show `name` first, then `title`. */
+function widgetHeaderLabel(data: Pick<Chatbot, 'name' | 'title'> | null | undefined): string {
+    const n = data?.name?.trim();
+    if (n) return n;
+    const t = data?.title?.trim();
+    if (t) return t;
+    return 'Chatbot';
+}
+
 export default function ChatbotDetailPage() {
     const params = useParams();
     const router = useRouter();
@@ -3150,7 +3159,7 @@ export default function ChatbotDetailPage() {
                                             })()
                                         )}
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: '700', fontSize: '16px' }}>{(isEditing ? editedChatbot?.title : chatbot?.title) || 'Chatbot'}</div>
+                                            <div style={{ fontWeight: '700', fontSize: '16px' }}>{widgetHeaderLabel(isEditing ? editedChatbot : chatbot)}</div>
                                         </div>
                                     </div>
                                     {/* Chat Messages */}

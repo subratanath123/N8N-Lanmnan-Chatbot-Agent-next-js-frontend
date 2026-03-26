@@ -1283,7 +1283,7 @@ export default function ChatbotCreationForm({ onCancel, onSubmit }: ChatbotCreat
                         {/* Header — same pattern as embedded widget: logo = aiAvatar or initial */}
                         <div style={{
                             backgroundColor: formData.headerBackground,
-                            color: formData.headerText,
+                            color: formData.name,
                             padding: '16px',
                             display: 'flex',
                             alignItems: 'center',
